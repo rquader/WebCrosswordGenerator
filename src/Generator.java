@@ -329,7 +329,7 @@ public class Generator {
 			if (allowReverseWords && !placementFound && !reverseBlacklist.contains(w)) {
 				String reversed = new StringBuilder(w).reverse().toString();
 				words.add(0, reversed);
-				clues.add(clue);
+				clues.add(0, clue);
 				reverseBlacklist.add(reversed);
 				reversedWordsMap.put(reversed, w);
 			}

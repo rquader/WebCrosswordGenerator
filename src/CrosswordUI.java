@@ -57,6 +57,9 @@ public class CrosswordUI extends JFrame {
 
     private final JComboBox<String> categoryPicker = new JComboBox<String>(categories);
     
+    private int random = -1;
+    
+    private int seed = 0;
 
     /**
      * Constructor for the CrosswordUI.
@@ -370,15 +373,18 @@ public class CrosswordUI extends JFrame {
     	ArrayList<String> clueList = dp.getCluesByLength(selectedUnit, w);
 
     	// Seed to Generator
-        int seed = 0;
-        
         try {
     		seed = Integer.parseInt(seedField.getText());
+    		if (seed == random) {
+    			seed = (int) (Math.random() * 1000);
+        		seedField.setText("" + seed);
+        		random = seed;
+    		}
     	} catch(Exception e) {
     		seed = (int) (Math.random() * 1000);
-            seedField.setText("" + seed);
+    		seedField.setText("" + seed);
+    		random = seed;
     	}
-        
         System.out.println(wordList);
         System.out.println(clueList);
         
@@ -419,7 +425,7 @@ public class CrosswordUI extends JFrame {
 
     /**
      * Launches the crossword generator UI
-     * @author Rafan Quader
+     * @author Anthony Phanh
      * @param args
      */
     public static void main(String[] args) {
