@@ -19,7 +19,4 @@ public class SimplePoint extends Point {
 		super(x, y);
 	}
 	
-	public boolean equals(Object E) {
-		return false;
-	}
 }
