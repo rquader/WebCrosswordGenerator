@@ -368,9 +368,10 @@ public class CrosswordUI extends JFrame {
     	System.out.println(selectedUnit);
     	
     	// Get only words that fit width
-    	ArrayList<String> wordList = dp.getTermsByLength(selectedUnit, w);
-    	
-    	ArrayList<String> clueList = dp.getCluesByLength(selectedUnit, w);
+    	int maxDim = Math.max(w, h);
+    	ArrayList<String> wordList = dp.getTermsByLength(selectedUnit, maxDim);
+
+    	ArrayList<String> clueList = dp.getCluesByLength(selectedUnit, maxDim);
 
     	// Seed to Generator
         try {
@@ -396,29 +397,24 @@ public class CrosswordUI extends JFrame {
 
     	verticalWords = new ArrayList<String>();
 
-    	HashMap<SimplePoint, DirectionalWord> wordIndex = g.getWordLocations();
+    	ArrayList<DirectionalWord> wordIndex = g.getWordLocations();
 
-    	DirectionalWord d;
-    	
-    	
     	System.out.println(wordIndex);
-    	wordIndex.forEach((point, word) -> {
-    		
+    	for (DirectionalWord word : wordIndex) {
     		String reversed = "";
-    		
+
     		if (word.isReversed()) {
     			reversed = "r-";
     		}
-    		
+
+    		String position = "(" + word.getX() + "," + word.getY() + ")";
     		if (word.isHorizontal()) {
     			System.out.println("horizontal!" + word.getWord());
-    			String pointWord = (("" + point).substring(11));
-    			horizontalWords.add(reversed + word.getWord() + " at " + pointWord + " Clue: " + word.getClue());
+    			horizontalWords.add(reversed + word.getWord() + " at " + position + " Clue: " + word.getClue());
     		} else {
-    			String pointWord = ("" + point).substring(11);
-    			verticalWords.add(reversed + word.getWord() + " at " + pointWord + " Clue: " + word.getClue());
+    			verticalWords.add(reversed + word.getWord() + " at " + position + " Clue: " + word.getClue());
     		}
-    	});
+    	}
 
     }
 

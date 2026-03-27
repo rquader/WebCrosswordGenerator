@@ -33,7 +33,7 @@ public class Generator {
 	private Random random;
 	private ArrayList<String> reverseBlacklist;
 	private boolean allowReverseWords;
-    private HashMap<SimplePoint, DirectionalWord> wordLocations;
+    private ArrayList<DirectionalWord> wordLocations;
     private HashMap<String, String> reversedWordsMap;
     private boolean debug;
     String first;
@@ -58,7 +58,7 @@ public class Generator {
 		this.random = new Random(seed);
 		this.allowReverseWords = allowReverseWords;
 		this.reverseBlacklist = new ArrayList<String>();
-		this.wordLocations = new HashMap<SimplePoint, DirectionalWord>();
+		this.wordLocations = new ArrayList<DirectionalWord>();
 		this.reversedWordsMap = new HashMap<String, String>();
 		this.debug = debug;
 		
@@ -84,11 +84,11 @@ public class Generator {
 	}
 	
     /**
-     * Returns a map of word starting locations to word objects.
+     * Returns the list of all placed words with their positions and directions.
      * @author Armaan Saini
-     * @return Mapping from coordinates to DirectionalWords
+     * @return List of placed DirectionalWords
      */
-	public HashMap<SimplePoint, DirectionalWord> getWordLocations() {
+	public ArrayList<DirectionalWord> getWordLocations() {
 		return wordLocations;
 	}
 	
@@ -97,7 +97,7 @@ public class Generator {
      * @author Armaan Saini
 	 */
 	private boolean checkFitsInRow(int x1, int y1, int length) {		
-		if (x1 + length > width || y1 > height) {
+		if (x1 + length > width || y1 >= height) {
 			return false;
 		}
 		
@@ -109,7 +109,7 @@ public class Generator {
      * @author Armaan Saini
 	 */
 	private boolean checkFitsInColumn(int x1, int y1, int length) {
-		if (x1 > width || y1 + length > height) {
+		if (x1 >= width || y1 + length > height) {
 			return false;
 		}
 		
@@ -173,7 +173,7 @@ public class Generator {
 			isReversed = false;
 		}
 		
-		wordLocations.put(new SimplePoint(x1, y1), new DirectionalWord(actualWord, horizontal, isReversed, clue));
+		wordLocations.add(new DirectionalWord(actualWord, horizontal, isReversed, clue, x1, y1));
 	}
 	
 
@@ -305,7 +305,12 @@ public class Generator {
 
 		first = words.remove(0);
 		String firstClue = clues.remove(0);
-		placeWord(first, firstClue, 0, 0, true);
+		boolean firstHorizontal = first.length() <= width;
+		placeWord(first, firstClue, 0, 0, firstHorizontal);
+
+		// Track how many words placed in each direction so far
+		int horizontalCount = firstHorizontal ? 1 : 0;
+		int verticalCount   = firstHorizontal ? 0 : 1;
 
 		while (!words.isEmpty()) {
 			String w = words.remove(0);
@@ -315,12 +320,62 @@ public class Generator {
 
 			while (!locations.isEmpty()) {
 				Intersection loc = locations.remove(0);
-				boolean checkRowFirst = random.nextBoolean();
 
-				if (checkRowFirst) {
-					placementFound = checkRow(w, clue, loc) || checkColumn(w, clue, loc);
+				// Pick which direction to try first for this intersection.
+				// Uses the seeded random so results are reproducible.
+				boolean tryHorizontalFirst;
+				boolean forceDirection = false;
+
+				int gap = horizontalCount - verticalCount;
+
+				if (horizontalCount == 0) {
+					// No horizontal words yet — force horizontal, no fallback
+					tryHorizontalFirst = true;
+					forceDirection = true;
+				} else if (verticalCount == 0) {
+					// No vertical words yet — force vertical, no fallback
+					tryHorizontalFirst = false;
+					forceDirection = true;
+				} else if (gap <= -3) {
+					// 3+ more verticals than horizontals — force horizontal, no fallback
+					tryHorizontalFirst = true;
+					forceDirection = true;
+				} else if (gap >= 3) {
+					// 3+ more horizontals than verticals — force vertical, no fallback
+					tryHorizontalFirst = false;
+					forceDirection = true;
+				} else if (horizontalCount < 2) {
+					// Only 1 horizontal — always try horizontal first, but allow fallback
+					tryHorizontalFirst = true;
+				} else if (verticalCount < 2) {
+					// Only 1 vertical — always try vertical first, but allow fallback
+					tryHorizontalFirst = false;
+				} else if (horizontalCount <= verticalCount) {
+					// Fewer horizontals — 2-in-3 chance to try horizontal first
+					tryHorizontalFirst = random.nextInt(3) < 2;
 				} else {
-					placementFound = checkColumn(w, clue, loc) || checkRow(w, clue, loc);
+					// Fewer verticals — 1-in-3 chance horizontal (i.e. 2-in-3 vertical)
+					tryHorizontalFirst = random.nextInt(3) < 1;
+				}
+
+				// When forced, only try the required direction (skip fallback).
+				// Otherwise try preferred direction first, fall back to the other.
+				if (tryHorizontalFirst) {
+					if (checkRow(w, clue, loc)) {
+						horizontalCount++;
+						placementFound = true;
+					} else if (!forceDirection && checkColumn(w, clue, loc)) {
+						verticalCount++;
+						placementFound = true;
+					}
+				} else {
+					if (checkColumn(w, clue, loc)) {
+						verticalCount++;
+						placementFound = true;
+					} else if (!forceDirection && checkRow(w, clue, loc)) {
+						horizontalCount++;
+						placementFound = true;
+					}
 				}
 
 				if (placementFound) break;
