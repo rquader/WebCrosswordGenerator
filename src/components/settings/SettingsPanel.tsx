@@ -3,15 +3,16 @@
  *
  * Contains:
  * - Puzzle mode toggle (crossword / word search)
- * - Grid width/height sliders (2-10)
- * - Category dropdown (all preset packs)
+ * - Quick size presets (Small / Medium / Large)
+ * - Grid width/height sliders (2-15)
+ * - Category dropdown with word count + fit estimate
  * - Optional seed input for reproducible puzzles
- * - Word search direction settings (when in word search mode)
+ * - Word search direction settings (diagonal, reversed, reversedDiagonal)
  * - Generate button
  */
 
-import { useState, useEffect } from 'react';
-import { presetCategories } from '../../logic/database';
+import { useState, useEffect, useMemo } from 'react';
+import { presetCategories, getCategoryById } from '../../logic/database';
 import type { PuzzleMode, WordSearchDirectionSettings } from '../../logic/types';
 import { DEFAULT_WORD_SEARCH_DIRECTIONS } from '../../logic/wordSearchGenerator';
 
@@ -38,6 +39,11 @@ function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
 }
 
+/** Divider line between major sections. */
+function Divider() {
+  return <div className="h-px bg-stone-200 dark:bg-stone-700/50" />;
+}
+
 export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = true, customEntryCount = 0 }: SettingsPanelProps) {
   // Load saved settings from localStorage
   const saved = loadSavedSettings();
@@ -51,12 +57,32 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
   const [wsDirections, setWsDirections] = useState<WordSearchDirectionSettings>({
     ...DEFAULT_WORD_SEARCH_DIRECTIONS,
     ...saved.wsDirections,
+    // Always force horizontal and vertical on
+    horizontal: true,
+    vertical: true,
   });
 
   // Persist settings on change
   useEffect(() => {
     saveSettings({ width, height, categoryId, allowReverse, puzzleMode, wsDirections });
   }, [width, height, categoryId, allowReverse, puzzleMode, wsDirections]);
+
+  // Estimate how many words from the selected category fit in the current grid
+  const fittingWordCount = useMemo(() => {
+    if (!showCategoryPicker) return null;
+    const category = getCategoryById(categoryId);
+    if (!category) return null;
+    const maxDim = Math.max(width, height);
+    const fitting = category.entries.filter(e => e.word.length <= maxDim);
+    return fitting.length;
+  }, [categoryId, width, height, showCategoryPicker]);
+
+  // Total words in the selected category
+  const totalWordCount = useMemo(() => {
+    if (!showCategoryPicker) return null;
+    const category = getCategoryById(categoryId);
+    return category ? category.entries.length : null;
+  }, [categoryId, showCategoryPicker]);
 
   function handleGenerate() {
     let seed: number;
@@ -92,8 +118,20 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
     }
   }
 
-  function toggleDirection(key: keyof WordSearchDirectionSettings) {
-    setWsDirections(prev => ({ ...prev, [key]: !prev[key] }));
+  /** Only diagonal, reversed, and reversedDiagonal are toggleable. */
+  function toggleDirection(key: 'diagonal' | 'reversed' | 'reversedDiagonal') {
+    setWsDirections(prev => ({
+      ...prev,
+      [key]: !prev[key],
+      // Always keep horizontal and vertical on
+      horizontal: true,
+      vertical: true,
+    }));
+  }
+
+  function applyQuickSize(w: number, h: number) {
+    setWidth(w);
+    setHeight(h);
   }
 
   return (
@@ -134,11 +172,44 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
           </div>
         </div>
 
-        {/* Grid Size */}
-        <div className="grid grid-cols-2 gap-4">
-          <SliderField label="Width" value={width} min={2} max={15} onChange={setWidth} />
-          <SliderField label="Height" value={height} min={2} max={15} onChange={setHeight} />
+        <Divider />
+
+        {/* Grid Size — Quick Presets */}
+        <div>
+          <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
+            Grid Size
+          </label>
+          <div className="flex gap-2 mb-3">
+            {[
+              { label: 'Small 5\u00d75', w: 5, h: 5 },
+              { label: 'Medium 8\u00d78', w: 8, h: 8 },
+              { label: 'Large 12\u00d712', w: 12, h: 12 },
+            ].map(({ label, w, h }) => {
+              const isActive = width === w && height === h;
+              return (
+                <button
+                  key={label}
+                  onClick={() => applyQuickSize(w, h)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-150
+                    ${isActive
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-stone-100 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/60'
+                    }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Grid Size Sliders */}
+          <div className="grid grid-cols-2 gap-4">
+            <SliderField label="Width" value={width} min={2} max={15} onChange={setWidth} />
+            <SliderField label="Height" value={height} min={2} max={15} onChange={setHeight} />
+          </div>
         </div>
+
+        <Divider />
 
         {/* Category (only for preset mode) */}
         {showCategoryPicker ? (
@@ -157,13 +228,18 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
             >
               {presetCategories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
-                  {cat.name}
+                  {cat.name} ({cat.entries.length} words)
                 </option>
               ))}
             </select>
             <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
               {presetCategories.find(c => c.id === categoryId)?.description}
             </p>
+            {fittingWordCount !== null && totalWordCount !== null && (
+              <p className="mt-1 text-xs text-primary-600 dark:text-primary-400">
+                ~{fittingWordCount} of {totalWordCount} words fit in {width}&times;{height} grid
+              </p>
+            )}
           </div>
         ) : (
           <div className="rounded-lg bg-stone-50 dark:bg-stone-800/40 p-3">
@@ -178,19 +254,9 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
           </div>
         )}
 
-        {/* Word Search Direction Settings — same style as "Allow reversed words" */}
+        {/* Word Search Direction Settings — only toggleable: diagonal, reversed, reversedDiagonal */}
         {puzzleMode === 'wordsearch' && (
           <div className="space-y-2.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={wsDirections.horizontal} onChange={() => toggleDirection('horizontal')}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-stone-600 dark:text-stone-400">Horizontal</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={wsDirections.vertical} onChange={() => toggleDirection('vertical')}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-stone-600 dark:text-stone-400">Vertical</span>
-            </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={wsDirections.diagonal} onChange={() => toggleDirection('diagonal')}
                 className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
@@ -280,6 +346,8 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
           </label>
         )}
 
+        <Divider />
+
         {/* Generate Button */}
         <button
           onClick={handleGenerate}
@@ -288,6 +356,7 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
                      bg-gradient-to-r from-primary-600 to-primary-700
                      hover:from-primary-700 hover:to-primary-800
                      active:from-primary-800 active:to-primary-900
+                     active:scale-[0.97]
                      text-white shadow-md btn-lift
                      disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all duration-200

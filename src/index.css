@@ -131,11 +131,15 @@
   /* Card with warm shadow and depth */
   .warm-card {
     @apply bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200/80 dark:border-stone-700/40 transition-colors duration-300;
-    box-shadow: 0 1px 3px 0 rgba(30,25,18,0.05), 0 1px 2px -1px rgba(30,25,18,0.04);
+    box-shadow:
+      0 1px 3px 0 rgba(30,25,18,0.06),
+      0 4px 12px -4px rgba(30,25,18,0.08);
   }
 
   .dark .warm-card {
-    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.18), 0 1px 2px -1px rgba(0,0,0,0.12);
+    box-shadow:
+      0 1px 3px 0 rgba(0,0,0,0.22),
+      0 4px 12px -4px rgba(0,0,0,0.18);
   }
 
   /* Button lift effect on hover */
@@ -146,6 +150,7 @@
   .btn-lift:hover {
     transform: translateY(-1px);
     box-shadow: 0 3px 10px -2px rgba(30,25,18,0.1);
+    filter: brightness(1.04);
   }
 
   .dark .btn-lift:hover {
@@ -275,6 +280,67 @@
 
   input[type="checkbox"]:hover {
     border-color: theme('colors.primary.400');
+  }
+
+  /* Cell shake animation (incorrect letter feedback) */
+  @keyframes cellShake {
+    0%   { transform: translateX(0); }
+    15%  { transform: translateX(-4px); }
+    30%  { transform: translateX(4px); }
+    45%  { transform: translateX(-4px); }
+    60%  { transform: translateX(4px); }
+    80%  { transform: translateX(-2px); }
+    100% { transform: translateX(0); }
+  }
+
+  .cell-shake {
+    animation: cellShake 0.3s ease-out;
+  }
+
+  /* Floating grid container */
+  .grid-float {
+    box-shadow: 0 8px 30px -6px rgba(30,25,18,0.12);
+  }
+
+  .dark .grid-float {
+    box-shadow: 0 8px 30px -6px rgba(0,0,0,0.35);
+  }
+
+  /* Input focus inset shadow */
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  textarea:focus {
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* Fillable grid cell cursor */
+  .cell-fillable {
+    cursor: text;
+  }
+
+  /* Progress bar gradient */
+  .progress-gradient {
+    background: linear-gradient(90deg, theme('colors.primary.500'), theme('colors.primary.400'));
+  }
+
+  .dark .progress-gradient {
+    background: linear-gradient(90deg, theme('colors.primary.600'), theme('colors.primary.400'));
+  }
+
+  /* Timer blinking colon */
+  @keyframes timerBlink {
+    0%   { opacity: 1; }
+    50%  { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  .timer-blink {
+    animation: timerBlink 1s step-end infinite;
+  }
+
+  /* Press feedback */
+  .press-feedback:active {
+    transform: scale(0.97);
   }
 
   /* Custom select styling */

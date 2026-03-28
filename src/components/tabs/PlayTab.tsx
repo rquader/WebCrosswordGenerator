@@ -6,7 +6,7 @@
  * - Word search mode: finding words by selecting start/end cells
  */
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { PlayableGrid } from '../grid/PlayableGrid';
 import { WordSearchGrid } from '../grid/WordSearchGrid';
@@ -19,10 +19,10 @@ interface PlayTabProps {
   puzzleMode: PuzzleMode;
 }
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+function formatTime(seconds: number): { mins: string; secs: string } {
+  const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const secs = String(seconds % 60).padStart(2, '0');
+  return { mins, secs };
 }
 
 export function PlayTab({ puzzle, puzzleMode }: PlayTabProps) {
@@ -35,6 +35,28 @@ export function PlayTab({ puzzle, puzzleMode }: PlayTabProps) {
 function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   const state = usePuzzleState(puzzle);
   const highlighted = state.highlightedCells();
+  const [shakingCells, setShakingCells] = useState<Set<string>>(new Set());
+
+  const handleCheck = useCallback(() => {
+    state.checkPuzzle();
+    // After checkPuzzle runs, checkedCells will update on next render.
+    // We read from the puzzle directly to find incorrect cells.
+    const incorrect = new Set<string>();
+    for (let y = 0; y < puzzle.height; y++) {
+      for (let x = 0; x < puzzle.width; x++) {
+        if (puzzle.grid[y][x] === '-') continue;
+        const userLetter = state.userGrid[y]?.[x] ?? '';
+        if (userLetter === '') continue;
+        if (userLetter.toLowerCase() !== puzzle.grid[y][x].toLowerCase()) {
+          incorrect.add(x + ',' + y);
+        }
+      }
+    }
+    if (incorrect.size > 0) {
+      setShakingCells(incorrect);
+      setTimeout(() => setShakingCells(new Set()), 300);
+    }
+  }, [state.checkPuzzle, state.userGrid, puzzle]);
 
   const { acrossClues, downClues } = useMemo(() => {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
@@ -115,7 +137,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               Puzzle Complete!
             </p>
             <p className="text-primary-600 dark:text-primary-400 text-sm mt-1.5">
-              Solved in {formatTime(state.elapsedSeconds)}
+              Solved in {formatTime(state.elapsedSeconds).mins}:{formatTime(state.elapsedSeconds).secs}
               {state.hintsUsed > 0 && (
                 <span className="text-stone-400 dark:text-stone-500 ml-2">
                   ({state.hintsUsed} hint{state.hintsUsed !== 1 ? 's' : ''} used)
@@ -134,7 +156,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-lg font-semibold text-stone-700 dark:text-stone-300 tabular-nums">
-                  {formatTime(state.elapsedSeconds)}
+                  <span>{formatTime(state.elapsedSeconds).mins}</span>
+                  <span className={state.isTimerRunning ? 'animate-timer-blink' : ''}>:</span>
+                  <span>{formatTime(state.elapsedSeconds).secs}</span>
                 </span>
                 {state.isTimerRunning && (
                   <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
@@ -149,7 +173,8 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
                   />
                 </div>
                 <span className="text-xs text-stone-400 dark:text-stone-500 font-mono tabular-nums">
-                  {state.filledCount}/{state.totalCount}
+                  {state.filledCount}/{state.totalCount}{' '}
+                  {Math.round((state.filledCount / state.totalCount) * 100)}%
                 </span>
               </div>
             </div>
@@ -172,7 +197,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
                 Hint
               </button>
               <button
-                onClick={state.checkPuzzle}
+                onClick={handleCheck}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-medium
                            border border-stone-300 dark:border-stone-600
                            text-stone-600 dark:text-stone-400
@@ -242,6 +267,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               checkedCells={state.checkedCells}
               revealedCells={state.revealedCells}
               highlightedCells={highlighted}
+              shakingCells={shakingCells}
               onCellClick={state.selectCell}
               onLetterInput={state.enterLetter}
               onDelete={state.deleteLetter}
@@ -320,7 +346,7 @@ function PlayClueList({ title, clues, activeNumber, onClueClick }: PlayClueListP
                 className={`
                   flex gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-150
                   ${isActive
-                    ? 'bg-primary-50 dark:bg-primary-d/40 border border-primary-200 dark:border-primary-800/40 shadow-sm'
+                    ? 'bg-primary-50 dark:bg-primary-d/40 border-l-[3px] border-l-primary-500 border-y border-r border-y-primary-200 border-r-primary-200 dark:border-y-primary-800/40 dark:border-r-primary-800/40'
                     : 'hover:bg-stone-50 dark:hover:bg-surface-dark-hover border border-transparent'
                   }
                 `}

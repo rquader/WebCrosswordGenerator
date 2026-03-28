@@ -342,49 +342,77 @@ function WordList({ words, foundWords, lastFoundWord }: {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-        {words.map((wl) => {
-          const isFound = foundSet.has(wl.word);
-          const fw = foundMap.get(wl.word);
-          const color = fw ? WORD_COLORS[fw.colorIndex] : null;
-          const isJustFound = lastFoundWord === wl.word;
+      <div className="space-y-3">
+        {groupWordsByDirection(words).map(({ label, items }) => (
+          <div key={label}>
+            <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5">{label}</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {items.map((wl) => {
+                const isFound = foundSet.has(wl.word);
+                const fw = foundMap.get(wl.word);
+                const color = fw ? WORD_COLORS[fw.colorIndex] : null;
+                const isJustFound = lastFoundWord === wl.word;
 
-          return (
-            <div
-              key={wl.word + wl.x + wl.y}
-              className={`
-                flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200
-                ${isFound ? 'opacity-75' : 'opacity-100'}
-                ${isJustFound ? 'animate-word-found' : ''}
-              `}
-            >
-              {/* Color dot */}
-              <div
-                className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200 ${
-                  isFound ? '' : 'bg-stone-300 dark:bg-stone-600'
-                }`}
-                style={isFound && color ? { backgroundColor: color.text } : undefined}
-              />
-              {/* Word */}
-              <span className={`text-sm font-medium uppercase tracking-wide ${
-                isFound
-                  ? 'line-through text-stone-400 dark:text-stone-500'
-                  : 'text-stone-700 dark:text-stone-300'
-              }`}>
-                {wl.word}
-              </span>
-              {/* Clue */}
-              <span className={`text-xs truncate ${
-                isFound ? 'text-stone-300 dark:text-stone-600' : 'text-stone-400 dark:text-stone-500'
-              }`}>
-                {wl.clue}
-              </span>
+                return (
+                  <div
+                    key={wl.word + wl.x + wl.y}
+                    className={`
+                      flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200
+                      ${isFound ? 'opacity-75' : 'opacity-100'}
+                      ${isJustFound ? 'animate-word-found' : ''}
+                    `}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200 ${
+                        isFound ? '' : 'bg-stone-300 dark:bg-stone-600'
+                      }`}
+                      style={isFound && color ? { backgroundColor: color.text } : undefined}
+                    />
+                    <span className={`text-sm font-medium uppercase tracking-wide ${
+                      isFound
+                        ? 'line-through text-stone-400 dark:text-stone-500'
+                        : 'text-stone-700 dark:text-stone-300'
+                    }`}>
+                      {wl.word}
+                    </span>
+                    <span className={`text-xs truncate ${
+                      isFound ? 'text-stone-300 dark:text-stone-600' : 'text-stone-400 dark:text-stone-500'
+                    }`}>
+                      {wl.clue}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
+}
+
+/**
+ * Group words by their placement direction for display.
+ */
+function getDirectionLabel(wl: DirectionalWord): string {
+  if (wl.isHorizontal && !wl.isReversed) return 'Across';
+  if (wl.isHorizontal && wl.isReversed) return 'Reversed Across';
+  if (!wl.isHorizontal && !wl.isReversed) return 'Down';
+  return 'Diagonal';
+}
+
+function groupWordsByDirection(words: DirectionalWord[]): { label: string; items: DirectionalWord[] }[] {
+  const groups = new Map<string, DirectionalWord[]>();
+  for (const wl of words) {
+    const label = getDirectionLabel(wl);
+    const existing = groups.get(label);
+    if (existing) {
+      existing.push(wl);
+    } else {
+      groups.set(label, [wl]);
+    }
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
 /**

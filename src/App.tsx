@@ -59,6 +59,13 @@ export function App() {
           </div>
         )}
       </main>
+
+      <footer className="border-t border-stone-200/40 dark:border-stone-700/20 py-4 mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-stone-400 dark:text-stone-500">
+          <span>CrosswordGen Puzzle Studio</span>
+          <span>v2.2 &middot; 100% offline</span>
+        </div>
+      </footer>
     </div>
   );
 }

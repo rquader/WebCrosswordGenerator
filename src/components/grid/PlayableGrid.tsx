@@ -27,6 +27,7 @@ interface PlayableGridProps {
   checkedCells: Map<string, 'correct' | 'incorrect'>;
   revealedCells: Set<string>;
   highlightedCells: Set<string>;
+  shakingCells?: Set<string>;
   onCellClick: (x: number, y: number) => void;
   onLetterInput: (letter: string) => void;
   onDelete: () => void;
@@ -45,6 +46,7 @@ export function PlayableGrid({
   checkedCells,
   revealedCells,
   highlightedCells,
+  shakingCells,
   onCellClick,
   onLetterInput,
   onDelete,
@@ -152,6 +154,7 @@ export function PlayableGrid({
               const isRevealed = revealedCells.has(key);
               const userLetter = userGrid[y]?.[x] ?? '';
               const isPopping = poppedCell === key;
+              const isShaking = shakingCells?.has(key) ?? false;
 
               let ariaLabel: string;
               if (isEmpty) {
@@ -203,11 +206,12 @@ export function PlayableGrid({
                   className={`
                     relative w-10 h-10 sm:w-12 sm:h-12
                     border border-grid-border dark:border-grid-border-dark
-                    flex items-center justify-center cursor-pointer select-none
+                    flex items-center justify-center ${isEmpty ? 'cursor-default' : 'cursor-text'} select-none
                     transition-colors duration-75
                     ${bgClass}
                     ${!isEmpty && !isSelected ? 'hover:bg-primary-50/60 dark:hover:bg-primary-950/15' : ''}
                     ${isPopping ? 'animate-cell-pop' : ''}
+                    ${isShaking ? 'animate-cell-shake' : ''}
                   `}
                   style={isSelected ? {
                     boxShadow: '0 0 0 2px rgba(82,88,228,0.35)',
