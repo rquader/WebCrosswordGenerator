@@ -18,15 +18,15 @@ const STORAGE_KEY = 'crossword-theme';
  * Detect the user's OS-level color scheme preference.
  */
 function getSystemTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (typeof window === 'undefined') return 'dark';
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 /**
  * Read the saved theme from localStorage, or fall back to system preference.
  */
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
+  if (typeof window === 'undefined') return 'dark';
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved === 'dark' || saved === 'light') {
     return saved;

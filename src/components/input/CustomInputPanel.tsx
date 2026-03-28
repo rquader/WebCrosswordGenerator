@@ -86,7 +86,7 @@ export function CustomInputPanel({ onEntriesReady }: CustomInputPanelProps) {
   const errorCount = parseResult?.errors.length ?? 0;
 
   return (
-    <div className="bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-5 shadow-card">
+    <div className="warm-card p-5">
       <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
         Custom Words
       </h2>

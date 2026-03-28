@@ -3,31 +3,48 @@
  *
  * Unlike the crossword generator, word search:
  * - Does NOT require character intersections
- * - Places words in any direction (horizontal, vertical, diagonal)
+ * - Places words in configurable directions (horizontal, vertical, diagonal, reversed)
  * - Fills empty cells with random letters
  * - All words can overlap if they share the same letter at the same position
  *
  * Uses the same seeded PRNG for reproducibility.
  */
 
-import type { DirectionalWord, CrosswordResult } from './types';
+import type { DirectionalWord, CrosswordResult, WordSearchDirectionSettings } from './types';
 import { SeededRandom } from './seedRandom';
 
 const EMPTY_CELL = '-';
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
 
-// Direction vectors: [dx, dy]
-// Horizontal, vertical, and diagonal (both forward and backward)
-const DIRECTIONS: [number, number][] = [
-  [1, 0],   // right
-  [0, 1],   // down
-  [1, 1],   // diagonal down-right
-  [-1, 1],  // diagonal down-left
-  [-1, 0],  // left
-  [0, -1],  // up
-  [-1, -1], // diagonal up-left
-  [1, -1],  // diagonal up-right
+/** Named direction with its vector */
+interface DirectionEntry {
+  name: string;
+  dx: number;
+  dy: number;
+}
+
+/**
+ * All 8 possible directions, tagged by category for filtering.
+ */
+const ALL_DIRECTIONS: { entry: DirectionEntry; setting: keyof WordSearchDirectionSettings }[] = [
+  { entry: { name: 'right',           dx:  1, dy:  0 }, setting: 'horizontal' },
+  { entry: { name: 'down',            dx:  0, dy:  1 }, setting: 'vertical' },
+  { entry: { name: 'down-right',      dx:  1, dy:  1 }, setting: 'diagonal' },
+  { entry: { name: 'down-left',       dx: -1, dy:  1 }, setting: 'diagonal' },
+  { entry: { name: 'left',            dx: -1, dy:  0 }, setting: 'reversed' },
+  { entry: { name: 'up',              dx:  0, dy: -1 }, setting: 'reversed' },
+  { entry: { name: 'up-left',         dx: -1, dy: -1 }, setting: 'reversedDiagonal' },
+  { entry: { name: 'up-right',        dx:  1, dy: -1 }, setting: 'reversedDiagonal' },
 ];
+
+/** Default settings: horizontal + vertical only (simplest) */
+export const DEFAULT_WORD_SEARCH_DIRECTIONS: WordSearchDirectionSettings = {
+  horizontal: true,
+  vertical: true,
+  diagonal: false,
+  reversed: false,
+  reversedDiagonal: false,
+};
 
 export interface WordSearchConfig {
   width: number;
@@ -35,6 +52,20 @@ export interface WordSearchConfig {
   seed: number;
   words: string[];
   clues: string[];
+  directions?: WordSearchDirectionSettings;
+}
+
+/**
+ * Build the list of allowed direction vectors from settings.
+ */
+function getActiveDirections(settings: WordSearchDirectionSettings): DirectionEntry[] {
+  const active: DirectionEntry[] = [];
+  for (const { entry, setting } of ALL_DIRECTIONS) {
+    if (settings[setting]) {
+      active.push(entry);
+    }
+  }
+  return active;
 }
 
 /**
@@ -43,7 +74,19 @@ export interface WordSearchConfig {
  */
 export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
   const { width, height, seed, words, clues } = config;
+  const dirSettings = config.directions ?? DEFAULT_WORD_SEARCH_DIRECTIONS;
   const random = new SeededRandom(seed);
+
+  // Get allowed directions from settings
+  const directions = getActiveDirections(dirSettings);
+
+  // Fallback: if no directions enabled, use horizontal + vertical
+  if (directions.length === 0) {
+    directions.push(
+      { name: 'right', dx: 1, dy: 0 },
+      { name: 'down',  dx: 0, dy: 1 },
+    );
+  }
 
   // Initialize empty grid
   const grid: string[][] = [];
@@ -67,10 +110,7 @@ export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
 
   // Try to place each word
   for (const pair of pairs) {
-    const placed = tryPlaceWord(grid, pair.word, pair.clue, width, height, random, wordLocations);
-    if (!placed) {
-      // Word didn't fit — skip it (this is expected for large words on small grids)
-    }
+    tryPlaceWord(grid, pair.word, pair.clue, width, height, random, wordLocations, directions);
   }
 
   // Fill remaining empty cells with random letters
@@ -87,8 +127,7 @@ export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
 }
 
 /**
- * Try to place a word on the grid in a random direction.
- * Attempts all 8 directions at random starting positions.
+ * Try to place a word on the grid in a random allowed direction.
  * Returns true if successfully placed.
  */
 function tryPlaceWord(
@@ -98,15 +137,15 @@ function tryPlaceWord(
   width: number,
   height: number,
   random: SeededRandom,
-  wordLocations: DirectionalWord[]
+  wordLocations: DirectionalWord[],
+  directions: DirectionEntry[]
 ): boolean {
   // Shuffle direction order for variety
-  const directionOrder = [0, 1, 2, 3, 4, 5, 6, 7];
-  random.shuffle(directionOrder);
+  const dirIndices = directions.map((_, i) => i);
+  random.shuffle(dirIndices);
 
-  // Try each direction
-  for (const dirIndex of directionOrder) {
-    const [dx, dy] = DIRECTIONS[dirIndex];
+  for (const dirIdx of dirIndices) {
+    const { dx, dy } = directions[dirIdx];
 
     // Collect all valid starting positions for this direction + word length
     const validPositions: [number, number][] = [];
@@ -129,15 +168,15 @@ function tryPlaceWord(
       grid[startY + i * dy][startX + i * dx] = word[i];
     }
 
-    // Determine if this is horizontal for the DirectionalWord type
-    // (word search has more directions, but we map to horizontal/vertical for clue display)
+    // Determine direction type for clue display
     const isHorizontal = dy === 0;
+    const isReversed = dx < 0 || (dx === 0 && dy < 0);
 
     wordLocations.push({
-      word: word,
-      isHorizontal: isHorizontal,
-      isReversed: dx < 0 || (dx === 0 && dy < 0),
-      clue: clue,
+      word,
+      isHorizontal,
+      isReversed,
+      clue,
       x: startX,
       y: startY,
     });
@@ -150,9 +189,6 @@ function tryPlaceWord(
 
 /**
  * Check if a word can be placed at (x, y) going in direction (dx, dy).
- * A word can be placed if:
- * - Every cell is within bounds
- * - Every cell is either empty or already contains the matching letter
  */
 function canPlaceAt(
   grid: string[][],
@@ -168,12 +204,10 @@ function canPlaceAt(
     const cx = x + i * dx;
     const cy = y + i * dy;
 
-    // Bounds check
     if (cx < 0 || cx >= width || cy < 0 || cy >= height) {
       return false;
     }
 
-    // Cell must be empty or already have the correct letter
     const existing = grid[cy][cx];
     if (existing !== EMPTY_CELL && existing !== word[i]) {
       return false;

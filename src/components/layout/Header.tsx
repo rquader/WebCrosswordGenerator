@@ -1,5 +1,5 @@
 /**
- * App header with logo, title, and theme toggle.
+ * App header — distinctive branding, subtle depth, warm palette.
  */
 
 interface HeaderProps {
@@ -9,47 +9,67 @@ interface HeaderProps {
 
 export function Header({ isDark, onToggleTheme }: HeaderProps) {
   return (
-    <header className="border-b border-stone-200 dark:border-stone-700/50 bg-white/80 dark:bg-surface-dark/80 backdrop-blur-sm sticky top-0 z-50">
+    <header className="border-b border-stone-200/50 dark:border-stone-700/25 bg-white/85 dark:bg-surface-dark/85 backdrop-blur-md sticky top-0 z-50 transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Logo + Title */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-sm">C</span>
+        <div className="flex items-center gap-3">
+          {/* Gradient logo mark */}
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden glow-teal">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-500 via-primary-600 to-primary-800" />
+            {/* Crossword grid pattern in the logo */}
+            <svg viewBox="0 0 36 36" className="relative z-10 w-5 h-5" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+              <rect x="13" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
+              <rect x="24" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+              <rect x="2" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
+              <rect x="13" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+              <rect x="24" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
+              <rect x="2" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+              <rect x="13" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
+              <rect x="24" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+            </svg>
           </div>
-          <h1 className="text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-            Crossword Generator
-          </h1>
+          <div>
+            <h1 className="text-base font-bold tracking-tight text-stone-900 dark:text-stone-100 leading-none">
+              CrosswordGen
+            </h1>
+            <p className="text-[10px] tracking-widest uppercase text-stone-400 dark:text-stone-500 mt-0.5">
+              Puzzle Studio
+            </p>
+          </div>
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Privacy badge */}
-          <span className="hidden sm:inline-flex items-center gap-1 text-xs text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 px-2 py-1 rounded-full">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-            100% Local
-          </span>
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/40 px-2.5 py-1.5 rounded-full border border-stone-200/50 dark:border-stone-700/30">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+            <span>Offline-ready</span>
+          </div>
 
-          {/* Theme toggle */}
+          {/* Theme toggle — animated sun/moon */}
           <button
             onClick={onToggleTheme}
-            className="relative w-9 h-9 rounded-lg flex items-center justify-center
+            className="relative w-9 h-9 rounded-xl flex items-center justify-center
                        text-stone-500 dark:text-stone-400
-                       hover:bg-stone-100 dark:hover:bg-stone-800
-                       transition-colors duration-150"
+                       hover:bg-stone-100 dark:hover:bg-surface-dark-hover
+                       hover:text-stone-700 dark:hover:text-stone-300
+                       active:scale-90
+                       transition-all duration-200"
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {isDark ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-              </svg>
-            )}
+            <div className="transition-transform duration-300" style={{ transform: isDark ? 'rotate(0deg)' : 'rotate(180deg)' }}>
+              {isDark ? (
+                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                </svg>
+              ) : (
+                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                </svg>
+              )}
+            </div>
           </button>
         </div>
       </div>

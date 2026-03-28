@@ -1,8 +1,6 @@
 /**
- * Tab navigation bar for switching between app sections.
- *
- * Each tab has an icon + label. The active tab gets a colored underline
- * and highlighted text. Smooth transition on tab switch.
+ * Tab navigation bar with sliding indicator.
+ * Warm tones, smooth transitions, ArabicDialectMap-inspired micro-interactions.
  */
 
 export type TabId = 'generate' | 'play' | 'export' | 'help';
@@ -19,7 +17,6 @@ interface TabBarProps {
   hasPuzzle: boolean;
 }
 
-// Tab icons as inline SVGs for zero dependencies
 const tabs: Tab[] = [
   {
     id: 'generate',
@@ -61,12 +58,11 @@ const tabs: Tab[] = [
 
 export function TabBar({ activeTab, onTabChange, hasPuzzle }: TabBarProps) {
   return (
-    <nav className="border-b border-stone-200 dark:border-stone-700/50 bg-white dark:bg-surface-dark">
+    <nav className="border-b border-stone-200/60 dark:border-stone-700/30 bg-white/90 dark:bg-surface-dark/90 backdrop-blur-sm transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex gap-1" role="tablist" aria-label="Application sections">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
-            // Disable Play and Export tabs if no puzzle has been generated yet
             const isDisabled = !hasPuzzle && (tab.id === 'play' || tab.id === 'export');
 
             return (
@@ -78,20 +74,19 @@ export function TabBar({ activeTab, onTabChange, hasPuzzle }: TabBarProps) {
                 aria-controls={`tabpanel-${tab.id}`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => {
-                  if (!isDisabled) {
-                    onTabChange(tab.id);
-                  }
+                  if (!isDisabled) onTabChange(tab.id);
                 }}
                 disabled={isDisabled}
                 className={`
                   relative flex items-center gap-1.5 px-3 py-3 text-sm font-medium
-                  transition-colors duration-150 border-b-2 -mb-px
+                  transition-all duration-200 border-b-2 -mb-px
                   ${isActive
                     ? 'text-primary-700 dark:text-primary-400 border-primary-600 dark:border-primary-400'
                     : isDisabled
                       ? 'text-stone-300 dark:text-stone-600 border-transparent cursor-not-allowed'
                       : 'text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600'
                   }
+                  ${!isDisabled && !isActive ? 'active:scale-95' : ''}
                 `}
                 title={isDisabled ? 'Generate a puzzle first' : tab.label}
               >

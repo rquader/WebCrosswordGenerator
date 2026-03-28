@@ -34,7 +34,7 @@ interface ClueListProps {
 
 function ClueList({ title, clues }: ClueListProps) {
   return (
-    <div className="bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-4 shadow-card">
+    <div className="warm-card p-4">
       <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-3 uppercase tracking-wider">
         {title}
       </h3>

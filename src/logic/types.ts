@@ -70,3 +70,20 @@ export interface GeneratorConfig {
   allowReverseWords: boolean;
   debug?: boolean;
 }
+
+/**
+ * Direction settings for word search puzzles.
+ * Controls which placement directions are allowed.
+ */
+export interface WordSearchDirectionSettings {
+  horizontal: boolean;      // left-to-right
+  vertical: boolean;        // top-to-bottom
+  diagonal: boolean;        // down-right, down-left
+  reversed: boolean;        // right-to-left, bottom-to-top
+  reversedDiagonal: boolean; // up-left, up-right
+}
+
+/**
+ * Puzzle type — crossword or word search.
+ */
+export type PuzzleMode = 'crossword' | 'wordsearch';

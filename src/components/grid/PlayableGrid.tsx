@@ -4,10 +4,11 @@
  * Features:
  * - Click cells to select, click again to toggle direction
  * - Type letters to fill cells (auto-advances)
- * - Backspace to delete and retreat
- * - Arrow keys for navigation
+ * - Cell-pop animation on letter entry
+ * - Warm color palette with teal glow on selection
+ * - Arrow key navigation, backspace delete
  * - Highlighted word (current across/down word)
- * - Visual feedback for checked cells (green/red)
+ * - Visual feedback for checked cells (blue/orange, not red/green for accessibility)
  * - Revealed cells shown in a distinct color
  */
 
@@ -51,6 +52,7 @@ export function PlayableGrid({
 }: PlayableGridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [poppedCell, setPoppedCell] = useState<string | null>(null);
 
   // Cell numbering
   const numberMap = useMemo(() => {
@@ -78,6 +80,16 @@ export function PlayableGrid({
       e.preventDefault();
       onLetterInput(e.key);
       setAnnouncement(`Entered ${e.key.toUpperCase()}`);
+      // Trigger cell-pop animation
+      setPoppedCell(cellKey(selectedCell.x, selectedCell.y));
+      setTimeout(() => setPoppedCell(null), 200);
+      return;
+    }
+
+    // Spacebar toggles direction
+    if (e.key === ' ') {
+      e.preventDefault();
+      onCellClick(selectedCell.x, selectedCell.y);
       return;
     }
 
@@ -103,24 +115,27 @@ export function PlayableGrid({
         e.preventDefault();
         onMove('right');
         break;
+      case 'Escape':
+        e.preventDefault();
+        // Deselect handled by parent via click outside
+        break;
       case 'Tab':
-        // Tab could cycle through clues — for now just prevent default
         e.preventDefault();
         break;
     }
-  }, [selectedCell, onLetterInput, onDelete, onMove]);
+  }, [selectedCell, onLetterInput, onDelete, onMove, onCellClick]);
 
   return (
     <div
       ref={gridRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="inline-block outline-none"
+      className="inline-block outline-none relative noise-texture rounded-lg"
       aria-label="Crossword puzzle grid"
     >
       <div
         role="grid"
-        className="grid gap-0 border-2 border-stone-800 dark:border-stone-300 rounded-sm"
+        className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
         style={{
           gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
         }}
@@ -136,8 +151,8 @@ export function PlayableGrid({
               const checkStatus = checkedCells.get(key);
               const isRevealed = revealedCells.has(key);
               const userLetter = userGrid[y]?.[x] ?? '';
+              const isPopping = poppedCell === key;
 
-              // Build accessible label
               let ariaLabel: string;
               if (isEmpty) {
                 ariaLabel = 'Blocked cell';
@@ -151,32 +166,27 @@ export function PlayableGrid({
                 } else {
                   ariaLabel += ', empty';
                 }
-                if (checkStatus === 'correct') {
-                  ariaLabel += ', correct';
-                } else if (checkStatus === 'incorrect') {
-                  ariaLabel += ', incorrect';
-                }
-                if (isRevealed) {
-                  ariaLabel += ', revealed';
-                }
+                if (checkStatus === 'correct') ariaLabel += ', correct';
+                else if (checkStatus === 'incorrect') ariaLabel += ', incorrect';
+                if (isRevealed) ariaLabel += ', revealed';
               }
 
-              // Determine cell background
-              let bgClass = 'bg-white dark:bg-grid-cell-dark';
+              // Cell background
+              let bgClass = 'bg-grid-cell dark:bg-grid-cell-dark';
               if (isEmpty) {
-                bgClass = 'bg-stone-800 dark:bg-stone-900';
+                bgClass = 'bg-grid-blocked dark:bg-grid-blocked-dark';
               } else if (isSelected) {
-                bgClass = 'bg-primary-200 dark:bg-primary-800/60';
+                bgClass = 'bg-primary-200/80 dark:bg-primary-800/40';
               } else if (isHighlighted) {
-                bgClass = 'bg-primary-50 dark:bg-primary-950/30';
+                bgClass = 'bg-primary-50 dark:bg-primary-950/20';
               }
 
-              // Text color based on check status
+              // Text color — blue/orange for check (color-blind safe)
               let textClass = 'text-stone-900 dark:text-stone-100';
               if (checkStatus === 'correct') {
-                textClass = 'text-green-600 dark:text-green-400';
+                textClass = 'text-blue-600 dark:text-blue-400';
               } else if (checkStatus === 'incorrect') {
-                textClass = 'text-red-600 dark:text-red-400';
+                textClass = 'text-orange-600 dark:text-orange-400';
               } else if (isRevealed) {
                 textClass = 'text-primary-600 dark:text-primary-400';
               }
@@ -188,33 +198,34 @@ export function PlayableGrid({
                   aria-label={ariaLabel}
                   aria-selected={isSelected}
                   onClick={() => {
-                    if (!isEmpty) {
-                      onCellClick(x, y);
-                    }
+                    if (!isEmpty) onCellClick(x, y);
                   }}
                   className={`
-                    relative w-10 h-10 sm:w-12 sm:h-12 border border-stone-300 dark:border-stone-600
+                    relative w-10 h-10 sm:w-12 sm:h-12
+                    border border-grid-border dark:border-grid-border-dark
                     flex items-center justify-center cursor-pointer select-none
                     transition-colors duration-75
                     ${bgClass}
-                    ${!isEmpty && !isSelected ? 'hover:bg-primary-50/50 dark:hover:bg-primary-950/20' : ''}
+                    ${!isEmpty && !isSelected ? 'hover:bg-primary-50/60 dark:hover:bg-primary-950/15' : ''}
+                    ${isPopping ? 'animate-cell-pop' : ''}
                   `}
+                  style={isSelected ? {
+                    boxShadow: '0 0 0 2px rgba(9,148,112,0.35)',
+                  } : undefined}
                 >
-                  {/* Cell number */}
                   {cellNumber !== undefined && (
-                    <span className="absolute top-0.5 left-0.5 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
+                    <span className="absolute top-0.5 left-1 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
                       {cellNumber}
                     </span>
                   )}
 
-                  {/* User's letter */}
                   {!isEmpty && userLetter && (
                     <span className={`text-sm sm:text-base font-semibold uppercase ${textClass}`}>
                       {userLetter}
                     </span>
                   )}
 
-                  {/* Selection direction indicator */}
+                  {/* Direction indicator */}
                   {isSelected && (
                     <div className={`absolute ${isAcross ? 'bottom-0 left-0 right-0 h-0.5' : 'top-0 bottom-0 right-0 w-0.5'} bg-primary-500`} />
                   )}

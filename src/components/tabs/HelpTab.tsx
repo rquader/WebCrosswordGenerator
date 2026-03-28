@@ -70,7 +70,7 @@ export function HelpTab() {
         <SectionTitle number={2} title="Play the Puzzle" />
         <div className="ml-10 space-y-4">
           {/* Interactive keyboard guide */}
-          <div className="bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-5">
+          <div className="warm-card p-5">
             <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200 mb-3">Keyboard Controls</h4>
             <div className="grid grid-cols-2 gap-3">
               <KeyboardHint keys={['A', '-', 'Z']} label="Type a letter into the selected cell" />
@@ -195,7 +195,7 @@ function SectionTitle({ number, title }: { number: number; title: string }) {
 
 function StepCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="flex gap-3 bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-4">
+    <div className="flex gap-3 warm-card p-4">
       <div className="text-primary-500 flex-shrink-0 mt-0.5">{icon}</div>
       <div>
         <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200 mb-1">{title}</h4>
@@ -207,7 +207,7 @@ function StepCard({ icon, title, description }: { icon: React.ReactNode; title: 
 
 function ExportCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="flex gap-3 bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-4">
+    <div className="flex gap-3 warm-card p-4">
       <div className="text-stone-400 dark:text-stone-500 flex-shrink-0">{icon}</div>
       <div>
         <h4 className="text-sm font-medium text-stone-700 dark:text-stone-300">{title}</h4>
@@ -283,7 +283,7 @@ method,A function in a class`,
   }
 
   return (
-    <div className="bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 overflow-hidden">
+    <div className="warm-card overflow-hidden">
       <div className="px-4 pt-4 pb-3">
         <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200 mb-3">Supported File Formats</h4>
 

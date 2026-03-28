@@ -10,7 +10,7 @@
  * can never accidentally skip the length filter.
  */
 
-import type { CrosswordResult, WordCluePair } from './types';
+import type { CrosswordResult, WordCluePair, WordSearchDirectionSettings } from './types';
 import { generateCrossword } from './generator';
 import { generateWordSearch } from './wordSearchGenerator';
 import { prepareForGenerator } from './databaseProcessor';
@@ -25,6 +25,7 @@ export interface PuzzleOptions {
   height: number;
   seed: number;
   allowReverseWords?: boolean;
+  wordSearchDirections?: WordSearchDirectionSettings;
 }
 
 /**
@@ -36,6 +37,7 @@ export interface CustomPuzzleOptions {
   height: number;
   seed: number;
   allowReverseWords?: boolean;
+  wordSearchDirections?: WordSearchDirectionSettings;
 }
 
 /**
@@ -103,6 +105,7 @@ export function createWordSearchFromPreset(options: PuzzleOptions): CrosswordRes
     seed: options.seed,
     words: words,
     clues: clues,
+    directions: options.wordSearchDirections,
   });
 }
 
@@ -119,5 +122,6 @@ export function createWordSearchFromCustom(options: CustomPuzzleOptions): Crossw
     seed: options.seed,
     words: words,
     clues: clues,
+    directions: options.wordSearchDirections,
   });
 }

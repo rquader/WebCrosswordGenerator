@@ -1,11 +1,11 @@
 /**
- * Crossword grid display component.
+ * Crossword grid display component (read-only, for Generate + Export tabs).
  *
- * Renders the puzzle grid with:
- * - Filled cells showing letters (in answer mode) or empty (in play mode)
- * - Blocked cells (dark squares) for empty positions
- * - Cell numbers for word starts (standard crossword numbering)
- * - Responsive sizing that adapts to container width
+ * Features:
+ * - Staggered cell reveal animation on generation
+ * - Warm color palette with noise texture
+ * - Cell numbers for word starts
+ * - Responsive sizing
  */
 
 import { useMemo } from 'react';
@@ -17,16 +17,13 @@ interface CrosswordGridProps {
   showAnswers: boolean;
 }
 
-// The empty cell marker from the generator
 const EMPTY_CELL = '-';
 
 export function CrosswordGrid({ puzzle, showAnswers }: CrosswordGridProps) {
-  // Compute cell numbers using the numbering utility
   const { cells: numberedCells } = useMemo(() => {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   }, [puzzle]);
 
-  // Build a lookup map for cell numbers: "x,y" -> number
   const numberMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const cell of numberedCells) {
@@ -35,11 +32,13 @@ export function CrosswordGrid({ puzzle, showAnswers }: CrosswordGridProps) {
     return map;
   }, [numberedCells]);
 
+  const totalCells = puzzle.width * puzzle.height;
+
   return (
-    <div className="inline-block" aria-label="Crossword grid">
+    <div className="inline-block relative noise-texture rounded-lg" aria-label="Crossword grid">
       <div
         role="grid"
-        className="grid gap-0 border-2 border-stone-800 dark:border-stone-300 rounded-sm"
+        className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
         style={{
           gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
         }}
@@ -48,6 +47,9 @@ export function CrosswordGrid({ puzzle, showAnswers }: CrosswordGridProps) {
           row.map((cell, x) => {
             const isEmpty = cell === EMPTY_CELL;
             const cellNumber = numberMap.get(x + ',' + y);
+            const cellIndex = y * puzzle.width + x;
+            // Stagger: 30ms per cell, max 600ms total
+            const delay = Math.min(cellIndex * (600 / totalCells), 600);
 
             let ariaLabel: string;
             if (isEmpty) {
@@ -68,22 +70,23 @@ export function CrosswordGrid({ puzzle, showAnswers }: CrosswordGridProps) {
                 role="gridcell"
                 aria-label={ariaLabel}
                 className={`
-                  relative w-10 h-10 sm:w-12 sm:h-12 border border-stone-300 dark:border-stone-600
+                  relative w-10 h-10 sm:w-12 sm:h-12
+                  border border-grid-border dark:border-grid-border-dark
                   flex items-center justify-center
+                  grid-stagger
                   ${isEmpty
-                    ? 'bg-stone-800 dark:bg-stone-900'
-                    : 'bg-white dark:bg-grid-cell-dark'
+                    ? 'bg-grid-blocked dark:bg-grid-blocked-dark'
+                    : 'bg-grid-cell dark:bg-grid-cell-dark'
                   }
                 `}
+                style={{ animationDelay: `${delay}ms` }}
               >
-                {/* Cell number (top-left corner) */}
                 {cellNumber !== undefined && (
-                  <span className="absolute top-0.5 left-0.5 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
+                  <span className="absolute top-0.5 left-1 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
                     {cellNumber}
                   </span>
                 )}
 
-                {/* Letter */}
                 {!isEmpty && showAnswers && (
                   <span className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 uppercase select-none">
                     {cell}

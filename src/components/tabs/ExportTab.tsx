@@ -26,7 +26,7 @@ export function ExportTab({ puzzle }: ExportTabProps) {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Export options */}
-      <div className="bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200 dark:border-stone-700/50 p-5 shadow-card">
+      <div className="warm-card p-5">
         <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
           Export Options
         </h2>
@@ -131,7 +131,7 @@ function ExportButton({ icon, label, description, onClick }: ExportButtonProps) 
       className="flex flex-col items-center gap-2 p-4 rounded-xl border border-stone-200 dark:border-stone-700
                  hover:border-primary-300 dark:hover:border-primary-700
                  hover:bg-primary-50/50 dark:hover:bg-primary-950/20
-                 transition-all duration-150 text-center group"
+                 transition-all duration-150 text-center group btn-lift"
     >
       <div className="text-stone-400 dark:text-stone-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
         {icon}
