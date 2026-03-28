@@ -178,44 +178,34 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
           </div>
         )}
 
-        {/* Word Search Direction Settings */}
+        {/* Word Search Direction Settings — same style as "Allow reversed words" */}
         {puzzleMode === 'wordsearch' && (
-          <div>
-            <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
-              Directions
+          <div className="space-y-2.5">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={wsDirections.horizontal} onChange={() => toggleDirection('horizontal')}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
+              <span className="text-sm text-stone-600 dark:text-stone-400">Horizontal</span>
             </label>
-            <div className="space-y-2">
-              <DirectionToggle
-                label="Horizontal"
-                sublabel="left to right"
-                checked={wsDirections.horizontal}
-                onChange={() => toggleDirection('horizontal')}
-              />
-              <DirectionToggle
-                label="Vertical"
-                sublabel="top to bottom"
-                checked={wsDirections.vertical}
-                onChange={() => toggleDirection('vertical')}
-              />
-              <DirectionToggle
-                label="Diagonal"
-                sublabel="down-right, down-left"
-                checked={wsDirections.diagonal}
-                onChange={() => toggleDirection('diagonal')}
-              />
-              <DirectionToggle
-                label="Reversed"
-                sublabel="right to left, bottom to top"
-                checked={wsDirections.reversed}
-                onChange={() => toggleDirection('reversed')}
-              />
-              <DirectionToggle
-                label="Reversed Diagonal"
-                sublabel="up-right, up-left"
-                checked={wsDirections.reversedDiagonal}
-                onChange={() => toggleDirection('reversedDiagonal')}
-              />
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={wsDirections.vertical} onChange={() => toggleDirection('vertical')}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
+              <span className="text-sm text-stone-600 dark:text-stone-400">Vertical</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={wsDirections.diagonal} onChange={() => toggleDirection('diagonal')}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
+              <span className="text-sm text-stone-600 dark:text-stone-400">Allow diagonals</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={wsDirections.reversed} onChange={() => toggleDirection('reversed')}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
+              <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed words</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={wsDirections.reversedDiagonal} onChange={() => toggleDirection('reversedDiagonal')}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
+              <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed diagonals</span>
+            </label>
           </div>
         )}
 
@@ -294,46 +284,34 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
         <button
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="w-full py-2.5 rounded-lg font-medium text-sm
-                     bg-primary-600 hover:bg-primary-700 active:bg-primary-800
-                     text-white shadow-sm btn-lift
+          className="w-full py-3 rounded-xl font-semibold text-sm
+                     bg-gradient-to-r from-primary-600 to-primary-700
+                     hover:from-primary-700 hover:to-primary-800
+                     active:from-primary-800 active:to-primary-900
+                     text-white shadow-md btn-lift
                      disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all duration-150"
+                     transition-all duration-200
+                     flex items-center justify-center gap-2"
         >
-          {isGenerating ? 'Generating...' : puzzleMode === 'wordsearch' ? 'Generate Word Search' : 'Generate Crossword'}
+          {isGenerating ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Generating...
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+              Generate
+            </>
+          )}
         </button>
       </div>
     </div>
-  );
-}
-
-/**
- * Toggle for a word search direction setting.
- */
-function DirectionToggle({ label, sublabel, checked, onChange }: {
-  label: string;
-  sublabel: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="w-4 h-4 rounded border-stone-300 dark:border-stone-600
-                   text-primary-600 focus:ring-primary-500 transition-colors"
-      />
-      <div className="flex-1 min-w-0">
-        <span className="text-sm text-stone-700 dark:text-stone-300 group-hover:text-stone-900 dark:group-hover:text-stone-100 transition-colors">
-          {label}
-        </span>
-        <span className="text-xs text-stone-400 dark:text-stone-500 ml-1.5">
-          {sublabel}
-        </span>
-      </div>
-    </label>
   );
 }
 

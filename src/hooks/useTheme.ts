@@ -1,61 +1,51 @@
 /**
- * Theme hook — manages dark/light mode with system preference detection.
+ * Theme hook — manages light/dark/sepia mode with system preference detection.
  *
  * On first load, checks localStorage for a saved preference.
  * If none, falls back to the OS-level prefers-color-scheme.
- * Toggling saves the choice to localStorage for persistence.
+ * Cycling saves the choice to localStorage for persistence.
  *
  * All data stays local — no external calls.
  */
 
 import { useState, useEffect } from 'react';
 
-type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'sepia';
 
 const STORAGE_KEY = 'crossword-theme';
 
-/**
- * Detect the user's OS-level color scheme preference.
- */
 function getSystemTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
-/**
- * Read the saved theme from localStorage, or fall back to system preference.
- */
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved === 'dark' || saved === 'light') {
+  if (saved === 'dark' || saved === 'light' || saved === 'sepia') {
     return saved;
   }
   return getSystemTheme();
 }
 
-/**
- * Apply the theme class to the document root.
- */
 function applyTheme(theme: Theme): void {
   const root = document.documentElement;
+  root.classList.remove('dark', 'sepia');
   if (theme === 'dark') {
     root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
+  } else if (theme === 'sepia') {
+    root.classList.add('sepia');
   }
 }
 
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  // Apply theme on mount and when it changes
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
-  // Listen for OS-level theme changes (only when no saved preference)
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     function handleChange() {
@@ -68,9 +58,14 @@ export function useTheme() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  function toggleTheme() {
-    setTheme(current => current === 'dark' ? 'light' : 'dark');
+  // Cycle: dark -> light -> sepia -> dark
+  function cycleTheme() {
+    setTheme(current => {
+      if (current === 'dark') return 'light';
+      if (current === 'light') return 'sepia';
+      return 'dark';
+    });
   }
 
-  return { theme, toggleTheme, isDark: theme === 'dark' };
+  return { theme, cycleTheme, isDark: theme === 'dark', isSepia: theme === 'sepia' };
 }

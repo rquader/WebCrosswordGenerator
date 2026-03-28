@@ -8,55 +8,58 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary: deep teal — warm-shifted
+        // Primary: warm indigo / slate-blue — sophisticated, not "AI green"
         primary: {
-          50:  '#f0fdf9',
-          100: '#ccfbeb',
-          200: '#9af5d6',
-          300: '#5fe9bf',
-          400: '#2dd4a3',
-          500: '#14b88a',
-          600: '#099470',
-          700: '#0b775c',
-          800: '#0e5e4a',
-          900: '#104d3e',
-          950: '#032c24',
-          // Dark paired variant (ArabicDialectMap pattern)
-          'd': '#0c3328',
+          50:  '#f0f1fe',
+          100: '#dde0fc',
+          200: '#c3c7fa',
+          300: '#9ba2f5',
+          400: '#7078ee',
+          500: '#5258e4',
+          600: '#4340d6',
+          700: '#3934b8',
+          800: '#302d95',
+          900: '#2b2a76',
+          950: '#1a1945',
+          'd': '#1e1d3d',
         },
-        // Accent: warm amber / gold
+        // Accent: warm copper / terra cotta
         accent: {
-          50:  '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#fbbf24',
-          500: '#f59e0b',
-          600: '#d97706',
-          700: '#b45309',
-          800: '#92400e',
-          900: '#78350f',
-          950: '#451a03',
-          'd': '#38301c',
+          50:  '#fdf5ef',
+          100: '#fae8d8',
+          200: '#f4cdb0',
+          300: '#ecab7e',
+          400: '#e2824a',
+          500: '#da6628',
+          600: '#cc4f1e',
+          700: '#a93b1b',
+          800: '#87311d',
+          900: '#6e2a1b',
+          950: '#3b130c',
+          'd': '#3a1f14',
         },
         // Surface colors — warm tones, not clinical
         surface: {
-          light: '#faf7f2',       // warm paper
+          light: '#faf8f5',       // warm paper
           DEFAULT: '#f2ede6',
           dark: '#1c1a17',        // warm dark (ArabicDialectMap)
           'dark-alt': '#242220',  // elevated dark
           'dark-hover': '#2e2b28',
+          // Sepia mode
+          sepia: '#f4ead5',       // warm parchment
+          'sepia-alt': '#ebe0c9', // elevated sepia
+          'sepia-hover': '#e2d6bb',
         },
-        // Grid-specific colors — warm
+        // Grid-specific colors — warm neutrals
         grid: {
           cell: '#ffffff',
           'cell-dark': '#282522',
           blocked: '#1a1815',
           'blocked-dark': '#0f0e0c',
-          highlight: '#d1fae5',
-          'highlight-dark': '#0c3328',
-          active: '#a7f3d0',
-          'active-dark': '#0e4a3a',
+          highlight: '#e0e1fc',
+          'highlight-dark': '#1e1d3d',
+          active: '#c3c7fa',
+          'active-dark': '#2b2a5a',
           border: '#d4cfc8',
           'border-dark': '#3a3730',
         },
@@ -73,9 +76,9 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans Variable"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        display: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['"Plus Jakarta Sans Variable"', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         'grid': '2px',
@@ -84,7 +87,7 @@ export default {
         'card': '0 1px 3px 0 rgba(30,25,18,0.06), 0 1px 2px -1px rgba(30,25,18,0.06)',
         'card-hover': '0 4px 12px -2px rgba(30,25,18,0.1), 0 2px 4px -2px rgba(30,25,18,0.06)',
         'card-dark': '0 1px 3px 0 rgba(0,0,0,0.2), 0 1px 2px -1px rgba(0,0,0,0.15)',
-        'glow-teal': '0 0 0 2px rgba(9,148,112,0.3)',
+        'glow-teal': '0 0 0 2px rgba(82,88,228,0.3)',
         'glow-amber': '0 0 0 2px rgba(245,158,11,0.3)',
         'grid-cell': 'inset 0 0 0 1px rgba(30,25,18,0.12)',
         'lift': '0 4px 12px -2px rgba(30,25,18,0.12)',
@@ -145,9 +148,9 @@ export default {
           '100%': { filter: 'brightness(1)', transform: 'scale(1)' },
         },
         completionPulse: {
-          '0%': { boxShadow: '0 0 0 0 rgba(9,148,112,0.4)' },
-          '70%': { boxShadow: '0 0 0 12px rgba(9,148,112,0)' },
-          '100%': { boxShadow: '0 0 0 0 rgba(9,148,112,0)' },
+          '0%': { boxShadow: '0 0 0 0 rgba(82,88,228,0.4)' },
+          '70%': { boxShadow: '0 0 0 12px rgba(82,88,228,0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(82,88,228,0)' },
         },
         bounceSm: {
           '0%': { transform: 'scale(1)' },

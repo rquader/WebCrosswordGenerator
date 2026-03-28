@@ -1,12 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-// Self-hosted Inter font — loaded from node_modules, zero external requests
-import '@fontsource/inter/300.css';
+// Self-hosted fonts — loaded from node_modules, zero external requests
+// @ts-ignore — fontsource CSS import
+import '@fontsource-variable/plus-jakarta-sans';
 import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
-import '@fontsource/inter/700.css';
 import './index.css';
 
 const rootElement = document.getElementById('root');

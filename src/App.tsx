@@ -19,7 +19,7 @@ import { HelpTab } from './components/tabs/HelpTab';
  * - Current puzzle state + mode (shared between tabs)
  */
 export function App() {
-  const { isDark, toggleTheme } = useTheme();
+  const { theme, cycleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabId>('generate');
   const [puzzle, setPuzzle] = useState<CrosswordResult | null>(null);
   const [puzzleMode, setPuzzleMode] = useState<PuzzleMode>('crossword');
@@ -27,13 +27,11 @@ export function App() {
   const handlePuzzleGenerated = useCallback((result: CrosswordResult, mode: PuzzleMode) => {
     setPuzzle(result);
     setPuzzleMode(mode);
-    // Auto-switch to Play tab after generation
-    setActiveTab('play');
   }, []);
 
   return (
     <div className="min-h-screen bg-surface-light dark:bg-surface-dark transition-colors duration-300">
-      <Header isDark={isDark} onToggleTheme={toggleTheme} />
+      <Header theme={theme} onCycleTheme={cycleTheme} />
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} hasPuzzle={puzzle !== null} />
 
       <main id="main-content" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">

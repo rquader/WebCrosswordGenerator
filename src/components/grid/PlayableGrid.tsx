@@ -210,7 +210,7 @@ export function PlayableGrid({
                     ${isPopping ? 'animate-cell-pop' : ''}
                   `}
                   style={isSelected ? {
-                    boxShadow: '0 0 0 2px rgba(9,148,112,0.35)',
+                    boxShadow: '0 0 0 2px rgba(82,88,228,0.35)',
                   } : undefined}
                 >
                   {cellNumber !== undefined && (

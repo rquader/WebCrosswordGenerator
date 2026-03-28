@@ -5,7 +5,7 @@
 /* Base styles */
 @layer base {
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans Variable', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -16,6 +16,69 @@
 
   .dark body {
     @apply bg-surface-dark text-stone-100;
+  }
+
+  /* Sepia mode — warm parchment tones */
+  .sepia body {
+    background-color: #f4ead5;
+    color: #3d3526;
+  }
+
+  .sepia .warm-card {
+    background-color: #faf3e0;
+    border-color: rgba(139, 119, 82, 0.2);
+  }
+
+  .sepia .bg-white {
+    background-color: #faf3e0 !important;
+  }
+
+  .sepia .bg-surface-light {
+    background-color: #f4ead5 !important;
+  }
+
+  .sepia .bg-stone-100 {
+    background-color: #ebe0c9 !important;
+  }
+
+  .sepia .text-stone-900 {
+    color: #3d3526 !important;
+  }
+
+  .sepia .text-stone-700 {
+    color: #4a4030 !important;
+  }
+
+  .sepia .text-stone-600 {
+    color: #5c5040 !important;
+  }
+
+  .sepia .text-stone-500 {
+    color: #7a6b55 !important;
+  }
+
+  .sepia .text-stone-400 {
+    color: #9a8a70 !important;
+  }
+
+  .sepia .border-stone-200 {
+    border-color: rgba(139, 119, 82, 0.25) !important;
+  }
+
+  .sepia .border-stone-300 {
+    border-color: rgba(139, 119, 82, 0.3) !important;
+  }
+
+  .sepia .bg-grid-cell {
+    background-color: #fdf7ea !important;
+  }
+
+  .sepia .bg-grid-blocked {
+    background-color: #5c5040 !important;
+  }
+
+  .sepia .border-grid-border {
+    border-color: #c4b494 !important;
   }
 
   /* Custom focus-visible: amber accent ring */
@@ -115,11 +178,11 @@
 
   /* Subtle glow behind important elements */
   .glow-teal {
-    box-shadow: 0 0 20px -5px rgba(9,148,112,0.15);
+    box-shadow: 0 0 20px -5px rgba(82,88,228,0.18);
   }
 
   .dark .glow-teal {
-    box-shadow: 0 0 25px -5px rgba(9,148,112,0.12);
+    box-shadow: 0 0 25px -5px rgba(82,88,228,0.15);
   }
 
   /* Custom range slider styling */
