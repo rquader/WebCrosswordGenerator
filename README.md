@@ -2,6 +2,16 @@
 
 This project is a Vite + React + TypeScript web app for generating and playing crosswords and word searches entirely in the browser.
 
+## Authors
+
+- Rafan Quader
+- Armaan Saini
+
+## Acknowledgements
+
+This project is a TypeScript/React rewrite and significant expansion of an earlier project originally implemented in Java.  
+The original repository can be found here: https://github.com/s-armaan/CrosswordGenerator.
+
 ## Current Features
 
 - Wizard-based puzzle generation flow: `Source -> Parse -> Settings -> Review`
