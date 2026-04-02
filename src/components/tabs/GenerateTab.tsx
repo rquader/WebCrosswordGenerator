@@ -1,123 +1,297 @@
 /**
- * Generate tab — the main puzzle creation interface.
+ * Generate tab - the main puzzle creation interface.
  *
- * Layout: settings panel on the left (with toggle between preset/custom),
- * crossword grid + clues on the right.
- * On mobile, settings stack above the grid.
+ * Flow:
+ * 1. Edit entries in the primary table
+ * 2. Optionally import text or files into that table
+ * 3. Configure puzzle settings
+ * 4. Review the current table state and generate
  */
 
-import { useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { SettingsPanel } from '../settings/SettingsPanel';
-import type { GenerationSettings } from '../settings/SettingsPanel';
-import { CustomInputPanel } from '../input/CustomInputPanel';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
+import { createPuzzleFromEntries, createWordSearchFromEntries } from '../../logic/createPuzzle';
+import type { CrosswordResult, PuzzleMode } from '../../logic/types';
+import { filterByLength } from '../../logic/databaseProcessor';
+import { parseFile, normalizeWordInput } from '../../utils/fileParser';
+import { loadWizardState, saveWizardState, type WizardStep } from '../sources/wizardState';
+import { resolveFileUploadSource } from '../sources/fileUploadSource';
+import { resolveTextEntrySource } from '../sources/textEntrySource';
+import type { ImportedEntryRows } from '../sources/types';
 import {
-  createPuzzleFromPreset,
-  createPuzzleFromCustom,
-  createWordSearchFromPreset,
-  createWordSearchFromCustom,
-} from '../../logic/createPuzzle';
-import type { CrosswordResult, WordCluePair, PuzzleMode } from '../../logic/types';
-
-type InputMode = 'preset' | 'custom';
+  countInvalidOrEmptyRows,
+  createEmptyEntryRow,
+  createEntryRowsFromEntries,
+  getGenerationEntriesFromRows,
+  hasMeaningfulRows,
+} from '../entries/entryTable';
+import { EntryTableEditor } from '../entries/EntryTableEditor';
+import { TextImportView } from '../entries/TextImportView';
 
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
   onPuzzleGenerated: (result: CrosswordResult, mode: PuzzleMode) => void;
 }
 
+type ImportDecision = 'replace' | 'append';
+
+function randomSeed(): number {
+  return Math.floor(Math.random() * 10000);
+}
+
+const NAV_STEPS: { id: Exclude<WizardStep, 'text-import'>; label: string }[] = [
+  { id: 'table', label: 'Table' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'review', label: 'Review' },
+];
+
 export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   const [showAnswers, setShowAnswers] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<InputMode>('preset');
-  const [customEntries, setCustomEntries] = useState<WordCluePair[]>([]);
   const [gridKey, setGridKey] = useState(0);
+  const [wizard, setWizard] = useState(() => loadWizardState());
+  const [pendingImport, setPendingImport] = useState<ImportedEntryRows | null>(null);
+  const [isImportingFile, setIsImportingFile] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  function handleGenerate(settings: GenerationSettings) {
-    setIsGenerating(true);
+  useEffect(() => {
+    saveWizardState(wizard);
+  }, [wizard]);
 
-    setTimeout(() => {
-      let result: CrosswordResult;
-      const isCustom = inputMode === 'custom' && customEntries.length > 0;
-      const isWordSearch = settings.puzzleMode === 'wordsearch';
-      const baseOptions = {
-        width: settings.width,
-        height: settings.height,
-        seed: settings.seed,
-        allowReverseWords: settings.allowReverseWords,
-        wordSearchDirections: settings.wordSearchDirections,
+  const generationEntries = useMemo(() => {
+    return getGenerationEntriesFromRows(wizard.table.rows);
+  }, [wizard.table.rows]);
+
+  const eligibleEntries = useMemo(() => {
+    const maxDim = Math.max(wizard.settings.width, wizard.settings.height);
+    return filterByLength(generationEntries, maxDim);
+  }, [generationEntries, wizard.settings.width, wizard.settings.height]);
+
+  const invalidRowCount = useMemo(() => {
+    return countInvalidOrEmptyRows(wizard.table.rows);
+  }, [wizard.table.rows]);
+
+  const filteredOutCount = generationEntries.length - eligibleEntries.length;
+  const canGenerate = !isGenerating && eligibleEntries.length > 0;
+
+  function patchWizard(next: Partial<typeof wizard>) {
+    setWizard((prev) => ({ ...prev, ...next }));
+  }
+
+  function goToStep(step: Exclude<WizardStep, 'text-import'>) {
+    patchWizard({ currentStep: step });
+  }
+
+  function updateTableRows(updater: (rows: typeof wizard.table.rows) => typeof wizard.table.rows) {
+    setWizard((prev) => ({
+      ...prev,
+      table: {
+        ...prev.table,
+        rows: updater(prev.table.rows),
+      },
+    }));
+  }
+
+  function handleChangeRow(rowId: string, field: 'word' | 'clue', value: string) {
+    updateTableRows((rows) => rows.map((row) => {
+      if (row.id !== rowId) return row;
+      return {
+        ...row,
+        [field]: field === 'word' ? normalizeWordInput(value) : value,
       };
+    }));
+  }
 
-      if (isCustom && isWordSearch) {
-        result = createWordSearchFromCustom({ ...baseOptions, entries: customEntries });
-      } else if (isCustom) {
-        result = createPuzzleFromCustom({ ...baseOptions, entries: customEntries });
-      } else if (isWordSearch) {
-        result = createWordSearchFromPreset({ ...baseOptions, categoryId: settings.categoryId });
-      } else {
-        result = createPuzzleFromPreset({ ...baseOptions, categoryId: settings.categoryId });
-      }
+  function handleAddRow() {
+    updateTableRows((rows) => [...rows, createEmptyEntryRow()]);
+  }
 
-      onPuzzleGenerated(result, settings.puzzleMode);
+  function handleDeleteRow(rowId: string) {
+    updateTableRows((rows) => {
+      const nextRows = rows.filter((row) => row.id !== rowId);
+      return nextRows.length > 0 ? nextRows : [createEmptyEntryRow()];
+    });
+  }
+
+  function handleDismissWarnings() {
+    setWizard((prev) => ({
+      ...prev,
+      table: {
+        ...prev.table,
+        warnings: [],
+      },
+    }));
+  }
+
+  /**
+   * Imports do not bypass the table. They either replace or append rows,
+   * then the user returns to the table for final edits.
+   */
+  function applyImport(payload: ImportedEntryRows, decision: ImportDecision) {
+    const importedRows = createEntryRowsFromEntries(payload.entries);
+
+    setWizard((prev) => {
+      const nextRows = decision === 'append'
+        ? [...prev.table.rows, ...importedRows]
+        : (importedRows.length > 0 ? importedRows : [createEmptyEntryRow()]);
+
+      return {
+        ...prev,
+        table: {
+          rows: nextRows,
+          warnings: payload.warnings,
+        },
+        textImport: {
+          rawText: '',
+        },
+        currentStep: 'table',
+      };
+    });
+
+    setPendingImport(null);
+  }
+
+  function requestImport(payload: ImportedEntryRows) {
+    if (hasMeaningfulRows(wizard.table.rows)) {
+      setPendingImport(payload);
+      return;
+    }
+    applyImport(payload, 'replace');
+  }
+
+  async function handleTextImport() {
+    const payload = await resolveTextEntrySource(wizard.textImport);
+    requestImport(payload);
+  }
+
+  async function handleFileImport(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setIsImportingFile(true);
+    try {
+      const parsed = await parseFile(file);
+      const payload = await resolveFileUploadSource({
+        fileName: file.name,
+        entries: parsed.entries,
+        warnings: parsed.errors,
+      });
+      requestImport(payload);
+    } finally {
+      setIsImportingFile(false);
+    }
+  }
+
+  function handleGenerate() {
+    if (eligibleEntries.length === 0) return;
+
+    setIsGenerating(true);
+    setTimeout(() => {
+      const parsedSeed = parseInt(wizard.settings.seedText, 10);
+      const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
+      patchWizard({
+        settings: {
+          ...wizard.settings,
+          seedText: String(seed),
+        },
+      });
+
+      const result = wizard.settings.puzzleMode === 'wordsearch'
+        ? createWordSearchFromEntries({
+            entries: generationEntries,
+            width: wizard.settings.width,
+            height: wizard.settings.height,
+            seed,
+            wordSearchDirections: wizard.settings.wordSearchDirections,
+          })
+        : createPuzzleFromEntries({
+            entries: generationEntries,
+            width: wizard.settings.width,
+            height: wizard.settings.height,
+            seed,
+            allowReverseWords: wizard.settings.allowReverseWords,
+          });
+
+      onPuzzleGenerated(result, wizard.settings.puzzleMode);
       setGenerationInfo(
-        result.wordLocations.length + ' words placed | ' +
-        settings.width + 'x' + settings.height + ' grid | seed: ' + settings.seed
+        `${result.wordLocations.length} words placed | ${wizard.settings.width}x${wizard.settings.height} grid | seed: ${seed}`
       );
+      setGridKey((prev) => prev + 1);
       setIsGenerating(false);
-      setGridKey(prev => prev + 1);
     }, 10);
   }
 
-  const handleCustomEntries = useCallback((entries: WordCluePair[]) => {
-    setCustomEntries(entries);
-  }, []);
-
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-6">
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left: Settings + Input */}
-        <div className="lg:w-80 flex-shrink-0 space-y-4">
-          {/* Input mode toggle */}
-          <div className="flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-1">
-            <button
-              onClick={() => setInputMode('preset')}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${inputMode === 'preset'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Presets
-            </button>
-            <button
-              onClick={() => setInputMode('custom')}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${inputMode === 'custom'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Custom
-            </button>
-          </div>
+        <div className="lg:w-[30rem] flex-shrink-0">
+          <WizardShell currentStep={wizard.currentStep} onStepSelect={goToStep}>
+            {wizard.currentStep === 'table' && (
+              <EntryTableEditor
+                table={wizard.table}
+                onChangeRow={handleChangeRow}
+                onAddRow={handleAddRow}
+                onDeleteRow={handleDeleteRow}
+                onDismissWarnings={handleDismissWarnings}
+                onOpenTextImport={() => patchWizard({ currentStep: 'text-import' })}
+                onImportFile={handleFileImport}
+                isImportingFile={isImportingFile}
+                onContinue={() => patchWizard({ currentStep: 'settings' })}
+              />
+            )}
 
-          {/* Settings panel */}
-          <SettingsPanel
-            onGenerate={handleGenerate}
-            isGenerating={isGenerating}
-            showCategoryPicker={inputMode === 'preset'}
-            customEntryCount={inputMode === 'custom' ? customEntries.length : 0}
-          />
+            {wizard.currentStep === 'text-import' && (
+              <TextImportView
+                rawText={wizard.textImport.rawText}
+                existingRowCount={wizard.table.rows.length}
+                onChange={(rawText) => patchWizard({ textImport: { rawText } })}
+                onBack={() => patchWizard({ currentStep: 'table' })}
+                onImport={() => void handleTextImport()}
+              />
+            )}
 
-          {/* Custom input panel (shown only in custom mode) */}
-          {inputMode === 'custom' && (
-            <CustomInputPanel onEntriesReady={handleCustomEntries} />
+            {wizard.currentStep === 'settings' && (
+              <SettingsStep
+                onBack={() => patchWizard({ currentStep: 'table' })}
+                onNext={() => patchWizard({ currentStep: 'review' })}
+              >
+                <SettingsPanel
+                  value={wizard.settings}
+                  onChange={(settings) => patchWizard({ settings })}
+                />
+              </SettingsStep>
+            )}
+
+            {wizard.currentStep === 'review' && (
+              <ReviewStep
+                warningCount={wizard.table.warnings.length}
+                totalRows={wizard.table.rows.length}
+                validRowCount={generationEntries.length}
+                invalidRowCount={invalidRowCount}
+                eligibleCount={eligibleEntries.length}
+                filteredOutCount={filteredOutCount}
+                settings={wizard.settings}
+                isGenerating={isGenerating}
+                canGenerate={canGenerate}
+                warnings={wizard.table.warnings}
+                onBack={() => patchWizard({ currentStep: 'settings' })}
+                onGenerate={handleGenerate}
+              />
+            )}
+          </WizardShell>
+
+          {pendingImport && (
+            <ImportDecisionDialog
+              payload={pendingImport}
+              onReplace={() => applyImport(pendingImport, 'replace')}
+              onAppend={() => applyImport(pendingImport, 'append')}
+              onCancel={() => setPendingImport(null)}
+            />
           )}
         </div>
 
-        {/* Right: Grid + Clues */}
         <div className="flex-1 min-w-0">
           {puzzle ? (
             <div className="space-y-6 animate-fade-in" key={gridKey}>
@@ -156,29 +330,289 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   );
 }
 
+function WizardShell({
+  currentStep,
+  onStepSelect,
+  children,
+}: {
+  currentStep: WizardStep;
+  onStepSelect: (step: Exclude<WizardStep, 'text-import'>) => void;
+  children: ReactNode;
+}) {
+  const normalizedStep = currentStep === 'text-import' ? 'table' : currentStep;
+  const currentIndex = NAV_STEPS.findIndex((step) => step.id === normalizedStep);
+
+  return (
+    <div className="space-y-4">
+      <div className="warm-card p-5">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+              Build a puzzle from your own words
+            </h2>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              Edit entries in the main table, then tune settings and review before generating.
+            </p>
+          </div>
+          {currentStep === 'text-import' && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300">
+              Paste Text
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {NAV_STEPS.map((step, index) => {
+            const isActive = step.id === normalizedStep;
+            const isComplete = index < currentIndex;
+            return (
+              <button
+                key={step.id}
+                onClick={() => onStepSelect(step.id)}
+                className={`rounded-xl border px-3 py-2 text-left transition-all
+                  ${isActive
+                    ? 'border-primary-400 bg-primary-50 dark:bg-primary-950/30'
+                    : isComplete
+                      ? 'border-stone-300 dark:border-stone-700 bg-white dark:bg-surface-dark-alt'
+                      : 'border-stone-200 dark:border-stone-700/60 bg-stone-50/70 dark:bg-stone-900/20'
+                  }`}
+              >
+                <span className="block text-[11px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                  Step {index + 1}
+                </span>
+                <span className="block text-sm font-medium text-stone-700 dark:text-stone-200">
+                  {step.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+function SettingsStep({
+  children,
+  onBack,
+  onNext,
+}: {
+  children: ReactNode;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {children}
+      <WizardNav onBack={onBack} onNext={onNext} nextLabel="Continue to review" />
+    </div>
+  );
+}
+
+function ReviewStep({
+  warningCount,
+  totalRows,
+  validRowCount,
+  invalidRowCount,
+  eligibleCount,
+  filteredOutCount,
+  settings,
+  isGenerating,
+  canGenerate,
+  warnings,
+  onBack,
+  onGenerate,
+}: {
+  warningCount: number;
+  totalRows: number;
+  validRowCount: number;
+  invalidRowCount: number;
+  eligibleCount: number;
+  filteredOutCount: number;
+  settings: {
+    width: number;
+    height: number;
+    puzzleMode: PuzzleMode;
+  };
+  isGenerating: boolean;
+  canGenerate: boolean;
+  warnings: string[];
+  onBack: () => void;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="warm-card p-5 space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+          Review before generation
+        </h3>
+        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          Review counts from the current table. Manual edits here are what the generator will use.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <ReviewCard label="Puzzle type" value={settings.puzzleMode === 'wordsearch' ? 'Word Search' : 'Crossword'} />
+        <ReviewCard label="Table rows" value={String(totalRows)} />
+        <ReviewCard label="Valid rows" value={String(validRowCount)} />
+        <ReviewCard label="Invalid / empty rows" value={String(invalidRowCount)} />
+        <ReviewCard label="Eligible for grid" value={String(eligibleCount)} />
+        <ReviewCard label="Import warnings" value={String(warningCount)} />
+      </div>
+
+      <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-stone-50/70 dark:bg-stone-900/20 p-4 space-y-2">
+        <p className="text-sm text-stone-500 dark:text-stone-400">
+          Grid size: {settings.width}x{settings.height}
+        </p>
+        <p className="text-sm text-stone-500 dark:text-stone-400">
+          {filteredOutCount > 0
+            ? `${filteredOutCount} valid entr${filteredOutCount === 1 ? 'y is' : 'ies are'} too long for the current grid.`
+            : 'All valid rows fit within the current grid dimensions.'}
+        </p>
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 p-4">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2">
+            Import warnings
+          </p>
+          <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 max-h-32 overflow-y-auto scrollbar-thin">
+            {warnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {eligibleCount === 0 && (
+        <div className="rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20 p-4 text-sm text-red-700 dark:text-red-300">
+          No valid entries fit the current grid. Update the table or increase the grid size before generating.
+        </div>
+      )}
+
+      <WizardNav
+        onBack={onBack}
+        onNext={onGenerate}
+        nextLabel={isGenerating ? 'Generating...' : 'Generate puzzle'}
+        nextDisabled={!canGenerate}
+      />
+    </div>
+  );
+}
+
+function ImportDecisionDialog({
+  payload,
+  onReplace,
+  onAppend,
+  onCancel,
+}: {
+  payload: ImportedEntryRows;
+  onReplace: () => void;
+  onAppend: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-4 warm-card p-5 border-primary-200 dark:border-primary-800/40">
+      <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+        Import existing data?
+      </h3>
+      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+        {payload.sourceSummary}. Your table already has content, so choose whether to replace it or append the imported rows.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          onClick={onReplace}
+          className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-md btn-lift"
+        >
+          Replace
+        </button>
+        <button
+          onClick={onAppend}
+          className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift"
+        >
+          Append
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReviewCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-stone-200 dark:border-stone-700/60 bg-white/80 dark:bg-surface-dark-alt px-4 py-3">
+      <p className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-medium text-stone-800 dark:text-stone-100">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function WizardNav({
+  onBack,
+  onNext,
+  nextLabel = 'Continue',
+  nextDisabled = false,
+}: {
+  onBack?: () => void;
+  onNext: () => void;
+  nextLabel?: string;
+  nextDisabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 pt-2">
+      <button
+        onClick={onBack}
+        disabled={!onBack}
+        className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600
+                   text-sm text-stone-600 dark:text-stone-400
+                   hover:bg-stone-50 dark:hover:bg-surface-dark-hover
+                   disabled:opacity-30 disabled:cursor-not-allowed transition-all btn-lift"
+      >
+        Back
+      </button>
+
+      <button
+        onClick={onNext}
+        disabled={nextDisabled}
+        className="px-4 py-2 rounded-xl text-sm font-semibold
+                   bg-gradient-to-r from-primary-600 to-primary-700
+                   hover:from-primary-700 hover:to-primary-800
+                   text-white shadow-md btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {nextLabel}
+      </button>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-      {/* Animated floating crossword grid */}
       <div className="relative w-28 h-28 mb-8">
-        {/* Soft glow behind */}
         <div className="absolute inset-0 rounded-2xl bg-primary-500/10 dark:bg-primary-400/5 blur-xl" />
 
         <svg viewBox="0 0 100 100" className="w-full h-full relative z-10" fill="none">
-          {/* Row 1 */}
-          <rect x="6" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" style={{ animationDelay: '0ms' }} />
-          <rect x="37" y="6" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" style={{ animationDelay: '50ms' }} />
-          <rect x="68" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" style={{ animationDelay: '100ms' }} />
-          {/* Row 2 */}
-          <rect x="6" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" style={{ animationDelay: '50ms' }} />
-          <rect x="37" y="37" width="26" height="26" rx="3" className="fill-primary-100 dark:fill-primary-900/30 stroke-primary-500 dark:stroke-primary-500/60" strokeWidth="1.5" style={{ animationDelay: '100ms' }} />
-          <rect x="68" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" style={{ animationDelay: '150ms' }} />
-          {/* Row 3 */}
-          <rect x="6" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" style={{ animationDelay: '100ms' }} />
-          <rect x="37" y="68" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" style={{ animationDelay: '150ms' }} />
-          <rect x="68" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" style={{ animationDelay: '200ms' }} />
+          <rect x="6" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
+          <rect x="37" y="6" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
+          <rect x="68" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
+          <rect x="6" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
+          <rect x="37" y="37" width="26" height="26" rx="3" className="fill-primary-100 dark:fill-primary-900/30 stroke-primary-500 dark:stroke-primary-500/60" strokeWidth="1.5" />
+          <rect x="68" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
+          <rect x="6" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
+          <rect x="37" y="68" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
+          <rect x="68" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
 
-          {/* Sample letters in center cells */}
           <text x="50" y="24" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">A</text>
           <text x="19" y="55" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">C</text>
           <text x="50" y="55" textAnchor="middle" className="fill-primary-700 dark:fill-primary-300" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">R</text>
@@ -191,15 +625,14 @@ function EmptyState() {
         Ready to create
       </h2>
       <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs leading-relaxed">
-        Pick a word pack or bring your own. Set your grid, hit generate, and start solving.
+        Build your word list in the table, import from text or files, and generate a puzzle entirely in your browser.
       </p>
 
-      {/* Feature pills */}
       <div className="flex flex-wrap justify-center gap-2 mt-5">
-        <FeaturePill label="Crosswords" />
+        <FeaturePill label="Entry Table" />
+        <FeaturePill label="Paste Text" />
+        <FeaturePill label="Upload File" />
         <FeaturePill label="Word Search" />
-        <FeaturePill label="Custom Words" />
-        <FeaturePill label="Print & Export" />
       </div>
     </div>
   );

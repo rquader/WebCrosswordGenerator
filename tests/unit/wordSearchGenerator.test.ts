@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { generateWordSearch, DEFAULT_WORD_SEARCH_DIRECTIONS } from '@logic/wordSearchGenerator';
 import type { WordSearchConfig } from '@logic/wordSearchGenerator';
 import type { WordSearchDirectionSettings, DirectionalWord } from '@logic/types';
-import { createWordSearchFromPreset, createWordSearchFromCustom } from '@logic/createPuzzle';
+import { createWordSearchFromEntries } from '@logic/createPuzzle';
 
 // Helper: build a config
 function makeConfig(overrides: Partial<WordSearchConfig> = {}): WordSearchConfig {
@@ -422,13 +422,17 @@ describe('WordSearchGenerator', () => {
   });
 
   describe('integration with createPuzzle', () => {
-    it('createWordSearchFromPreset passes direction settings', () => {
+    it('createWordSearchFromEntries passes direction settings', () => {
       const dirs: WordSearchDirectionSettings = {
         horizontal: true, vertical: false, diagonal: false,
         reversed: false, reversedDiagonal: false,
       };
-      const result = createWordSearchFromPreset({
-        categoryId: 'unit_1',
+      const result = createWordSearchFromEntries({
+        entries: [
+          { word: 'react', clue: 'A UI library' },
+          { word: 'vite', clue: 'A build tool' },
+          { word: 'node', clue: 'A runtime' },
+        ],
         width: 10,
         height: 10,
         seed: 42,
@@ -444,12 +448,12 @@ describe('WordSearchGenerator', () => {
       }
     });
 
-    it('createWordSearchFromCustom passes direction settings', () => {
+    it('supports vertical-only settings with entry lists', () => {
       const dirs: WordSearchDirectionSettings = {
         horizontal: false, vertical: true, diagonal: false,
         reversed: false, reversedDiagonal: false,
       };
-      const result = createWordSearchFromCustom({
+      const result = createWordSearchFromEntries({
         entries: [
           { word: 'test', clue: 'A test' },
           { word: 'code', clue: 'Write code' },
@@ -469,9 +473,12 @@ describe('WordSearchGenerator', () => {
       }
     });
 
-    it('createWordSearchFromPreset works without direction settings (uses defaults)', () => {
-      const result = createWordSearchFromPreset({
-        categoryId: 'english',
+    it('works without direction settings (uses defaults)', () => {
+      const result = createWordSearchFromEntries({
+        entries: [
+          { word: 'array', clue: 'A collection' },
+          { word: 'loop', clue: 'Repeating block' },
+        ],
         width: 8,
         height: 8,
         seed: 42,

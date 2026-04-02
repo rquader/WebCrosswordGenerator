@@ -1,37 +1,20 @@
 /**
- * High-level puzzle creation — the main entry point for the UI.
+ * High-level puzzle creation.
  *
- * This mirrors what CrosswordUI.generateCrossword() did in Java:
- *   1. Get the selected category from the database
- *   2. Filter words by max(width, height) — ensures all words fit the grid
- *   3. Pass filtered words + config to the generator
- *
- * By bundling filtering + generation together, the UI layer
- * can never accidentally skip the length filter.
+ * The UI passes normalized word-clue entries into these helpers.
+ * They apply the shared length filter before delegating to the
+ * crossword or word-search generators.
  */
 
 import type { CrosswordResult, WordCluePair, WordSearchDirectionSettings } from './types';
 import { generateCrossword } from './generator';
 import { generateWordSearch } from './wordSearchGenerator';
-import { prepareForGenerator } from './databaseProcessor';
-import { getCategoryById } from './database';
+import { filterByLength, prepareForGenerator } from './databaseProcessor';
 
 /**
- * Options for creating a puzzle from a preset category.
+ * Options for creating a puzzle from word-clue entries.
  */
-export interface PuzzleOptions {
-  categoryId: string;
-  width: number;
-  height: number;
-  seed: number;
-  allowReverseWords?: boolean;
-  wordSearchDirections?: WordSearchDirectionSettings;
-}
-
-/**
- * Options for creating a puzzle from custom word-clue pairs.
- */
-export interface CustomPuzzleOptions {
+export interface EntryPuzzleOptions {
   entries: WordCluePair[];
   width: number;
   height: number;
@@ -40,38 +23,19 @@ export interface CustomPuzzleOptions {
   wordSearchDirections?: WordSearchDirectionSettings;
 }
 
-/**
- * Create a crossword puzzle from a preset category.
- * Handles filtering automatically — words longer than max(width, height) are excluded,
- * exactly like the Java version's CrosswordUI.generateCrossword().
- */
-export function createPuzzleFromPreset(options: PuzzleOptions): CrosswordResult {
-  const category = getCategoryById(options.categoryId);
-  if (!category) {
-    throw new Error('Unknown category: ' + options.categoryId);
+function assertEntriesFit(entries: WordCluePair[], width: number, height: number): void {
+  const maxDim = Math.max(width, height);
+  if (filterByLength(entries, maxDim).length === 0) {
+    throw new Error('No entries fit within the current grid dimensions');
   }
-
-  // Filter words to fit the grid, just like Java's:
-  //   int maxDim = Math.max(w, h);
-  //   ArrayList<String> wordList = dp.getTermsByLength(selectedUnit, maxDim);
-  const maxDim = Math.max(options.width, options.height);
-  const { words, clues } = prepareForGenerator(category.entries, maxDim);
-
-  return generateCrossword({
-    width: options.width,
-    height: options.height,
-    seed: options.seed,
-    words: words,
-    clues: clues,
-    allowReverseWords: options.allowReverseWords ?? true,
-  });
 }
 
 /**
- * Create a crossword puzzle from custom user-provided word-clue pairs.
- * Also filters by max dimension — same guarantee as presets.
+ * Create a crossword puzzle from word-clue entries.
  */
-export function createPuzzleFromCustom(options: CustomPuzzleOptions): CrosswordResult {
+export function createPuzzleFromEntries(options: EntryPuzzleOptions): CrosswordResult {
+  assertEntriesFit(options.entries, options.width, options.height);
+
   const maxDim = Math.max(options.width, options.height);
   const { words, clues } = prepareForGenerator(options.entries, maxDim);
 
@@ -79,40 +43,18 @@ export function createPuzzleFromCustom(options: CustomPuzzleOptions): CrosswordR
     width: options.width,
     height: options.height,
     seed: options.seed,
-    words: words,
-    clues: clues,
+    words,
+    clues,
     allowReverseWords: options.allowReverseWords ?? true,
   });
 }
 
 /**
- * Create a word search puzzle from a preset category.
- * Word search has different placement rules (no intersection requirement,
- * 8 directions including diagonals, empty cells filled with random letters).
+ * Create a word search puzzle from word-clue entries.
  */
-export function createWordSearchFromPreset(options: PuzzleOptions): CrosswordResult {
-  const category = getCategoryById(options.categoryId);
-  if (!category) {
-    throw new Error('Unknown category: ' + options.categoryId);
-  }
+export function createWordSearchFromEntries(options: EntryPuzzleOptions): CrosswordResult {
+  assertEntriesFit(options.entries, options.width, options.height);
 
-  const maxDim = Math.max(options.width, options.height);
-  const { words, clues } = prepareForGenerator(category.entries, maxDim);
-
-  return generateWordSearch({
-    width: options.width,
-    height: options.height,
-    seed: options.seed,
-    words: words,
-    clues: clues,
-    directions: options.wordSearchDirections,
-  });
-}
-
-/**
- * Create a word search puzzle from custom word-clue pairs.
- */
-export function createWordSearchFromCustom(options: CustomPuzzleOptions): CrosswordResult {
   const maxDim = Math.max(options.width, options.height);
   const { words, clues } = prepareForGenerator(options.entries, maxDim);
 
@@ -120,8 +62,8 @@ export function createWordSearchFromCustom(options: CustomPuzzleOptions): Crossw
     width: options.width,
     height: options.height,
     seed: options.seed,
-    words: words,
-    clues: clues,
+    words,
+    clues,
     directions: options.wordSearchDirections,
   });
 }

@@ -1,13 +1,5 @@
 /**
  * Interactive Help & Instructions page.
- *
- * This is NOT a wall of text. It's a visual, interactive guide:
- * - Step-by-step sections with icons and visual examples
- * - Interactive demo elements (mini grid, sample file formats)
- * - Collapsible sections for advanced features
- * - Visual file format guides with copy-to-clipboard
- *
- * Designed to feel like a mini onboarding experience.
  */
 
 import { useState } from 'react';
@@ -15,7 +7,6 @@ import { useState } from 'react';
 export function HelpTab() {
   return (
     <div className="animate-fade-in max-w-3xl mx-auto space-y-8 pb-12">
-      {/* Hero */}
       <div className="text-center py-6">
         <div className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-950/40 flex items-center justify-center mx-auto mb-4">
           <svg className="w-7 h-7 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -27,11 +18,10 @@ export function HelpTab() {
         </h1>
         <p className="text-stone-500 dark:text-stone-400 text-sm max-w-md mx-auto">
           Everything you need to create, play, and export crossword puzzles.
-          No account needed — everything runs in your browser.
+          No account needed; everything runs in your browser.
         </p>
       </div>
 
-      {/* Quick Start Steps */}
       <section>
         <SectionTitle number={1} title="Generate a Puzzle" />
         <div className="ml-10 space-y-4">
@@ -41,8 +31,8 @@ export function HelpTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
               </svg>
             }
-            title="Choose your settings"
-            description="Set grid width and height (2-10), pick a puzzle type (Crossword or Word Search), and select a category from the built-in presets."
+            title="Pick a source"
+            description="Start in the Generate tab and build your word list in the table. You can add rows manually or import text and files into the table."
           />
           <StepCard
             icon={
@@ -50,8 +40,8 @@ export function HelpTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
               </svg>
             }
-            title="Set a seed (optional)"
-            description="Seeds make puzzles reproducible — the same seed + settings will always generate the same puzzle. Leave it blank for a random one."
+            title="Parse and configure"
+            description="Imports return to the table with warnings if needed. After editing the table, choose your puzzle type, grid size, and optional seed."
           />
           <StepCard
             icon={
@@ -59,23 +49,21 @@ export function HelpTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               </svg>
             }
-            title="Hit Generate"
-            description="Your puzzle appears instantly. The grid shows numbered cells — each number starts an Across or Down word."
+            title="Generate from review"
+            description="The Review step shows counts from the current table, any import warnings, and how many valid words fit the current grid before you generate."
           />
         </div>
       </section>
 
-      {/* Playing */}
       <section>
         <SectionTitle number={2} title="Play the Puzzle" />
         <div className="ml-10 space-y-4">
-          {/* Interactive keyboard guide */}
           <div className="warm-card p-5">
             <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200 mb-3">Keyboard Controls</h4>
             <div className="grid grid-cols-2 gap-3">
               <KeyboardHint keys={['A', '-', 'Z']} label="Type a letter into the selected cell" />
               <KeyboardHint keys={['Backspace']} label="Delete letter and move back" />
-              <KeyboardHint keys={['\u2190', '\u2191', '\u2193', '\u2192']} label="Navigate between cells" />
+              <KeyboardHint keys={['←', '↑', '↓', '→']} label="Navigate between cells" />
               <KeyboardHint keys={['Click']} label="Click a cell to select; click again to toggle Across/Down" />
             </div>
           </div>
@@ -87,25 +75,21 @@ export function HelpTab() {
               </svg>
             }
             title="Check & Reveal"
-            description="Click 'Check' to see which letters are correct (green) or incorrect (red). Click 'Reveal' to show all answers. Click 'Reset' to start over."
+            description="Click Check to mark correct and incorrect letters, Reveal to show the full solution, or Reset to start over."
           />
         </div>
       </section>
 
-      {/* Custom Words */}
       <section>
-        <SectionTitle number={3} title="Use Your Own Words" />
+        <SectionTitle number={3} title="Supported Sources" />
         <div className="ml-10 space-y-4">
           <p className="text-sm text-stone-600 dark:text-stone-400">
-            Switch to <strong>Custom</strong> mode in the Generate tab to use your own words. You can type them directly or upload a file.
+            The table is the main way to edit entries. Current import options are <strong>Paste Text</strong> and <strong>File Upload</strong>, and more can be added later without changing puzzle generation.
           </p>
-
-          {/* File format examples */}
           <FileFormatGuide />
         </div>
       </section>
 
-      {/* Export */}
       <section>
         <SectionTitle number={4} title="Export & Share" />
         <div className="ml-10 space-y-4">
@@ -117,7 +101,7 @@ export function HelpTab() {
                 </svg>
               }
               title="Print / PDF"
-              description="Opens your browser's print dialog. Choose 'Save as PDF' for a PDF file. Clean, ink-friendly layout."
+              description="Opens your browser's print dialog. Choose Save as PDF for a PDF file. Clean, ink-friendly layout."
             />
             <ExportCard
               icon={
@@ -150,7 +134,6 @@ export function HelpTab() {
         </div>
       </section>
 
-      {/* Privacy */}
       <section>
         <SectionTitle number={5} title="Privacy" />
         <div className="ml-10">
@@ -165,10 +148,10 @@ export function HelpTab() {
                 </h4>
                 <ul className="text-sm text-primary-700 dark:text-primary-400 space-y-1">
                   <li>All puzzle generation happens in your browser</li>
-                  <li>File uploads are read locally — never sent to any server</li>
-                  <li>No analytics, no tracking, no cookies (except theme preference)</li>
-                  <li>No external API calls, no third-party scripts</li>
-                  <li>Even the font is self-hosted — zero requests to Google or anyone else</li>
+                  <li>File uploads are read locally and never sent to a server</li>
+                  <li>No analytics, no tracking, no cookies except local preferences and drafts</li>
+                  <li>No external API calls or third-party scripts</li>
+                  <li>Even the font is self-hosted</li>
                   <li>Works offline once the page loads</li>
                 </ul>
               </div>
@@ -179,8 +162,6 @@ export function HelpTab() {
     </div>
   );
 }
-
-// --- Sub-components ---
 
 function SectionTitle({ number, title }: { number: number; title: string }) {
   return (
@@ -238,9 +219,6 @@ function KeyboardHint({ keys, label }: { keys: string[]; label: string }) {
   );
 }
 
-/**
- * Interactive file format guide with tabs and copy-to-clipboard.
- */
 function FileFormatGuide() {
   const [activeFormat, setActiveFormat] = useState<'txt' | 'csv' | 'json'>('txt');
 
@@ -262,7 +240,7 @@ java,A programming language
 array,A collection of elements
 loop,Repeating code block
 method,A function in a class`,
-      description: 'Standard CSV format. First row can be a header (it will be detected and skipped).',
+      description: 'Standard CSV format. First row can be a header and will be skipped automatically.',
     },
     json: {
       label: '.json',
@@ -272,7 +250,7 @@ method,A function in a class`,
   { "word": "loop", "clue": "Repeating code block" },
   { "word": "method", "clue": "A function in a class" }
 ]`,
-      description: 'Array of objects. Accepts "word"/"term"/"answer" for the word field and "clue"/"hint"/"definition" for the clue.',
+      description: 'Array of objects. Accepts "word"/"term"/"answer" and "clue"/"hint"/"definition".',
     },
   };
 
@@ -287,7 +265,6 @@ method,A function in a class`,
       <div className="px-4 pt-4 pb-3">
         <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200 mb-3">Supported File Formats</h4>
 
-        {/* Format tabs */}
         <div className="flex gap-1 bg-stone-100 dark:bg-stone-800 rounded-lg p-1 mb-3">
           {(['txt', 'csv', 'json'] as const).map((fmt) => (
             <button
@@ -307,7 +284,6 @@ method,A function in a class`,
         <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">{current.description}</p>
       </div>
 
-      {/* Code example with copy button */}
       <div className="relative bg-stone-50 dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700/50">
         <button
           onClick={handleCopy}
@@ -324,7 +300,6 @@ method,A function in a class`,
         </pre>
       </div>
 
-      {/* Drag and drop hint */}
       <div className="px-4 py-3 bg-stone-50/50 dark:bg-stone-900/50 border-t border-stone-200 dark:border-stone-700/50">
         <div className="flex items-center gap-2">
           <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

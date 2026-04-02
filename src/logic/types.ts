@@ -49,16 +49,6 @@ export interface CrosswordResult {
 }
 
 /**
- * A preset word pack category.
- */
-export interface PresetCategory {
-  id: string;
-  name: string;
-  description: string;
-  entries: WordCluePair[];
-}
-
-/**
  * Configuration for generating a crossword.
  */
 export interface GeneratorConfig {
@@ -76,14 +66,14 @@ export interface GeneratorConfig {
  * Controls which placement directions are allowed.
  */
 export interface WordSearchDirectionSettings {
-  horizontal: boolean;      // left-to-right
-  vertical: boolean;        // top-to-bottom
-  diagonal: boolean;        // down-right, down-left
-  reversed: boolean;        // right-to-left, bottom-to-top
-  reversedDiagonal: boolean; // up-left, up-right
+  horizontal: boolean;
+  vertical: boolean;
+  diagonal: boolean;
+  reversed: boolean;
+  reversedDiagonal: boolean;
 }
 
 /**
- * Puzzle type — crossword or word search.
+ * Puzzle type - crossword or word search.
  */
 export type PuzzleMode = 'crossword' | 'wordsearch';

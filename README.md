@@ -1,15 +1,24 @@
-# Crossword Generator (Java)
+# CrosswordGen Puzzle Studio
 
-This project is a Java Swing application that generates crossword-style word grids from a built-in vocabulary database. Users can choose a category (AP Computer Science A Unit 1-8 or English), set grid width and height, optionally enter a seed for repeatable results, and view generated clues for horizontal and vertical words.
+This project is a Vite + React + TypeScript web app for generating and playing crosswords and word searches entirely in the browser.
 
-## Authors
+## Current Features
 
-- Armaan Saini
-- Rafan Quader
-- Kabir Khan
-- Anthony Phanh
-- Ethan Le
+- Wizard-based puzzle generation flow: `Source -> Parse -> Settings -> Review`
+- Modular word sources, currently:
+  - Text entry
+  - File upload (`.txt`, `.csv`, `.json`)
+- Crossword and word search generation with optional seeded reproducibility
+- In-browser play mode with autosave, hints, undo/redo, and clue highlighting
+- Local export as print/PDF, PNG, and JSON
 
-## Project Context
+## Architecture Notes
 
-This project was made in 2025 as a group project for AP Computer Science A.
+- Puzzle generation logic lives in `src/logic/`
+- Word-source modules live in `src/components/sources/`
+- All parsing and generation happen locally; no server is required
+
+## Verification
+
+- Unit tests: `npm test`
+- Production build: `npm run build`

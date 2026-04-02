@@ -87,9 +87,9 @@ function normalizeLineEndings(text: string): string {
 }
 
 /**
- * Clean a word: trim whitespace, convert to lowercase, remove non-alpha characters.
+ * Normalize user-entered words to the generator's expected format.
  */
-function cleanWord(raw: string): string {
+export function normalizeWordInput(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z]/g, '');
 }
 
@@ -153,7 +153,7 @@ function parseTxt(text: string): ParseResult {
       continue;
     }
 
-    const cleanedWord = cleanWord(word);
+    const cleanedWord = normalizeWordInput(word);
     const trimmedClue = clue.trim();
 
     if (cleanedWord.length === 0) {
@@ -194,7 +194,7 @@ function parseCsv(text: string): ParseResult {
       continue;
     }
 
-    const cleanedWord = cleanWord(fields[0]);
+    const cleanedWord = normalizeWordInput(fields[0]);
     const trimmedClue = fields[1].trim();
 
     if (cleanedWord.length === 0) {
@@ -275,7 +275,7 @@ function parseJson(text: string): ParseResult {
     const word = (item.word || item.term || item.answer || '') as string;
     const clue = (item.clue || item.hint || item.definition || item.description || '') as string;
 
-    const cleanedWord = cleanWord(String(word));
+    const cleanedWord = normalizeWordInput(String(word));
     const trimmedClue = String(clue).trim();
 
     if (cleanedWord.length === 0) {

@@ -1,9 +1,9 @@
 /**
- * Database processing utilities for filtering word-clue pairs.
+ * Word-list processing utilities for filtering word-clue pairs.
  *
  * Ported from DatabaseProcessor.java by Kabir Khan.
- * These functions filter preset data by word length before
- * passing to the generator.
+ * These functions filter normalized input entries by word length
+ * before passing them to the generator.
  */
 
 import type { WordCluePair } from './types';

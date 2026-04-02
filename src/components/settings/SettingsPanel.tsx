@@ -1,137 +1,55 @@
 /**
  * Settings panel for configuring puzzle generation.
  *
- * Contains:
- * - Puzzle mode toggle (crossword / word search)
- * - Quick size presets (Small / Medium / Large)
- * - Grid width/height sliders (2-15)
- * - Category dropdown with word count + fit estimate
- * - Optional seed input for reproducible puzzles
- * - Word search direction settings (diagonal, reversed, reversedDiagonal)
- * - Generate button
+ * This component is controlled by the generation wizard and is
+ * intentionally unaware of where the word list came from.
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { presetCategories, getCategoryById } from '../../logic/database';
-import type { PuzzleMode, WordSearchDirectionSettings } from '../../logic/types';
-import { DEFAULT_WORD_SEARCH_DIRECTIONS } from '../../logic/wordSearchGenerator';
-
-const SETTINGS_STORAGE_KEY = 'crossword-settings';
-
-export interface GenerationSettings {
-  width: number;
-  height: number;
-  categoryId: string;
-  seed: number;
-  allowReverseWords: boolean;
-  puzzleMode: PuzzleMode;
-  wordSearchDirections: WordSearchDirectionSettings;
-}
+import type { GenerationSettings } from './generationSettings';
 
 interface SettingsPanelProps {
-  onGenerate: (settings: GenerationSettings) => void;
-  isGenerating: boolean;
-  showCategoryPicker?: boolean;
-  customEntryCount?: number;
+  value: GenerationSettings;
+  onChange: (settings: GenerationSettings) => void;
 }
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
 }
 
-/** Divider line between major sections. */
 function Divider() {
   return <div className="h-px bg-stone-200 dark:bg-stone-700/50" />;
 }
 
-export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = true, customEntryCount = 0 }: SettingsPanelProps) {
-  // Load saved settings from localStorage
-  const saved = loadSavedSettings();
-  const [width, setWidth] = useState(saved.width);
-  const [height, setHeight] = useState(saved.height);
-  const [categoryId, setCategoryId] = useState(saved.categoryId);
-  const [seedText, setSeedText] = useState('');
-  const [allowReverse, setAllowReverse] = useState(saved.allowReverse);
-  const [puzzleMode, setPuzzleMode] = useState<PuzzleMode>(saved.puzzleMode);
-  const [seedCopied, setSeedCopied] = useState(false);
-  const [wsDirections, setWsDirections] = useState<WordSearchDirectionSettings>({
-    ...DEFAULT_WORD_SEARCH_DIRECTIONS,
-    ...saved.wsDirections,
-    // Always force horizontal and vertical on
-    horizontal: true,
-    vertical: true,
-  });
+export function SettingsPanel({ value, onChange }: SettingsPanelProps) {
+  const seedCopied = false;
 
-  // Persist settings on change
-  useEffect(() => {
-    saveSettings({ width, height, categoryId, allowReverse, puzzleMode, wsDirections });
-  }, [width, height, categoryId, allowReverse, puzzleMode, wsDirections]);
-
-  // Estimate how many words from the selected category fit in the current grid
-  const fittingWordCount = useMemo(() => {
-    if (!showCategoryPicker) return null;
-    const category = getCategoryById(categoryId);
-    if (!category) return null;
-    const maxDim = Math.max(width, height);
-    const fitting = category.entries.filter(e => e.word.length <= maxDim);
-    return fitting.length;
-  }, [categoryId, width, height, showCategoryPicker]);
-
-  // Total words in the selected category
-  const totalWordCount = useMemo(() => {
-    if (!showCategoryPicker) return null;
-    const category = getCategoryById(categoryId);
-    return category ? category.entries.length : null;
-  }, [categoryId, showCategoryPicker]);
-
-  function handleGenerate() {
-    let seed: number;
-    const parsed = parseInt(seedText, 10);
-    if (!isNaN(parsed)) {
-      seed = parsed;
-    } else {
-      seed = randomSeed();
-      setSeedText(String(seed));
-    }
-
-    onGenerate({
-      width,
-      height,
-      categoryId,
-      seed,
-      allowReverseWords: allowReverse,
-      puzzleMode,
-      wordSearchDirections: wsDirections,
-    });
-  }
-
-  function handleRandomize() {
-    const newSeed = randomSeed();
-    setSeedText(String(newSeed));
+  function patch(next: Partial<GenerationSettings>) {
+    onChange({ ...value, ...next });
   }
 
   function handleCopySeed() {
-    if (seedText) {
-      navigator.clipboard.writeText(seedText);
-      setSeedCopied(true);
-      setTimeout(() => setSeedCopied(false), 1500);
+    if (value.seedText) {
+      navigator.clipboard.writeText(value.seedText);
     }
   }
 
-  /** Only diagonal, reversed, and reversedDiagonal are toggleable. */
-  function toggleDirection(key: 'diagonal' | 'reversed' | 'reversedDiagonal') {
-    setWsDirections(prev => ({
-      ...prev,
-      [key]: !prev[key],
-      // Always keep horizontal and vertical on
-      horizontal: true,
-      vertical: true,
-    }));
+  function handleRandomize() {
+    patch({ seedText: String(randomSeed()) });
   }
 
-  function applyQuickSize(w: number, h: number) {
-    setWidth(w);
-    setHeight(h);
+  function toggleDirection(key: 'diagonal' | 'reversed' | 'reversedDiagonal') {
+    patch({
+      wordSearchDirections: {
+        ...value.wordSearchDirections,
+        [key]: !value.wordSearchDirections[key],
+        horizontal: true,
+        vertical: true,
+      },
+    });
+  }
+
+  function applyQuickSize(width: number, height: number) {
+    patch({ width, height });
   }
 
   return (
@@ -141,17 +59,16 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
       </h2>
 
       <div className="space-y-5">
-        {/* Puzzle Mode Toggle */}
         <div>
           <label id="puzzle-type-label" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
             Puzzle Type
           </label>
           <div className="flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-1" role="group" aria-labelledby="puzzle-type-label">
             <button
-              onClick={() => setPuzzleMode('crossword')}
-              aria-pressed={puzzleMode === 'crossword'}
+              onClick={() => patch({ puzzleMode: 'crossword' })}
+              aria-pressed={value.puzzleMode === 'crossword'}
               className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${puzzleMode === 'crossword'
+                ${value.puzzleMode === 'crossword'
                   ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
                   : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
                 }`}
@@ -159,10 +76,10 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
               Crossword
             </button>
             <button
-              onClick={() => setPuzzleMode('wordsearch')}
-              aria-pressed={puzzleMode === 'wordsearch'}
+              onClick={() => patch({ puzzleMode: 'wordsearch' })}
+              aria-pressed={value.puzzleMode === 'wordsearch'}
               className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${puzzleMode === 'wordsearch'
+                ${value.puzzleMode === 'wordsearch'
                   ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
                   : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
                 }`}
@@ -174,22 +91,21 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
 
         <Divider />
 
-        {/* Grid Size — Quick Presets */}
         <div>
           <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
             Grid Size
           </label>
           <div className="flex gap-2 mb-3">
             {[
-              { label: 'Small 5\u00d75', w: 5, h: 5 },
-              { label: 'Medium 8\u00d78', w: 8, h: 8 },
-              { label: 'Large 12\u00d712', w: 12, h: 12 },
-            ].map(({ label, w, h }) => {
-              const isActive = width === w && height === h;
+              { label: 'Small 5x5', width: 5, height: 5 },
+              { label: 'Medium 8x8', width: 8, height: 8 },
+              { label: 'Large 12x12', width: 12, height: 12 },
+            ].map(({ label, width, height }) => {
+              const isActive = value.width === width && value.height === height;
               return (
                 <button
                   key={label}
-                  onClick={() => applyQuickSize(w, h)}
+                  onClick={() => applyQuickSize(width, height)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-150
                     ${isActive
                       ? 'bg-primary-600 text-white shadow-sm'
@@ -202,80 +118,50 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
             })}
           </div>
 
-          {/* Grid Size Sliders */}
           <div className="grid grid-cols-2 gap-4">
-            <SliderField label="Width" value={width} min={2} max={15} onChange={setWidth} />
-            <SliderField label="Height" value={height} min={2} max={15} onChange={setHeight} />
+            <SliderField label="Width" value={value.width} min={2} max={15} onChange={(next) => patch({ width: next })} />
+            <SliderField label="Height" value={value.height} min={2} max={15} onChange={(next) => patch({ height: next })} />
           </div>
         </div>
 
+        {value.puzzleMode === 'wordsearch' && (
+          <>
+            <Divider />
+
+            <div className="space-y-2.5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value.wordSearchDirections.diagonal}
+                  onChange={() => toggleDirection('diagonal')}
+                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-stone-600 dark:text-stone-400">Allow diagonals</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value.wordSearchDirections.reversed}
+                  onChange={() => toggleDirection('reversed')}
+                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed words</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value.wordSearchDirections.reversedDiagonal}
+                  onChange={() => toggleDirection('reversedDiagonal')}
+                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed diagonals</span>
+              </label>
+            </div>
+          </>
+        )}
+
         <Divider />
 
-        {/* Category (only for preset mode) */}
-        {showCategoryPicker ? (
-          <div>
-            <label htmlFor="settings-category" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
-              Category
-            </label>
-            <select
-              id="settings-category"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 dark:border-stone-600
-                         bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                         px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500
-                         focus:border-primary-500 transition-shadow"
-            >
-              {presetCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name} ({cat.entries.length} words)
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {presetCategories.find(c => c.id === categoryId)?.description}
-            </p>
-            {fittingWordCount !== null && totalWordCount !== null && (
-              <p className="mt-1 text-xs text-primary-600 dark:text-primary-400">
-                ~{fittingWordCount} of {totalWordCount} words fit in {width}&times;{height} grid
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-lg bg-stone-50 dark:bg-stone-800/40 p-3">
-            <p className="text-sm text-stone-600 dark:text-stone-400">
-              Using <span className="font-semibold text-primary-600 dark:text-primary-400">{customEntryCount}</span> custom word{customEntryCount !== 1 ? 's' : ''}
-            </p>
-            {customEntryCount === 0 && (
-              <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
-                Add words below to generate
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Word Search Direction Settings — only toggleable: diagonal, reversed, reversedDiagonal */}
-        {puzzleMode === 'wordsearch' && (
-          <div className="space-y-2.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={wsDirections.diagonal} onChange={() => toggleDirection('diagonal')}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-stone-600 dark:text-stone-400">Allow diagonals</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={wsDirections.reversed} onChange={() => toggleDirection('reversed')}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed words</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={wsDirections.reversedDiagonal} onChange={() => toggleDirection('reversedDiagonal')}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed diagonals</span>
-            </label>
-          </div>
-        )}
-
-        {/* Seed */}
         <div>
           <label htmlFor="settings-seed" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
             Seed (optional)
@@ -284,8 +170,8 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
             <input
               id="settings-seed"
               type="text"
-              value={seedText}
-              onChange={(e) => setSeedText(e.target.value)}
+              value={value.seedText}
+              onChange={(e) => patch({ seedText: e.target.value })}
               placeholder="Random"
               className="flex-1 rounded-lg border border-stone-300 dark:border-stone-600
                          bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
@@ -295,7 +181,7 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
             />
             <button
               onClick={handleCopySeed}
-              disabled={!seedText}
+              disabled={!value.seedText}
               className="px-2.5 py-2 rounded-lg border border-stone-300 dark:border-stone-600
                          text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover
                          disabled:opacity-30 disabled:cursor-not-allowed
@@ -329,64 +215,30 @@ export function SettingsPanel({ onGenerate, isGenerating, showCategoryPicker = t
           </p>
         </div>
 
-        {/* Allow Reverse Words (crossword mode only) */}
-        {puzzleMode === 'crossword' && (
-          <label htmlFor="settings-allow-reverse" className="flex items-center gap-2 cursor-pointer">
-            <input
-              id="settings-allow-reverse"
-              type="checkbox"
-              checked={allowReverse}
-              onChange={(e) => setAllowReverse(e.target.checked)}
-              className="w-4 h-4 rounded border-stone-300 dark:border-stone-600
-                         text-primary-600 focus:ring-primary-500 transition-colors"
-            />
-            <span className="text-sm text-stone-600 dark:text-stone-400">
-              Allow reversed words
-            </span>
-          </label>
+        {value.puzzleMode === 'crossword' && (
+          <>
+            <Divider />
+
+            <label htmlFor="settings-allow-reverse" className="flex items-center gap-2 cursor-pointer">
+              <input
+                id="settings-allow-reverse"
+                type="checkbox"
+                checked={value.allowReverseWords}
+                onChange={(e) => patch({ allowReverseWords: e.target.checked })}
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600
+                           text-primary-600 focus:ring-primary-500 transition-colors"
+              />
+              <span className="text-sm text-stone-600 dark:text-stone-400">
+                Allow reversed words
+              </span>
+            </label>
+          </>
         )}
-
-        <Divider />
-
-        {/* Generate Button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="w-full py-3 rounded-xl font-semibold text-sm
-                     bg-gradient-to-r from-primary-600 to-primary-700
-                     hover:from-primary-700 hover:to-primary-800
-                     active:from-primary-800 active:to-primary-900
-                     active:scale-[0.97]
-                     text-white shadow-md btn-lift
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all duration-200
-                     flex items-center justify-center gap-2"
-        >
-          {isGenerating ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Generating...
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-              </svg>
-              Generate
-            </>
-          )}
-        </button>
       </div>
     </div>
   );
 }
 
-/**
- * A labeled range slider with current value display.
- */
 interface SliderFieldProps {
   label: string;
   value: number;
@@ -428,41 +280,4 @@ function SliderField({ label, value, min, max, onChange }: SliderFieldProps) {
       </div>
     </div>
   );
-}
-
-// --- Settings persistence ---
-
-interface SavedSettings {
-  width: number;
-  height: number;
-  categoryId: string;
-  allowReverse: boolean;
-  puzzleMode: PuzzleMode;
-  wsDirections?: WordSearchDirectionSettings;
-}
-
-function loadSavedSettings(): SavedSettings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return { width: 8, height: 8, categoryId: 'unit_1', allowReverse: true, puzzleMode: 'crossword' };
-    const data = JSON.parse(raw) as Partial<SavedSettings>;
-    return {
-      width: data.width ?? 8,
-      height: data.height ?? 8,
-      categoryId: data.categoryId ?? 'unit_1',
-      allowReverse: data.allowReverse ?? true,
-      puzzleMode: data.puzzleMode ?? 'crossword',
-      wsDirections: data.wsDirections,
-    };
-  } catch {
-    return { width: 8, height: 8, categoryId: 'unit_1', allowReverse: true, puzzleMode: 'crossword' };
-  }
-}
-
-function saveSettings(settings: SavedSettings) {
-  try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // silently fail
-  }
 }
