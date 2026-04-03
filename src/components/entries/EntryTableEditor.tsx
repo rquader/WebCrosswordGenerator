@@ -10,7 +10,8 @@ interface EntryTableEditorProps {
   onOpenTextImport: () => void;
   onImportFile: (files: FileList | null) => void;
   isImportingFile: boolean;
-  onContinue: () => void;
+  /** If provided, shows a "Continue" button at the bottom. Omit to hide navigation. */
+  onContinue?: () => void;
 }
 
 export function EntryTableEditor({
@@ -117,26 +118,20 @@ export function EntryTableEditor({
         Add Row
       </button>
 
-      {/* Step 1 keeps the same back/continue affordance as later panels. */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        <button
-          disabled
-          className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600
-                     text-sm text-stone-600 dark:text-stone-400
-                     disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          Back
-        </button>
-        <button
-          onClick={onContinue}
-          className="px-4 py-2 rounded-xl text-sm font-semibold
-                     bg-gradient-to-r from-primary-600 to-primary-700
-                     hover:from-primary-700 hover:to-primary-800
-                     text-white shadow-md btn-lift"
-        >
-          Continue to settings
-        </button>
-      </div>
+      {/* Navigation — only shown when used inside a wizard (onContinue provided). */}
+      {onContinue && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            onClick={onContinue}
+            className="px-4 py-2 rounded-xl text-sm font-semibold
+                       bg-gradient-to-r from-primary-600 to-primary-700
+                       hover:from-primary-700 hover:to-primary-800
+                       text-white shadow-md btn-lift"
+          >
+            Continue to settings
+          </button>
+        </div>
+      )}
     </div>
   );
 }

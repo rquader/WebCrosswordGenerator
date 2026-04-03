@@ -124,12 +124,12 @@ describe('recommendWordSearchGridSize', () => {
     expect(rec.width).toBeGreaterThanOrEqual(13); // 10 + 3
   });
 
-  it('recommends larger grids than crossword for same words', () => {
+  it('recommends reasonable size for word search', () => {
     const wordLengths = [5, 6, 7, 4, 5, 6];
-    const crossword = recommendGridSize(wordLengths);
     const wordSearch = recommendWordSearchGridSize(wordLengths);
-    // Word search should generally be same size or larger
-    expect(wordSearch.width).toBeGreaterThanOrEqual(crossword.width - 2);
+    // Word search should be at least longestWord + 3 = 10
+    expect(wordSearch.width).toBeGreaterThanOrEqual(10);
+    expect(wordSearch.width).toBeLessThanOrEqual(20);
   });
 
   it('scales with total content volume', () => {

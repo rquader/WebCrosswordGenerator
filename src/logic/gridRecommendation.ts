@@ -142,7 +142,6 @@ export function detectOutliers(wordLengths: number[]): OutlierWord[] {
 
   const sorted = [...wordLengths].sort((a, b) => a - b);
   const median = computeMedian(sorted);
-  const longest = sorted[sorted.length - 1];
   const secondLongest = sorted[sorted.length - 2];
 
   const outliers: OutlierWord[] = [];

@@ -55,14 +55,17 @@ export function generateCrosswordWithPriority(
     }
   }
 
+  const tooLongCanWords: string[] = [];
+
   for (let i = 0; i < config.canIncludeWords.length; i++) {
     const word = config.canIncludeWords[i];
     const clue = config.canIncludeClues[i];
     if (word.length <= maxDim) {
       canWords.push(word);
       canClues.push(clue);
+    } else {
+      tooLongCanWords.push(word);
     }
-    // Can-include words that are too long are silently dropped — expected
   }
 
   // Sort each tier by length descending (longest first = best grid structure).
@@ -130,7 +133,8 @@ export function generateCrosswordWithPriority(
   }
 
   // Can-include words that weren't placed → skipped (not failures)
-  const skippedCan: string[] = [...canWordSet];
+  // Includes words too long for the grid AND words that didn't find intersections.
+  const skippedCan: string[] = [...tooLongCanWords, ...canWordSet];
 
   return {
     crossword,
