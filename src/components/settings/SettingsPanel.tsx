@@ -6,10 +6,13 @@
  */
 
 import type { GenerationSettings } from './generationSettings';
+import type { GridRecommendation } from '../../logic/types';
 
 interface SettingsPanelProps {
   value: GenerationSettings;
   onChange: (settings: GenerationSettings) => void;
+  /** Grid recommendation based on current must-include words. */
+  recommendation?: GridRecommendation | null;
 }
 
 function randomSeed(): number {
@@ -20,7 +23,7 @@ function Divider() {
   return <div className="h-px bg-stone-200 dark:bg-stone-700/50" />;
 }
 
-export function SettingsPanel({ value, onChange }: SettingsPanelProps) {
+export function SettingsPanel({ value, onChange, recommendation }: SettingsPanelProps) {
   const seedCopied = false;
 
   function patch(next: Partial<GenerationSettings>) {
@@ -55,52 +58,62 @@ export function SettingsPanel({ value, onChange }: SettingsPanelProps) {
   return (
     <div className="warm-card p-5">
       <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
-        Settings
+        Grid Setup
       </h2>
 
       <div className="space-y-5">
         <div>
-          <label id="puzzle-type-label" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
-            Puzzle Type
-          </label>
-          <div className="flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-1" role="group" aria-labelledby="puzzle-type-label">
-            <button
-              onClick={() => patch({ puzzleMode: 'crossword' })}
-              aria-pressed={value.puzzleMode === 'crossword'}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${value.puzzleMode === 'crossword'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Crossword
-            </button>
-            <button
-              onClick={() => patch({ puzzleMode: 'wordsearch' })}
-              aria-pressed={value.puzzleMode === 'wordsearch'}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${value.puzzleMode === 'wordsearch'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Word Search
-            </button>
-          </div>
-        </div>
-
-        <Divider />
-
-        <div>
           <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
             Grid Size
           </label>
-          <div className="flex gap-2 mb-3">
-            {[
-              { label: 'Small 5x5', width: 5, height: 5 },
-              { label: 'Medium 8x8', width: 8, height: 8 },
-              { label: 'Large 12x12', width: 12, height: 12 },
-            ].map(({ label, width, height }) => {
+
+          {/* Grid recommendation badge */}
+          {recommendation && recommendation.minDimension > 0 && (
+            <div className="mb-3 flex items-start gap-2">
+              <div className="flex-1 rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
+                <p className="text-xs font-medium text-primary-700 dark:text-primary-300">
+                  Suggested: {recommendation.width}x{recommendation.height}
+                </p>
+                <p className="text-xs text-primary-600/80 dark:text-primary-400/70 mt-0.5">
+                  {recommendation.reason}
+                </p>
+              </div>
+              <button
+                onClick={() => applyQuickSize(recommendation.width, recommendation.height)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-all btn-lift flex-shrink-0"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+
+          {/* Outlier warnings */}
+          {recommendation && recommendation.outliers.length > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2">
+              {recommendation.outliers.map((outlier, i) => (
+                <p key={i} className="text-xs text-amber-700 dark:text-amber-300">
+                  <span className="font-medium uppercase">{outlier.word || `Word (${outlier.length} letters)`}</span>
+                  {' '}is much longer than your other words (median {outlier.medianOtherLength} letters).
+                  This needs a significantly larger grid.
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Min dimension warning */}
+          {recommendation && recommendation.minDimension > 0 &&
+           (value.width < recommendation.minDimension && value.height < recommendation.minDimension) && (
+            <div className="mb-3 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50/60 dark:bg-red-950/20 px-3 py-2">
+              <p className="text-xs text-red-700 dark:text-red-300">
+                Your longest word ({recommendation.minDimension} letters) won't fit in a {value.width}x{value.height} grid.
+                At least one dimension must be {recommendation.minDimension} or larger.
+              </p>
+            </div>
+          )}
+
+          {/* Quick size presets — dynamic if recommendation exists */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {getQuickSizePresets(recommendation).map(({ label, width, height }) => {
               const isActive = value.width === width && value.height === height;
               return (
                 <button
@@ -119,8 +132,8 @@ export function SettingsPanel({ value, onChange }: SettingsPanelProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <SliderField label="Width" value={value.width} min={2} max={15} onChange={(next) => patch({ width: next })} />
-            <SliderField label="Height" value={value.height} min={2} max={15} onChange={(next) => patch({ height: next })} />
+            <SliderField label="Width" value={value.width} min={2} max={20} onChange={(next) => patch({ width: next })} />
+            <SliderField label="Height" value={value.height} min={2} max={20} onChange={(next) => patch({ height: next })} />
           </div>
         </div>
 
@@ -280,4 +293,30 @@ function SliderField({ label, value, min, max, onChange }: SliderFieldProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * Build quick size preset buttons. If a recommendation exists, presets adapt
+ * to be relative to it (compact / recommended / spacious). Otherwise, static defaults.
+ */
+function getQuickSizePresets(
+  recommendation?: GridRecommendation | null
+): { label: string; width: number; height: number }[] {
+  if (!recommendation || recommendation.minDimension === 0) {
+    return [
+      { label: 'Small 5x5', width: 5, height: 5 },
+      { label: 'Medium 8x8', width: 8, height: 8 },
+      { label: 'Large 12x12', width: 12, height: 12 },
+    ];
+  }
+
+  const rec = recommendation.width;
+  const compact = Math.max(8, rec - 2);
+  const spacious = Math.min(20, rec + 3);
+
+  return [
+    { label: `Compact ${compact}x${compact}`, width: compact, height: compact },
+    { label: `Suggested ${rec}x${rec}`, width: rec, height: rec },
+    { label: `Spacious ${spacious}x${spacious}`, width: spacious, height: spacious },
+  ];
 }

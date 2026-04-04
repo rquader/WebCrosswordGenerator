@@ -44,6 +44,7 @@ class CrosswordGenerator {
   private wordLocations: DirectionalWord[];
   private reversedWordsMap: Map<string, string>;
   private debug: boolean;
+  private presorted: boolean;
 
   constructor(config: GeneratorConfig) {
     this.width = config.width;
@@ -56,6 +57,7 @@ class CrosswordGenerator {
     this.wordLocations = [];
     this.reversedWordsMap = new Map();
     this.debug = config.debug ?? false;
+    this.presorted = config.presorted ?? false;
 
     // Initialize grid with empty cells
     this.grid = [];
@@ -266,13 +268,17 @@ class CrosswordGenerator {
       pairs.push({ word: this.words[i], clue: this.clues[i] });
     }
 
-    // Step 2: Shuffle pairs with seeded random
-    this.random.shuffle(pairs);
-    this.debugPrint('Shuffled: ' + pairs.map(p => p.word).join(', '));
+    // Step 2-3: Shuffle and sort — unless the caller pre-sorted the words
+    // (used by the priority generator to control placement order).
+    if (!this.presorted) {
+      this.random.shuffle(pairs);
+      this.debugPrint('Shuffled: ' + pairs.map(p => p.word).join(', '));
 
-    // Step 3: Sort by word length descending (longer words get placed first)
-    pairs.sort((a, b) => b.word.length - a.word.length);
-    this.debugPrint('Sorted: ' + pairs.map(p => p.word).join(', '));
+      pairs.sort((a, b) => b.word.length - a.word.length);
+      this.debugPrint('Sorted: ' + pairs.map(p => p.word).join(', '));
+    } else {
+      this.debugPrint('Pre-sorted (skipping shuffle/sort): ' + pairs.map(p => p.word).join(', '));
+    }
 
     // Unpack back to separate arrays
     this.words = pairs.map(p => p.word);

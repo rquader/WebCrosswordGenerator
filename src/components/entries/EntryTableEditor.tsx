@@ -10,7 +10,8 @@ interface EntryTableEditorProps {
   onOpenTextImport: () => void;
   onImportFile: (files: FileList | null) => void;
   isImportingFile: boolean;
-  onContinue: () => void;
+  /** If provided, shows a "Continue" button at the bottom. Omit to hide navigation. */
+  onContinue?: () => void;
 }
 
 export function EntryTableEditor({
@@ -27,17 +28,8 @@ export function EntryTableEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="warm-card p-5 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
-            Entry Table
-          </h3>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-            This table is the source of truth for generation. Imports fill it, but you can always edit rows here.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2 self-end sm:self-auto sm:ml-auto">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
           <button
             onClick={onOpenTextImport}
             className="px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift"
@@ -64,7 +56,6 @@ export function EntryTableEditor({
             onChange={(e) => onImportFile(e.target.files)}
             className="hidden"
           />
-        </div>
       </div>
 
       {table.warnings.length > 0 && (
@@ -117,26 +108,20 @@ export function EntryTableEditor({
         Add Row
       </button>
 
-      {/* Step 1 keeps the same back/continue affordance as later panels. */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        <button
-          disabled
-          className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600
-                     text-sm text-stone-600 dark:text-stone-400
-                     disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          Back
-        </button>
-        <button
-          onClick={onContinue}
-          className="px-4 py-2 rounded-xl text-sm font-semibold
-                     bg-gradient-to-r from-primary-600 to-primary-700
-                     hover:from-primary-700 hover:to-primary-800
-                     text-white shadow-md btn-lift"
-        >
-          Continue to settings
-        </button>
-      </div>
+      {/* Navigation — only shown when used inside a wizard (onContinue provided). */}
+      {onContinue && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            onClick={onContinue}
+            className="px-4 py-2 rounded-xl text-sm font-semibold
+                       bg-gradient-to-r from-primary-600 to-primary-700
+                       hover:from-primary-700 hover:to-primary-800
+                       text-white shadow-md btn-lift"
+          >
+            Continue to settings
+          </button>
+        </div>
+      )}
     </div>
   );
 }
