@@ -9,7 +9,7 @@ This project is a Vite + React + TypeScript web app for generating and playing c
 
 ## Acknowledgements
 
-This project is a TypeScript/React rewrite and significant expansion of an earlier project originally implemented in Java.  
+This project is a TypeScript/React port and significant expansion of an earlier project implemented in Java.  
 The original repository can be found here: https://github.com/s-armaan/CrosswordGenerator and was authored by Armaan Saini, Rafan Quader, Kabir Khan, Anthony Phanh, and Ethan Le.
 
 
