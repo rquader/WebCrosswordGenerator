@@ -34,7 +34,7 @@ import {
 } from '../entries/entryTable';
 import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
-import { SkeletonFillView } from '../skeleton/SkeletonFillView';
+import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
 
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
@@ -62,7 +62,22 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   const [showStrictlyInclude, setShowStrictlyInclude] = useState(false);
   const [showTextImport, setShowTextImport] = useState(false);
 
-  useEffect(() => { saveWizardState(wizard); }, [wizard]);
+  // Persist wizard state — but clear strictly-include rows when the checkbox
+  // is off so they don't survive a page reload. They stay in React state
+  // (so re-checking the box restores them within the same session).
+  useEffect(() => {
+    if (showStrictlyInclude || wizard.settings.puzzleMode === 'wordsearch') {
+      // Save normally — rows are active
+      saveWizardState(wizard);
+    } else {
+      // Strictly-include is unchecked in crossword mode — save with empty rows
+      // so a reload starts clean, but keep rows in React state for this session
+      saveWizardState({
+        ...wizard,
+        table: { rows: [createEmptyEntryRow()], warnings: [] },
+      });
+    }
+  }, [wizard, showStrictlyInclude]);
 
   // --- Derived ---
 
@@ -210,13 +225,48 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
     setTimeout(() => handleGenerateSkeleton(), 20);
   }
 
-  function handleSkeletonComplete() {
+  function handleSkeletonComplete(filledSlots: FilledSlotData[]) {
     if (!activeSkeleton) return;
+
+    // Build a lookup of user-filled words by slot ID
+    const fillMap = new Map<number, FilledSlotData>();
+    for (const f of filledSlots) {
+      fillMap.set(f.slotId, f);
+    }
+
+    // Merge: pre-filled slots (must-include) + user-filled slots
+    const allWordLocations = activeSkeleton.slots
+      .map(slot => {
+        const fill = fillMap.get(slot.id);
+        const word = slot.isUserWord ? slot.word! : fill?.word;
+        const clue = slot.isUserWord ? slot.clue! : fill?.clue ?? '';
+        if (!word) return null;
+        return {
+          word,
+          isHorizontal: slot.direction === 'across',
+          isReversed: false,
+          clue,
+          x: slot.startX,
+          y: slot.startY,
+        };
+      })
+      .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
+
+    // Rebuild the grid with user-filled words written into it
+    const grid = activeSkeleton.grid.map(row => [...row]);
+    for (const slot of activeSkeleton.slots) {
+      const fill = fillMap.get(slot.id);
+      if (!fill) continue;
+      for (let i = 0; i < fill.word.length; i++) {
+        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+        grid[y][x] = fill.word[i];
+      }
+    }
+
     const crosswordResult: CrosswordResult = {
-      grid: activeSkeleton.grid,
-      wordLocations: activeSkeleton.slots
-        .filter(s => s.word !== undefined)
-        .map(s => ({ word: s.word!, isHorizontal: s.direction === 'across', isReversed: false, clue: s.clue || '', x: s.startX, y: s.startY })),
+      grid,
+      wordLocations: allWordLocations,
       width: activeSkeleton.width,
       height: activeSkeleton.height,
     };

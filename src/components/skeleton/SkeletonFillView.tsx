@@ -11,13 +11,21 @@
  * types a word, and sees constraint letters update in real time.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { SkeletonResult, SkeletonSlot } from '../../logic/types';
 import { SkeletonGrid } from './SkeletonGrid';
 
+/** Filled slot data passed back on completion. */
+export interface FilledSlotData {
+  slotId: number;
+  word: string;
+  clue: string;
+}
+
 interface SkeletonFillViewProps {
   skeleton: SkeletonResult;
-  onComplete: () => void;
+  /** Called with all user-filled slot data when "Create Puzzle" is clicked. */
+  onComplete: (filledSlots: FilledSlotData[]) => void;
   onRegenerate: () => void;
   onBack: () => void;
 }
@@ -48,6 +56,11 @@ export function SkeletonFillView({
     const firstEmpty = skeleton.slots.find(s => !s.isUserWord);
     return firstEmpty?.id ?? null;
   });
+
+  // Track cells that just matched (for green flash effect).
+  // Key = "x,y", value = timeout ID for cleanup.
+  const [matchFlashCells, setMatchFlashCells] = useState<Set<string>>(new Set());
+  const flashTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Build user fills map for the grid (slotId → word string)
   const userFills = useMemo(() => {
@@ -93,6 +106,52 @@ export function SkeletonFillView({
       return next;
     });
   }, []);
+
+  // Detect crossing cells that just became matched → trigger green flash
+  const prevCrossingRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    // Build current crossing states from the grid data
+    const currentCrossing = computeCrossingCellStates(skeleton.slots, slotEdits);
+    const prev = prevCrossingRef.current;
+
+    for (const [cellKey, state] of currentCrossing) {
+      const prevState = prev.get(cellKey);
+      if (state === 'matched' && prevState !== 'matched') {
+        // This cell just became matched — flash green
+        setMatchFlashCells(s => { const next = new Set(s); next.add(cellKey); return next; });
+        // Clear existing timer if any
+        const existing = flashTimers.current.get(cellKey);
+        if (existing) clearTimeout(existing);
+        // Remove flash after 3 seconds
+        const timer = setTimeout(() => {
+          setMatchFlashCells(s => { const next = new Set(s); next.delete(cellKey); return next; });
+          flashTimers.current.delete(cellKey);
+        }, 3000);
+        flashTimers.current.set(cellKey, timer);
+      }
+    }
+
+    prevCrossingRef.current = currentCrossing;
+  }, [skeleton.slots, slotEdits]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of flashTimers.current.values()) clearTimeout(timer);
+    };
+  }, []);
+
+  // Collect filled data and pass to parent
+  function handleFinalize() {
+    const filled: FilledSlotData[] = [];
+    for (const slot of emptySlots) {
+      const edit = slotEdits.get(slot.id);
+      if (edit && edit.word.length === slot.length) {
+        filled.push({ slotId: slot.id, word: edit.word, clue: edit.clue });
+      }
+    }
+    onComplete(filled);
+  }
 
   // When user clicks a cell in the grid, select the slot at that cell
   function handleCellClick(x: number, y: number) {
@@ -154,6 +213,7 @@ export function SkeletonFillView({
           slots={skeleton.slots}
           userFills={userFills}
           selectedSlotId={selectedSlotId}
+          matchFlashCells={matchFlashCells}
           onCellClick={handleCellClick}
         />
       </div>
@@ -203,7 +263,7 @@ export function SkeletonFillView({
                        hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
             Different layout
           </button>
-          <button onClick={onComplete} disabled={!canFinalize}
+          <button onClick={handleFinalize} disabled={!canFinalize}
             className="px-4 py-2 rounded-xl text-sm font-semibold
                        bg-gradient-to-r from-primary-600 to-primary-700
                        hover:from-primary-700 hover:to-primary-800
@@ -354,4 +414,39 @@ function countFilledSlots(emptySlots: SkeletonSlot[], edits: Map<number, SlotEdi
     if (edit && edit.word.length === slot.length) n++;
   }
   return n;
+}
+
+/**
+ * Compute crossing state per cell (used for green flash detection).
+ * Returns a map of "x,y" → 'partial' | 'matched' | 'conflict'.
+ */
+function computeCrossingCellStates(
+  slots: SkeletonSlot[],
+  edits: Map<number, SlotEditState>,
+): Map<string, string> {
+  // Collect letters at each cell from each slot
+  const cellLetters = new Map<string, string[]>();
+  for (const slot of slots) {
+    const word = slot.isUserWord ? slot.word! : (edits.get(slot.id)?.word ?? '');
+    for (let i = 0; i < slot.length; i++) {
+      const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+      const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+      const key = `${x},${y}`;
+      const letter = i < word.length ? word[i] : '';
+      const existing = cellLetters.get(key);
+      if (existing) existing.push(letter); else cellLetters.set(key, [letter]);
+    }
+  }
+
+  const result = new Map<string, string>();
+  for (const [key, letters] of cellLetters) {
+    if (letters.length < 2) continue;
+    const filled = letters.filter(l => l.length > 0);
+    if (filled.length < 2) {
+      result.set(key, filled.length > 0 ? 'partial' : 'none');
+    } else {
+      result.set(key, filled.every(l => l === filled[0]) ? 'matched' : 'conflict');
+    }
+  }
+  return result;
 }

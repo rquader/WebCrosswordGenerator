@@ -58,42 +58,10 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
   return (
     <div className="warm-card p-5">
       <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
-        Settings
+        Grid Setup
       </h2>
 
       <div className="space-y-5">
-        <div>
-          <label id="puzzle-type-label" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
-            Puzzle Type
-          </label>
-          <div className="flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-1" role="group" aria-labelledby="puzzle-type-label">
-            <button
-              onClick={() => patch({ puzzleMode: 'crossword' })}
-              aria-pressed={value.puzzleMode === 'crossword'}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${value.puzzleMode === 'crossword'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Crossword
-            </button>
-            <button
-              onClick={() => patch({ puzzleMode: 'wordsearch' })}
-              aria-pressed={value.puzzleMode === 'wordsearch'}
-              className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all duration-150
-                ${value.puzzleMode === 'wordsearch'
-                  ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
-                }`}
-            >
-              Word Search
-            </button>
-          </div>
-        </div>
-
-        <Divider />
-
         <div>
           <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
             Grid Size
