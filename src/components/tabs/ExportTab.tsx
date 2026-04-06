@@ -2,10 +2,9 @@
  * Export tab — print, download, and share puzzles.
  *
  * Export options:
- * - Print (browser's native print dialog with clean CSS)
+ * - Print Preview (modal with Student Puzzle / Answer Key)
  * - PNG image (canvas-based, no external libraries)
  * - JSON (puzzle data for re-importing)
- * - PDF (via browser print-to-PDF)
  *
  * All exports are generated locally. Nothing is uploaded or shared externally.
  */
@@ -14,7 +13,9 @@ import { useState } from 'react';
 import type { CrosswordResult } from '../../logic/types';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
-import { exportAsJson, exportAsPng, printPuzzle } from '../../utils/exportUtils';
+import { exportAsJson, exportAsPng } from '../../utils/exportUtils';
+import { PrintPreviewModal } from '../print/PrintPreviewModal';
+import { copyPuzzleUrlToClipboard } from '../../utils/puzzleUrl';
 
 interface ExportTabProps {
   puzzle: CrosswordResult;
@@ -22,6 +23,14 @@ interface ExportTabProps {
 
 export function ExportTab({ puzzle }: ExportTabProps) {
   const [includeAnswers, setIncludeAnswers] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [shareToast, setShareToast] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const handleShare = async () => {
+    const success = await copyPuzzleUrlToClipboard(puzzle);
+    setShareToast(success ? 'copied' : 'error');
+    setTimeout(() => setShareToast('idle'), 3000);
+  };
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -41,12 +50,12 @@ export function ExportTab({ puzzle }: ExportTabProps) {
                        text-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm text-stone-600 dark:text-stone-400">
-            Include answers in export
+            Include answers in image export
           </span>
         </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Print */}
+          {/* Print Preview */}
           <ExportButton
             icon={
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -54,8 +63,8 @@ export function ExportTab({ puzzle }: ExportTabProps) {
               </svg>
             }
             label="Print"
-            description="Open print dialog (or save as PDF)"
-            onClick={() => printPuzzle()}
+            description="Preview and print puzzle"
+            onClick={() => setShowPrintPreview(true)}
           />
 
           {/* PNG */}
@@ -82,7 +91,7 @@ export function ExportTab({ puzzle }: ExportTabProps) {
             onClick={() => exportAsJson(puzzle)}
           />
 
-          {/* Answer Key */}
+          {/* Answer Key PNG */}
           <ExportButton
             icon={
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -93,7 +102,31 @@ export function ExportTab({ puzzle }: ExportTabProps) {
             description="PNG with all answers shown"
             onClick={() => exportAsPng(puzzle, true, 'crossword-answers.png')}
           />
+
+          {/* Share Link */}
+          <ExportButton
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+            }
+            label="Share Link"
+            description={shareToast === 'copied' ? 'Link copied!' : 'Copy solve link'}
+            onClick={handleShare}
+          />
         </div>
+
+        {/* Share toast */}
+        {shareToast === 'copied' && (
+          <div className="mt-3 px-3 py-2 rounded-lg bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800/40 text-sm text-primary-700 dark:text-primary-300 animate-slide-up">
+            Link copied! Anyone with this link can solve your puzzle.
+          </div>
+        )}
+        {shareToast === 'error' && (
+          <div className="mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 text-sm text-red-700 dark:text-red-300 animate-slide-up">
+            Could not copy link. Try again.
+          </div>
+        )}
 
         <p className="mt-4 text-xs text-stone-400 dark:text-stone-500 flex items-center gap-1">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -103,9 +136,9 @@ export function ExportTab({ puzzle }: ExportTabProps) {
         </p>
       </div>
 
-      {/* Print preview area (visible when printing) */}
-      <div className="print-area">
-        <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mb-4 print:text-black">
+      {/* Preview area */}
+      <div className="warm-card p-5">
+        <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
           Preview
         </h2>
         <div className="flex justify-center mb-6">
@@ -113,6 +146,13 @@ export function ExportTab({ puzzle }: ExportTabProps) {
         </div>
         <CluePanel puzzle={puzzle} />
       </div>
+
+      {/* Print Preview Modal */}
+      <PrintPreviewModal
+        puzzle={puzzle}
+        isOpen={showPrintPreview}
+        onClose={() => setShowPrintPreview(false)}
+      />
     </div>
   );
 }

@@ -219,7 +219,22 @@ function buildSkeletonFromFullResult(
     }
   }
 
-  const slots = buildSlotsFromWordLocations(crossword.wordLocations, bankWords);
+  // Filter out bank words that have no remaining blank cells in the grid.
+  // These are bank words whose every cell was shared with a user word —
+  // they were fully absorbed and shouldn't produce skeleton slots.
+  const relevantLocations = crossword.wordLocations.filter(loc => {
+    if (!bankWords.has(loc.word)) return true; // always keep user words
+
+    // Check if this bank word has at least one blank cell in the stripped grid
+    for (let i = 0; i < loc.word.length; i++) {
+      const x = loc.isHorizontal ? loc.x + i : loc.x;
+      const y = loc.isHorizontal ? loc.y : loc.y + i;
+      if (grid[y][x] === EMPTY_CELL) return true; // has a blank cell — keep it
+    }
+    return false; // entirely covered by user words — drop it
+  });
+
+  const slots = buildSlotsFromWordLocations(relevantLocations, bankWords);
 
   return {
     grid,
@@ -283,6 +298,13 @@ function buildSlotsFromWordLocations(
     const loc = wordLocations[i];
     const isBank = bankWords.has(loc.word);
 
+    // For reversed words, the grid contains the reversed letters but
+    // wordLocations stores the original spelling. The slot must use the
+    // reversed text so that letter positions match the grid exactly.
+    const gridWord = loc.isReversed
+      ? loc.word.split('').reverse().join('')
+      : loc.word;
+
     slots.push({
       id: i + 1,
       direction: loc.isHorizontal ? 'across' : 'down',
@@ -290,7 +312,7 @@ function buildSlotsFromWordLocations(
       startY: loc.y,
       length: loc.word.length,
       constraints: new Map(), // Filled in second pass
-      word: isBank ? undefined : loc.word,
+      word: isBank ? undefined : gridWord,
       clue: isBank ? undefined : loc.clue,
       isUserWord: !isBank,
     });

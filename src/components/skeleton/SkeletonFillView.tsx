@@ -114,21 +114,54 @@ export function SkeletonFillView({
     const currentCrossing = computeCrossingCellStates(skeleton.slots, slotEdits);
     const prev = prevCrossingRef.current;
 
+    const cellsToFlash: string[] = [];
+    const cellsToClear: string[] = [];
+
     for (const [cellKey, state] of currentCrossing) {
       const prevState = prev.get(cellKey);
       if (state === 'matched' && prevState !== 'matched') {
-        // This cell just became matched — flash green
-        setMatchFlashCells(s => { const next = new Set(s); next.add(cellKey); return next; });
-        // Clear existing timer if any
-        const existing = flashTimers.current.get(cellKey);
-        if (existing) clearTimeout(existing);
-        // Remove flash after 3 seconds
-        const timer = setTimeout(() => {
-          setMatchFlashCells(s => { const next = new Set(s); next.delete(cellKey); return next; });
-          flashTimers.current.delete(cellKey);
-        }, 3000);
-        flashTimers.current.set(cellKey, timer);
+        // This cell just became matched — queue green flash
+        cellsToFlash.push(cellKey);
+      } else if (state !== 'matched' && prevState === 'matched') {
+        // This cell was matched but no longer is (letter deleted) — clear immediately
+        cellsToClear.push(cellKey);
       }
+    }
+
+    // Also clear flash for cells that disappeared from currentCrossing entirely
+    for (const cellKey of prev.keys()) {
+      if (!currentCrossing.has(cellKey)) {
+        cellsToClear.push(cellKey);
+      }
+    }
+
+    if (cellsToClear.length > 0) {
+      setMatchFlashCells(s => {
+        const next = new Set(s);
+        for (const key of cellsToClear) {
+          next.delete(key);
+          const timer = flashTimers.current.get(key);
+          if (timer) { clearTimeout(timer); flashTimers.current.delete(key); }
+        }
+        return next;
+      });
+    }
+
+    if (cellsToFlash.length > 0) {
+      setMatchFlashCells(s => {
+        const next = new Set(s);
+        for (const key of cellsToFlash) {
+          next.add(key);
+          const existing = flashTimers.current.get(key);
+          if (existing) clearTimeout(existing);
+          const timer = setTimeout(() => {
+            setMatchFlashCells(ss => { const nn = new Set(ss); nn.delete(key); return nn; });
+            flashTimers.current.delete(key);
+          }, 3000);
+          flashTimers.current.set(key, timer);
+        }
+        return next;
+      });
     }
 
     prevCrossingRef.current = currentCrossing;
@@ -167,6 +200,28 @@ export function SkeletonFillView({
       }
     }
   }
+
+  // Filter out flash cells where all crossing slots are must-include.
+  const filteredFlashCells = useMemo(() => {
+    if (matchFlashCells.size === 0) return matchFlashCells;
+    const cellFlags = new Map<string, boolean[]>();
+    for (const slot of skeleton.slots) {
+      for (let i = 0; i < slot.length; i++) {
+        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+        const key = `${x},${y}`;
+        const arr = cellFlags.get(key);
+        if (arr) arr.push(slot.isUserWord); else cellFlags.set(key, [slot.isUserWord]);
+      }
+    }
+    const filtered = new Set<string>();
+    for (const key of matchFlashCells) {
+      const flags = cellFlags.get(key);
+      const allMustInclude = flags && flags.length >= 2 && flags.every(f => f);
+      if (!allMustInclude) filtered.add(key);
+    }
+    return filtered;
+  }, [matchFlashCells, skeleton.slots]);
 
   return (
     <div className="space-y-4">
@@ -213,7 +268,7 @@ export function SkeletonFillView({
           slots={skeleton.slots}
           userFills={userFills}
           selectedSlotId={selectedSlotId}
-          matchFlashCells={matchFlashCells}
+          matchFlashCells={filteredFlashCells}
           onCellClick={handleCellClick}
         />
       </div>
@@ -419,13 +474,17 @@ function countFilledSlots(emptySlots: SkeletonSlot[], edits: Map<number, SlotEdi
 /**
  * Compute crossing state per cell (used for green flash detection).
  * Returns a map of "x,y" → 'partial' | 'matched' | 'conflict'.
+ *
+ * Crossings where BOTH slots are must-include (pre-placed by the generator)
+ * are excluded — they're always correct and should never flash green.
+ * The flash is only meaningful when a user-typed word matches a crossing.
  */
 function computeCrossingCellStates(
   slots: SkeletonSlot[],
   edits: Map<number, SlotEditState>,
 ): Map<string, string> {
-  // Collect letters at each cell from each slot
-  const cellLetters = new Map<string, string[]>();
+  // Collect letters + whether the slot is user-placed at each cell
+  const cellEntries = new Map<string, { letter: string; isUserWord: boolean }[]>();
   for (const slot of slots) {
     const word = slot.isUserWord ? slot.word! : (edits.get(slot.id)?.word ?? '');
     for (let i = 0; i < slot.length; i++) {
@@ -433,19 +492,24 @@ function computeCrossingCellStates(
       const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
       const key = `${x},${y}`;
       const letter = i < word.length ? word[i] : '';
-      const existing = cellLetters.get(key);
-      if (existing) existing.push(letter); else cellLetters.set(key, [letter]);
+      const existing = cellEntries.get(key);
+      const entry = { letter, isUserWord: slot.isUserWord };
+      if (existing) existing.push(entry); else cellEntries.set(key, [entry]);
     }
   }
 
   const result = new Map<string, string>();
-  for (const [key, letters] of cellLetters) {
-    if (letters.length < 2) continue;
-    const filled = letters.filter(l => l.length > 0);
+  for (const [key, entries] of cellEntries) {
+    if (entries.length < 2) continue;
+
+    // Skip crossings where all slots are must-include (pre-placed).
+    if (entries.every(e => e.isUserWord)) continue;
+
+    const filled = entries.filter(e => e.letter.length > 0);
     if (filled.length < 2) {
       result.set(key, filled.length > 0 ? 'partial' : 'none');
     } else {
-      result.set(key, filled.every(l => l === filled[0]) ? 'matched' : 'conflict');
+      result.set(key, filled.every(e => e.letter === filled[0].letter) ? 'matched' : 'conflict');
     }
   }
   return result;

@@ -71,7 +71,10 @@ describe('wizardState', () => {
     expect(state.currentStep).toBe('review');
     expect(state.settings.seedText).toBe('1234');
     expect(state.table.warnings).toEqual(['Imported row 3 had no clue']);
-    expect(state.table.rows[0]).toEqual({ id: 'row-1', word: 'react', clue: 'A UI library' });
+    // IDs are regenerated on hydration to avoid collisions, so only check content
+    expect(state.table.rows[0].word).toBe('react');
+    expect(state.table.rows[0].clue).toBe('A UI library');
+    expect(state.table.rows[0].id).toBeTruthy();
     expect(state.textImport.rawText).toBe('java: language');
   });
 
@@ -87,7 +90,11 @@ describe('wizardState', () => {
 
     const reloaded = loadWizardState();
     expect(reloaded.currentStep).toBe('settings');
-    expect(reloaded.table.rows).toEqual([{ id: 'row-1', word: 'loop', clue: 'Repeating block' }]);
+    // IDs are regenerated on hydration, so check content not exact ID
+    expect(reloaded.table.rows).toHaveLength(1);
+    expect(reloaded.table.rows[0].word).toBe('loop');
+    expect(reloaded.table.rows[0].clue).toBe('Repeating block');
+    expect(reloaded.table.rows[0].id).toBeTruthy();
     expect(reloaded.table.warnings).toEqual(['Line 2: Empty clue']);
   });
 });

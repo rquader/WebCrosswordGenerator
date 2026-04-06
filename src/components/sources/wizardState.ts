@@ -60,6 +60,9 @@ export function hydrateWizardState(raw: unknown): WizardState {
   const candidate = raw as Partial<WizardState>;
   const rawTable = candidate.table;
   const rawRows = Array.isArray(rawTable?.rows) ? rawTable.rows as unknown[] : [];
+  // Always assign fresh IDs on hydration to avoid collisions with the
+  // runtime counter. Old localStorage entries may have stale IDs like
+  // "entry-row-1" that would collide with newly created rows.
   const rows = rawRows.reduce<Array<{ id: string; word: string; clue: string }>>((acc, row) => {
     if (!row || typeof row !== 'object') {
       return acc;
@@ -67,7 +70,7 @@ export function hydrateWizardState(raw: unknown): WizardState {
 
     const record = row as Record<string, unknown>;
     acc.push({
-      id: typeof record.id === 'string' && record.id.length > 0 ? record.id : createEmptyEntryRow().id,
+      id: createEmptyEntryRow().id,
       word: typeof record.word === 'string' ? record.word : '',
       clue: typeof record.clue === 'string' ? record.clue : '',
     });

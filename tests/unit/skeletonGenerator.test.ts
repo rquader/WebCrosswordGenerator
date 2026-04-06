@@ -66,13 +66,20 @@ describe('skeleton generation basics', () => {
     // There should be some slots
     expect(result.slots.length).toBeGreaterThan(0);
 
-    // Must-include words should appear as filled slots
+    // Must-include words should appear as filled slots.
+    // Reversed words are stored as they appear in the grid (e.g. 'tcaer' for 'react').
     const filledWords = result.slots
       .filter(s => s.word !== undefined)
-      .map(s => s.word);
-    expect(filledWords).toContain('python');
-    expect(filledWords).toContain('java');
-    expect(filledWords).toContain('react');
+      .map(s => s.word!);
+
+    function containsWordOrReverse(words: string[], target: string): boolean {
+      const reversed = target.split('').reverse().join('');
+      return words.includes(target) || words.includes(reversed);
+    }
+
+    expect(containsWordOrReverse(filledWords, 'python')).toBe(true);
+    expect(containsWordOrReverse(filledWords, 'java')).toBe(true);
+    expect(containsWordOrReverse(filledWords, 'react')).toBe(true);
   });
 
   it('creates empty slots for word bank words (skeleton structure)', () => {

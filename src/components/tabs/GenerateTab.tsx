@@ -82,8 +82,8 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   // --- Derived ---
 
   const strictlyIncludeEntries = useMemo(
-    () => getGenerationEntriesFromRows(wizard.table.rows),
-    [wizard.table.rows],
+    () => showStrictlyInclude ? getGenerationEntriesFromRows(wizard.table.rows) : [],
+    [wizard.table.rows, showStrictlyInclude],
   );
 
   const gridRecommendation = useMemo(() => {
@@ -220,9 +220,35 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   }
 
   function handleSkeletonRegenerate() {
-    patchWizard({ settings: { ...wizard.settings, seedText: String(randomSeed()) } });
+    // Generate the new seed NOW and use it directly.
+    // We can't call handleGenerateSkeleton via setTimeout because of stale closures —
+    // it would capture the old wizard state and regenerate with the same seed.
+    const newSeed = randomSeed();
+    setIsGenerating(true);
     setActiveSkeleton(null);
-    setTimeout(() => handleGenerateSkeleton(), 20);
+
+    setTimeout(() => {
+      patchWizard({ settings: { ...wizard.settings, seedText: String(newSeed) } });
+
+      const prioritized: PrioritizedEntry[] = strictlyIncludeEntries.map(e => ({
+        word: e.word, clue: e.clue, priority: 'must' as const,
+      }));
+
+      const skeleton = createSkeletonFromEntries({
+        entries: prioritized,
+        width: wizard.settings.width,
+        height: wizard.settings.height,
+        seed: newSeed,
+        allowReverseWords: wizard.settings.allowReverseWords,
+      });
+
+      setActiveSkeleton(skeleton);
+      setGenerationInfo(
+        `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${newSeed}`
+      );
+      setGridKey(prev => prev + 1);
+      setIsGenerating(false);
+    }, 150);
   }
 
   function handleSkeletonComplete(filledSlots: FilledSlotData[]) {

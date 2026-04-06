@@ -28,7 +28,13 @@ export interface EntryRowValidation {
   isValid: boolean;
 }
 
-let rowCounter = 0;
+/**
+ * Row ID counter. Starts from the current timestamp to avoid collisions
+ * with rows loaded from localStorage (which may have IDs from previous sessions).
+ * Using Date.now() ensures new IDs never collide with old `entry-row-N` IDs
+ * unless the user creates 10M+ rows in one session.
+ */
+let rowCounter = Date.now();
 
 /**
  * Generate stable row ids for the editable table.

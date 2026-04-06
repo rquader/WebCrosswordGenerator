@@ -63,6 +63,27 @@ export function SkeletonGrid({
     return map;
   }, [slots]);
 
+  // Cells where all crossing slots are must-include — immune to green flash.
+  // Now that phantom bank word slots are filtered at the source, each cell
+  // has at most 2 slot entries (one across, one down).
+  const preplacedCrossingCells = useMemo(() => {
+    const cellFlags = new Map<string, boolean[]>();
+    for (const slot of slots) {
+      for (let i = 0; i < slot.length; i++) {
+        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+        const key = `${x},${y}`;
+        const arr = cellFlags.get(key);
+        if (arr) arr.push(slot.isUserWord); else cellFlags.set(key, [slot.isUserWord]);
+      }
+    }
+    const immune = new Set<string>();
+    for (const [key, flags] of cellFlags) {
+      if (flags.length >= 2 && flags.every(f => f)) immune.add(key);
+    }
+    return immune;
+  }, [slots]);
+
   // Build selected slot cell set for highlighting
   const selectedCells = useMemo(() => {
     const set = new Set<string>();
@@ -107,21 +128,32 @@ export function SkeletonGrid({
             const isConstraintLetter = info?.isConstraint ?? false;
             const crossing = info?.crossing ?? 'none';
 
-            // Is this cell in the green match flash?
-            const isMatchFlash = matchFlashCells.has(key);
+            // Should this cell flash green? Only if it's NOT a crossing
+            // between two must-include words. Check slots directly.
+            let canFlashGreen = false;
+            if (matchFlashCells.has(key)) {
+              // Count how many must-include slots touch this cell
+              let mustCountHere = 0;
+              for (const s of slots) {
+                if (!s.isUserWord) continue;
+                for (let si = 0; si < s.length; si++) {
+                  const sx = s.direction === 'across' ? s.startX + si : s.startX;
+                  const sy = s.direction === 'across' ? s.startY : s.startY + si;
+                  if (sx === x && sy === y) { mustCountHere++; break; }
+                }
+              }
+              canFlashGreen = mustCountHere < 2;
+            }
 
-            // Cell background: crossing state always visible. Selection via ring only.
+            // Cell background
             let bgClass: string;
             if (isBlocked) {
               bgClass = 'bg-grid-blocked dark:bg-grid-blocked-dark';
             } else if (crossing === 'conflict') {
-              // Red — two words disagree at this cell
               bgClass = 'bg-red-100 dark:bg-red-900/30';
-            } else if (isMatchFlash) {
-              // Green flash — both words just matched, fades after 3s
+            } else if (canFlashGreen) {
               bgClass = 'bg-emerald-100 dark:bg-emerald-900/30 transition-colors duration-500';
             } else if (crossing === 'partial') {
-              // Amber — one word filled, other hasn't reached this cell yet
               bgClass = 'bg-amber-100 dark:bg-amber-900/20';
             } else if (isFilled) {
               bgClass = 'bg-primary-50 dark:bg-primary-950/30';
@@ -230,7 +262,7 @@ function buildCellInfoMap(
   const owners = new Map<string, number>();
 
   // Collect each slot's current letter at each cell
-  const cellSlotLetters = new Map<string, { slotId: number; letter: string }[]>();
+  const cellSlotLetters = new Map<string, { slotId: number; letter: string; isUserWord: boolean }[]>();
 
   for (const slot of slots) {
     const word = slot.isUserWord ? slot.word! : (userFills.get(slot.id) ?? '');
@@ -240,7 +272,7 @@ function buildCellInfoMap(
       const key = `${x},${y}`;
       const letter = i < word.length ? word[i] : '';
       const entries = cellSlotLetters.get(key);
-      const entry = { slotId: slot.id, letter };
+      const entry = { slotId: slot.id, letter, isUserWord: slot.isUserWord };
       if (entries) entries.push(entry); else cellSlotLetters.set(key, [entry]);
     }
   }
@@ -344,9 +376,15 @@ function pickIncumbentLetter(
 
 /**
  * Determine crossing state from letters contributed by each slot at a cell.
+ *
+ * Crossings where ALL contributing slots are must-include (pre-placed)
+ * return 'none' — they're always correct and need no visual indicator.
  */
-function computeCrossingState(entries: { slotId: number; letter: string }[]): CrossingState {
+function computeCrossingState(entries: { slotId: number; letter: string; isUserWord: boolean }[]): CrossingState {
   if (entries.length < 2) return 'none';
+
+  // Pre-placed must-include crossings are always correct — no indicator needed
+  if (entries.every(e => e.isUserWord)) return 'none';
 
   const filled = entries.filter(e => e.letter.length > 0);
   if (filled.length < 2) {
