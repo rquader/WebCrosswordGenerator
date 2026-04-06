@@ -63,27 +63,6 @@ export function SkeletonGrid({
     return map;
   }, [slots]);
 
-  // Cells where all crossing slots are must-include — immune to green flash.
-  // Now that phantom bank word slots are filtered at the source, each cell
-  // has at most 2 slot entries (one across, one down).
-  const preplacedCrossingCells = useMemo(() => {
-    const cellFlags = new Map<string, boolean[]>();
-    for (const slot of slots) {
-      for (let i = 0; i < slot.length; i++) {
-        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
-        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
-        const key = `${x},${y}`;
-        const arr = cellFlags.get(key);
-        if (arr) arr.push(slot.isUserWord); else cellFlags.set(key, [slot.isUserWord]);
-      }
-    }
-    const immune = new Set<string>();
-    for (const [key, flags] of cellFlags) {
-      if (flags.length >= 2 && flags.every(f => f)) immune.add(key);
-    }
-    return immune;
-  }, [slots]);
-
   // Build selected slot cell set for highlighting
   const selectedCells = useMemo(() => {
     const set = new Set<string>();
