@@ -128,7 +128,7 @@ GitHub Pages via `gh-pages` package. Base path: `/WebCrosswordGenerator/` (set i
 Manual deploy with `npm run deploy`. No CI/CD — tests run locally before deploy.
 
 ## Deep Dives (Obsidian — optional, this file is self-contained)
-Extended docs live in a separate private repo ([WebCrosswordGeneratorNotes](https://github.com/thenamesrafan/WebCrosswordGeneratorNotes)).
+Extended docs live in a separate private repo ([WebCrosswordGeneratorNotes](https://github.com/rquader/WebCrosswordGeneratorNotes)).
 Clone it into your Obsidian vault and set the absolute path below.
 
 <!-- UPDATE THIS PATH to your local WebCrosswordGeneratorNotes clone -->
