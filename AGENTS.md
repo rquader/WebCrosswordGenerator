@@ -127,9 +127,13 @@ react, react-dom, jspdf (PDF export), pako (zlib compression for URL sharing),
 GitHub Pages via `gh-pages` package. Base path: `/WebCrosswordGenerator/` (set in `vite.config.ts`).
 Manual deploy with `npm run deploy`. No CI/CD — tests run locally before deploy.
 
-## Deep Dives (Obsidian — optional, AGENTS.md is self-contained)
-Extended docs live in an Obsidian vault. Path is machine-specific — update for your setup:
-`/Users/rafanquader/Obsidian_Local/RafansLocalVault/WebCrosswordGenerator/`
+## Deep Dives (Obsidian — optional, this file is self-contained)
+Extended docs live in a separate private repo ([WebCrosswordGeneratorNotes](https://github.com/thenamesrafan/WebCrosswordGeneratorNotes)).
+Clone it into your Obsidian vault and set the absolute path below.
+
+<!-- UPDATE THIS PATH to your local WebCrosswordGeneratorNotes clone -->
+`/Users/<you>/Obsidian/<YourVault>/WebCrosswordGeneratorNotes/`
+
 Read the relevant file when you need more context than what's here. **Update it when you change that area.**
 
 | When you're working on... | Read this |

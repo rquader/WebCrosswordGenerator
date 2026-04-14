@@ -45,14 +45,6 @@ export function exportAsJson(puzzle: CrosswordResult, filename: string = 'crossw
 }
 
 /**
- * Trigger the browser's print dialog.
- * The print stylesheet (in index.css) handles formatting.
- */
-export function printPuzzle(): void {
-  window.print();
-}
-
-/**
  * Render the puzzle grid to a canvas and download as PNG.
  * This is a pure canvas implementation — no external libraries.
  */
