@@ -36,8 +36,13 @@ export interface SkeletonConfig {
   seed: number;
   /** Words with their priority tiers (must/can/dont already filtered). */
   entries: PrioritizedEntry[];
-  /** Whether the generator may reverse words that don't fit. */
+  /**
+   * Whether the generator may reverse words that don't fit.
+   * Default: false — reversed entries aren't a crossword convention.
+   */
   allowReverseWords?: boolean;
+  /** Candidate layouts per generation pass (see PriorityGeneratorConfig). */
+  candidateCount?: number;
   /** Emit debug logs. */
   debug?: boolean;
 }
@@ -55,8 +60,9 @@ export interface SkeletonConfig {
  */
 export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
   const { width, height, seed, entries } = config;
-  const allowReverse = config.allowReverseWords ?? true;
+  const allowReverse = config.allowReverseWords ?? false;
   const debug = config.debug ?? false;
+  const candidateCount = config.candidateCount;
 
   // Step 1: Separate by tier
   const mustWords: string[] = [];
@@ -85,6 +91,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
     canIncludeWords: canWords,
     canIncludeClues: canClues,
     allowReverseWords: allowReverse,
+    candidateCount,
     debug,
   });
 
@@ -98,7 +105,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
 
   if (!needsSkeleton) {
     // Enough user words — skip skeleton, return complete puzzle
-    return buildResultFromCrossword(
+    const result = buildResultFromCrossword(
       userResult.crossword,
       userResult.placedMust,
       userResult.placedCan,
@@ -106,6 +113,8 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
       mustWords.length,
       canWords.length,
     );
+    attachGridSizeSuggestion(result, config, mustWords, mustClues, allowReverse);
+    return result;
   }
 
   // Step 4: Fill gaps with word bank words as additional can-include
@@ -132,6 +141,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
     canIncludeWords: [...canWords, ...availableBank],
     canIncludeClues: [...canClues, ...bankClues],
     allowReverseWords: allowReverse,
+    candidateCount,
     debug,
   });
 
@@ -145,7 +155,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
   }
 
   // Step 6: Build skeleton — strip bank words from grid, create blank slots
-  return buildSkeletonFromFullResult(
+  const result = buildSkeletonFromFullResult(
     fullResult.crossword,
     bankPlacedWords,
     fullResult.failedMust,
@@ -154,6 +164,56 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
     fullResult.placedMust.length,
     fullResult.placedCan.filter(loc => loc.clue !== '__WORD_BANK__').length,
   );
+  attachGridSizeSuggestion(result, config, mustWords, mustClues, allowReverse);
+  return result;
+}
+
+/**
+ * When must-include words failed, probe progressively larger grids (up to
+ * 20x20) for one where every must-include word places. Attaches the first
+ * size that works as `result.suggestion` so the UI can offer a one-click
+ * regenerate. Probes are cheap (user words only, few candidates) and only
+ * run on the failure path.
+ */
+function attachGridSizeSuggestion(
+  result: SkeletonResult,
+  config: SkeletonConfig,
+  mustWords: string[],
+  mustClues: string[],
+  allowReverse: boolean,
+): void {
+  if (result.failures.length === 0 || mustWords.length === 0) {
+    return;
+  }
+
+  const MAX_DIMENSION = 20;
+  for (let delta = 1; delta <= 4; delta++) {
+    const width = Math.min(MAX_DIMENSION, config.width + delta);
+    const height = Math.min(MAX_DIMENSION, config.height + delta);
+    if (width === result.width && height === result.height) {
+      return; // Already at the cap — nothing bigger to suggest
+    }
+
+    const probe = generateCrosswordWithPriority({
+      width,
+      height,
+      seed: config.seed,
+      mustIncludeWords: mustWords,
+      mustIncludeClues: mustClues,
+      canIncludeWords: [],
+      canIncludeClues: [],
+      allowReverseWords: allowReverse,
+      candidateCount: 3,
+    });
+
+    if (probe.failedMust.length === 0) {
+      result.suggestion = { width, height };
+      return;
+    }
+    if (width === MAX_DIMENSION && height === MAX_DIMENSION) {
+      return;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

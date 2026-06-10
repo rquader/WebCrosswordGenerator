@@ -58,7 +58,8 @@ export function createPuzzleFromEntries(options: EntryPuzzleOptions): CrosswordR
     seed: options.seed,
     words,
     clues,
-    allowReverseWords: options.allowReverseWords ?? true,
+    // Reversed entries aren't a crossword convention — off unless asked for.
+    allowReverseWords: options.allowReverseWords ?? false,
   });
 }
 
@@ -75,6 +76,8 @@ export interface PriorityPuzzleOptions {
   height: number;
   seed: number;
   allowReverseWords?: boolean;
+  /** Candidate layouts per generation (default 5 — see PriorityGeneratorConfig). */
+  candidateCount?: number;
 }
 
 /**
@@ -101,7 +104,8 @@ export function createPuzzleWithPriority(
     mustIncludeClues: mustEntries.map(e => e.clue),
     canIncludeWords: canEntries.map(e => e.word),
     canIncludeClues: canEntries.map(e => e.clue),
-    allowReverseWords: options.allowReverseWords ?? true,
+    allowReverseWords: options.allowReverseWords ?? false,
+    candidateCount: options.candidateCount,
   });
 }
 
@@ -123,6 +127,7 @@ export function createSkeletonFromEntries(
     seed: options.seed,
     entries: options.entries,
     allowReverseWords: options.allowReverseWords,
+    candidateCount: options.candidateCount,
   });
 }
 

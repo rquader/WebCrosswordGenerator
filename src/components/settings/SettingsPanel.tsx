@@ -228,25 +228,6 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
           </p>
         </div>
 
-        {value.puzzleMode === 'crossword' && (
-          <>
-            <Divider />
-
-            <label htmlFor="settings-allow-reverse" className="flex items-center gap-2 cursor-pointer">
-              <input
-                id="settings-allow-reverse"
-                type="checkbox"
-                checked={value.allowReverseWords}
-                onChange={(e) => patch({ allowReverseWords: e.target.checked })}
-                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600
-                           text-primary-600 focus:ring-primary-500 transition-colors"
-              />
-              <span className="text-sm text-stone-600 dark:text-stone-400">
-                Allow reversed words
-              </span>
-            </label>
-          </>
-        )}
       </div>
     </div>
   );

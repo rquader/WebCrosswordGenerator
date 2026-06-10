@@ -183,7 +183,6 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         width: wizard.settings.width,
         height: wizard.settings.height,
         seed,
-        allowReverseWords: wizard.settings.allowReverseWords,
       });
 
       setActiveSkeleton(skeleton);
@@ -212,7 +211,10 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       });
 
       onPuzzleGenerated(result, 'wordsearch');
-      setGenerationInfo(`${result.wordLocations.length} words placed | ${wizard.settings.width}x${wizard.settings.height} | seed: ${seed}`);
+      const skippedNote = result.skippedWords && result.skippedWords.length > 0
+        ? ` | couldn't fit: ${result.skippedWords.join(', ')}`
+        : '';
+      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${wizard.settings.width}x${wizard.settings.height} | seed: ${seed}`);
       setActiveSkeleton(null);
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
@@ -239,12 +241,45 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         width: wizard.settings.width,
         height: wizard.settings.height,
         seed: newSeed,
-        allowReverseWords: wizard.settings.allowReverseWords,
       });
 
       setActiveSkeleton(skeleton);
       setGenerationInfo(
         `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${newSeed}`
+      );
+      setGridKey(prev => prev + 1);
+      setIsGenerating(false);
+    }, 150);
+  }
+
+  /**
+   * Regenerate at a suggested larger grid size (offered when must-include
+   * words fail). Width/height are passed explicitly — relying on patched
+   * wizard state inside the setTimeout would read stale values.
+   */
+  function handleApplySuggestion(width: number, height: number) {
+    const parsedSeed = parseInt(wizard.settings.seedText, 10);
+    const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
+    setIsGenerating(true);
+    setActiveSkeleton(null);
+
+    setTimeout(() => {
+      patchWizard({ settings: { ...wizard.settings, width, height, seedText: String(seed) } });
+
+      const prioritized: PrioritizedEntry[] = strictlyIncludeEntries.map(e => ({
+        word: e.word, clue: e.clue, priority: 'must' as const,
+      }));
+
+      const skeleton = createSkeletonFromEntries({
+        entries: prioritized,
+        width,
+        height,
+        seed,
+      });
+
+      setActiveSkeleton(skeleton);
+      setGenerationInfo(
+        `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`
       );
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
@@ -315,6 +350,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
           onComplete={handleSkeletonComplete}
           onRegenerate={handleSkeletonRegenerate}
           onBack={() => setActiveSkeleton(null)}
+          onApplySuggestion={handleApplySuggestion}
         />
       </div>
     );

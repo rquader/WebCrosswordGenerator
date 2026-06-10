@@ -107,11 +107,37 @@ describe('CrosswordGenerator', () => {
       expect(result.wordLocations.length).toBeGreaterThan(0);
     });
 
-    it('places the first word at position (0, 0)', () => {
+    it('places the first word centered in the grid', () => {
       const result = generateCrossword(makeConfig());
       const first = result.wordLocations[0];
-      expect(first.x).toBe(0);
-      expect(first.y).toBe(0);
+
+      if (first.isHorizontal) {
+        expect(first.x).toBe(Math.floor((8 - first.word.length) / 2));
+        expect(first.y).toBe(Math.floor((8 - 1) / 2));
+      } else {
+        expect(first.x).toBe(Math.floor((8 - 1) / 2));
+        expect(first.y).toBe(Math.floor((8 - first.word.length) / 2));
+      }
+    });
+
+    it('shifts the first word by firstWordOffset', () => {
+      const centered = generateCrossword(makeConfig());
+      const shifted = generateCrossword(makeConfig({ firstWordOffset: -2 }));
+      const centerCoord = centered.wordLocations[0].isHorizontal
+        ? centered.wordLocations[0].y
+        : centered.wordLocations[0].x;
+      const shiftedCoord = shifted.wordLocations[0].isHorizontal
+        ? shifted.wordLocations[0].y
+        : shifted.wordLocations[0].x;
+      expect(shiftedCoord).toBe(centerCoord - 2);
+    });
+
+    it('clamps firstWordOffset so the first word stays in bounds', () => {
+      const result = generateCrossword(makeConfig({ firstWordOffset: 100 }));
+      const first = result.wordLocations[0];
+      expect(first.x).toBeGreaterThanOrEqual(0);
+      expect(first.y).toBeGreaterThanOrEqual(0);
+      expect(first.isHorizontal ? first.y : first.x).toBeLessThan(8);
     });
 
     it('places every word at its stated grid position', () => {

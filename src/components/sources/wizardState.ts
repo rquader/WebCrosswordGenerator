@@ -36,7 +36,6 @@ function sanitizeSettings(raw: Partial<GenerationSettings> | undefined): Generat
     width: typeof raw?.width === 'number' ? raw.width : defaults.width,
     height: typeof raw?.height === 'number' ? raw.height : defaults.height,
     seedText: typeof raw?.seedText === 'string' ? raw.seedText : defaults.seedText,
-    allowReverseWords: typeof raw?.allowReverseWords === 'boolean' ? raw.allowReverseWords : defaults.allowReverseWords,
     puzzleMode: raw?.puzzleMode === 'wordsearch' ? 'wordsearch' : defaults.puzzleMode,
     wordSearchDirections: {
       horizontal: raw?.wordSearchDirections?.horizontal ?? defaults.wordSearchDirections.horizontal,

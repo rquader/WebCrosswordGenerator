@@ -264,15 +264,18 @@ describe('seed reproducibility', () => {
     expect(result1.placedCan.length).toBe(result2.placedCan.length);
   });
 
-  it('produces different results for different seeds', () => {
-    const result1 = generateCrosswordWithPriority(makeConfig({ seed: 1 }));
-    const result2 = generateCrosswordWithPriority(makeConfig({ seed: 999 }));
+  it('produces different results across seeds', () => {
+    // candidateCount: 1 isolates the seed's effect — any specific seed pair
+    // can legitimately converge on the same layout, so assert that the seed
+    // matters across a handful of values rather than for one fixed pair.
+    const base = generateCrosswordWithPriority(makeConfig({ seed: 1, candidateCount: 1 }));
+    const baseFlat = base.crossword.grid.flat().join('');
 
-    // Different seeds should produce different grids
-    // (statistically almost certain with enough words and grid size)
-    const grid1Flat = result1.crossword.grid.flat().join('');
-    const grid2Flat = result2.crossword.grid.flat().join('');
-    expect(grid1Flat).not.toBe(grid2Flat);
+    const anySeedDiffers = [2, 3, 4, 5, 999].some(seed => {
+      const other = generateCrosswordWithPriority(makeConfig({ seed, candidateCount: 1 }));
+      return other.crossword.grid.flat().join('') !== baseFlat;
+    });
+    expect(anySeedDiffers).toBe(true);
   });
 });
 
@@ -293,12 +296,12 @@ describe('presorted flag on core generator', () => {
       presorted: true,
     });
 
-    // 'hi' should be the first placed word (at origin)
-    // Without presorted, 'programming' would be first (longest)
+    // 'hi' should be the first placed word, centered in the grid.
+    // Without presorted, 'programming' would be first (longest).
     const firstPlaced = result.wordLocations[0];
     expect(firstPlaced.word).toBe('hi');
-    expect(firstPlaced.x).toBe(0);
-    expect(firstPlaced.y).toBe(0);
+    expect(firstPlaced.x).toBe(Math.floor((10 - 2) / 2));
+    expect(firstPlaced.y).toBe(Math.floor((10 - 1) / 2));
   });
 
   it('does not affect results when presorted=false (default)', () => {

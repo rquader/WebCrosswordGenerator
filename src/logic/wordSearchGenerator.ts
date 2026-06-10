@@ -68,12 +68,39 @@ function getActiveDirections(settings: WordSearchDirectionSettings): DirectionEn
   return active;
 }
 
+/** How many layout attempts to make before keeping the one placing the most words. */
+const WORD_SEARCH_ATTEMPTS = 5;
+
 /**
  * Generate a word search puzzle.
  * Returns the same CrosswordResult type for compatibility with the grid display.
+ *
+ * Tries several layouts (derived deterministically from the seed) and keeps
+ * the one that places the most words. Words that still don't fit are listed
+ * in `skippedWords` so the UI can tell the user instead of dropping them
+ * silently.
  */
 export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
-  const { width, height, seed, words, clues } = config;
+  let best: CrosswordResult | null = null;
+
+  for (let i = 0; i < WORD_SEARCH_ATTEMPTS; i++) {
+    const attemptSeed = i === 0 ? config.seed : config.seed + i * 7919;
+    const attempt = generateWordSearchOnce(config, attemptSeed);
+
+    if (best === null || attempt.wordLocations.length > best.wordLocations.length) {
+      best = attempt;
+    }
+    if (best.skippedWords === undefined) {
+      break; // Everything placed — no better outcome possible
+    }
+  }
+
+  return best!;
+}
+
+/** Single word-search layout attempt with a specific seed. */
+function generateWordSearchOnce(config: WordSearchConfig, seed: number): CrosswordResult {
+  const { width, height, words, clues } = config;
   const dirSettings = config.directions ?? DEFAULT_WORD_SEARCH_DIRECTIONS;
   const random = new SeededRandom(seed);
 
@@ -107,10 +134,14 @@ export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
   pairs.sort((a, b) => b.word.length - a.word.length);
 
   const wordLocations: DirectionalWord[] = [];
+  const skipped: string[] = [];
 
   // Try to place each word
   for (const pair of pairs) {
-    tryPlaceWord(grid, pair.word, pair.clue, width, height, random, wordLocations, directions);
+    const placed = tryPlaceWord(grid, pair.word, pair.clue, width, height, random, wordLocations, directions);
+    if (!placed) {
+      skipped.push(pair.word);
+    }
   }
 
   // Fill remaining empty cells with random letters
@@ -123,7 +154,13 @@ export function generateWordSearch(config: WordSearchConfig): CrosswordResult {
     }
   }
 
-  return { grid, wordLocations, width, height };
+  return {
+    grid,
+    wordLocations,
+    width,
+    height,
+    ...(skipped.length > 0 ? { skippedWords: skipped } : {}),
+  };
 }
 
 /**

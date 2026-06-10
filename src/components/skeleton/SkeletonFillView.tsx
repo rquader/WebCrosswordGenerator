@@ -28,6 +28,8 @@ interface SkeletonFillViewProps {
   onComplete: (filledSlots: FilledSlotData[]) => void;
   onRegenerate: () => void;
   onBack: () => void;
+  /** Regenerate at the suggested larger grid size (shown on placement failures). */
+  onApplySuggestion?: (width: number, height: number) => void;
 }
 
 /** Internal state for each slot being edited. */
@@ -41,6 +43,7 @@ export function SkeletonFillView({
   onComplete,
   onRegenerate,
   onBack,
+  onApplySuggestion,
 }: SkeletonFillViewProps) {
   const [slotEdits, setSlotEdits] = useState<Map<number, SlotEditState>>(() => {
     const initial = new Map<number, SlotEditState>();
@@ -87,7 +90,9 @@ export function SkeletonFillView({
   const filledCount = countFilledSlots(emptySlots, slotEdits);
   const totalEmpty = emptySlots.length;
   const conflictCount = conflicts.size;
-  const canFinalize = filledCount > 0 && conflictCount === 0;
+  // Every blank slot filled (vacuously true when all slots are user words)
+  // and no crossing-letter conflicts.
+  const canFinalize = filledCount === totalEmpty && conflictCount === 0;
 
   const handleWordChange = useCallback((slotId: number, word: string) => {
     setSlotEdits(prev => {
@@ -256,6 +261,14 @@ export function SkeletonFillView({
               {' '}&mdash; {f.reason === 'too_long' ? 'too long for grid' : 'no valid intersection'}
             </p>
           ))}
+          {skeleton.suggestion && onApplySuggestion && (
+            <button
+              onClick={() => onApplySuggestion(skeleton.suggestion!.width, skeleton.suggestion!.height)}
+              className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold
+                         bg-amber-600 hover:bg-amber-700 text-white transition-all btn-lift">
+              Regenerate at {skeleton.suggestion.width}&times;{skeleton.suggestion.height} — fits all your words
+            </button>
+          )}
         </div>
       )}
 

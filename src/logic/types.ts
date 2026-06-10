@@ -46,6 +46,12 @@ export interface CrosswordResult {
   wordLocations: DirectionalWord[];
   width: number;
   height: number;
+
+  /**
+   * Word-search only: words that couldn't be placed (grid too small or
+   * too full for the allowed directions). Omitted when everything placed.
+   */
+  skippedWords?: string[];
 }
 
 /**
@@ -70,6 +76,15 @@ export interface GeneratorConfig {
    * Default: false (existing behavior — shuffle then sort by length desc).
    */
   presorted?: boolean;
+
+  /**
+   * Shifts the first word away from the grid center along its perpendicular
+   * axis (rows for a horizontal first word, columns for a vertical one).
+   * The priority generator varies this across candidates to diversify layouts.
+   *
+   * Default: 0 (first word centered in the grid).
+   */
+  firstWordOffset?: number;
 }
 
 /**
@@ -176,6 +191,18 @@ export interface SkeletonResult {
 
   /** Must-include words that couldn't be placed, with reasons. */
   failures: PlacementFailure[];
+
+  /**
+   * When some must-include words failed, a probed larger grid size where
+   * they all place. Undefined when nothing failed or no size up to 20 works.
+   */
+  suggestion?: GridSizeSuggestion;
+}
+
+/** A larger grid size that fits all must-include words. */
+export interface GridSizeSuggestion {
+  width: number;
+  height: number;
 }
 
 /**
@@ -200,6 +227,16 @@ export interface PriorityGeneratorConfig {
   canIncludeClues: string[];
   allowReverseWords: boolean;
   debug?: boolean;
+
+  /**
+   * How many candidate layouts to generate before keeping the best one,
+   * ranked by must-include placements, then total placed words, then
+   * quality score (see puzzleScore.ts). Same config always picks the
+   * same winner, so seeds stay reproducible.
+   *
+   * Default: 5. Use 1 for the fastest single-shot behavior.
+   */
+  candidateCount?: number;
 }
 
 /**

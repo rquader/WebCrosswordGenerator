@@ -19,6 +19,11 @@ import { SeededRandom } from './seedRandom';
 // Empty cell marker (matches Java's '-' character)
 const EMPTY_CELL = '-';
 
+/** Clamp a value into [min, max]. */
+function clampToRange(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 /**
  * Generate a crossword puzzle from the given configuration.
  * This is the main entry point — replaces `new Generator(...)` from Java.
@@ -45,6 +50,7 @@ class CrosswordGenerator {
   private reversedWordsMap: Map<string, string>;
   private debug: boolean;
   private presorted: boolean;
+  private firstWordOffset: number;
 
   constructor(config: GeneratorConfig) {
     this.width = config.width;
@@ -58,6 +64,7 @@ class CrosswordGenerator {
     this.reversedWordsMap = new Map();
     this.debug = config.debug ?? false;
     this.presorted = config.presorted ?? false;
+    this.firstWordOffset = config.firstWordOffset ?? 0;
 
     // Initialize grid with empty cells
     this.grid = [];
@@ -284,13 +291,32 @@ class CrosswordGenerator {
     this.words = pairs.map(p => p.word);
     this.clues = pairs.map(p => p.clue);
 
-    // Step 4: Place the first (longest) word at origin.
+    // Step 4: Place the first (longest) word centered in the grid.
     // Words are pre-filtered by databaseProcessor to fit within max(width, height),
     // so the first word is guaranteed to fit in at least one direction.
+    //
+    // Centering (instead of the old top-left corner) leaves room on every
+    // side for crossing words — placing at row 0 made any intersection that
+    // needed letters above the first word impossible (see the must-include
+    // placement bug: ORANGE at row 0 blocked LOVE entirely).
+    // firstWordOffset shifts off-center along the perpendicular axis so the
+    // priority generator can diversify candidate layouts.
     const firstWord = this.words.shift()!;
     const firstClue = this.clues.shift()!;
     const firstHorizontal = firstWord.length <= this.width;
-    this.placeWord(firstWord, firstClue, 0, 0, firstHorizontal);
+
+    let firstX: number;
+    let firstY: number;
+    if (firstHorizontal) {
+      firstX = Math.floor((this.width - firstWord.length) / 2);
+      firstY = clampToRange(
+        Math.floor((this.height - 1) / 2) + this.firstWordOffset, 0, this.height - 1);
+    } else {
+      firstX = clampToRange(
+        Math.floor((this.width - 1) / 2) + this.firstWordOffset, 0, this.width - 1);
+      firstY = Math.floor((this.height - firstWord.length) / 2);
+    }
+    this.placeWord(firstWord, firstClue, firstX, firstY, firstHorizontal);
 
     // Track direction counts for balancing
     let horizontalCount = firstHorizontal ? 1 : 0;
