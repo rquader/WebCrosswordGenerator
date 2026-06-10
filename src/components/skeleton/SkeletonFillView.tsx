@@ -318,23 +318,28 @@ export function SkeletonFillView({
 
   return (
     <div className="space-y-4">
-      {/* Status bar */}
-      <div className="flex items-center justify-between">
+      {/* Title + status bar */}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+          {totalEmpty === 0 ? 'Your puzzle is ready' : 'Fill in the blanks'}
+        </h2>
         <div className="flex items-center gap-3 text-sm">
-          <span className={filledCount === totalEmpty
-            ? 'text-primary-600 dark:text-primary-400 font-semibold'
-            : 'text-stone-500 dark:text-stone-400'}>
-            {filledCount}/{totalEmpty} slots filled
-          </span>
+          {totalEmpty > 0 && (
+            <span className={filledCount === totalEmpty
+              ? 'text-primary-600 dark:text-primary-400 font-semibold'
+              : 'text-stone-500 dark:text-stone-400'}>
+              {filledCount}/{totalEmpty} slots filled
+            </span>
+          )}
           {conflictCount > 0 && (
             <span className="text-amber-600 dark:text-amber-400 font-medium">
               {conflictCount} conflict{conflictCount !== 1 ? 's' : ''}
             </span>
           )}
+          <span className="text-xs text-stone-400 dark:text-stone-500">
+            {skeleton.mustPlacedCount}/{skeleton.mustTotalCount} of your words placed
+          </span>
         </div>
-        <span className="text-xs text-stone-400 dark:text-stone-500">
-          {skeleton.mustPlacedCount}/{skeleton.mustTotalCount} must-include placed
-        </span>
       </div>
 
       {/* Auto-grow note — the grid was enlarged so every word fits */}
