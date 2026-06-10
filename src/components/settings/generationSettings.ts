@@ -7,6 +7,11 @@ export interface GenerationSettings {
   seedText: string;
   puzzleMode: PuzzleMode;
   wordSearchDirections: WordSearchDirectionSettings;
+  /**
+   * When true, the grid size follows the recommendation computed from the
+   * word list; manual size edits switch this off.
+   */
+  autoGridSize: boolean;
 }
 
 export function createDefaultGenerationSettings(): GenerationSettings {
@@ -16,5 +21,6 @@ export function createDefaultGenerationSettings(): GenerationSettings {
     seedText: '',
     puzzleMode: 'crossword',
     wordSearchDirections: { ...DEFAULT_WORD_SEARCH_DIRECTIONS },
+    autoGridSize: true,
   };
 }

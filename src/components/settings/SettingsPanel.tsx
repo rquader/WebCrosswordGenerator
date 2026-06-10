@@ -11,8 +11,10 @@ import type { GridRecommendation } from '../../logic/types';
 interface SettingsPanelProps {
   value: GenerationSettings;
   onChange: (settings: GenerationSettings) => void;
-  /** Grid recommendation based on current must-include words. */
+  /** Grid recommendation based on the current word list. */
   recommendation?: GridRecommendation | null;
+  /** Effective grid size in use (recommendation when auto, else manual). */
+  effectiveSize?: { width: number; height: number };
 }
 
 function randomSeed(): number {
@@ -23,11 +25,17 @@ function Divider() {
   return <div className="h-px bg-stone-200 dark:bg-stone-700/50" />;
 }
 
-export function SettingsPanel({ value, onChange, recommendation }: SettingsPanelProps) {
+export function SettingsPanel({ value, onChange, recommendation, effectiveSize }: SettingsPanelProps) {
   const seedCopied = false;
+  const autoActive = value.autoGridSize && recommendation != null && recommendation.minDimension > 0;
 
   function patch(next: Partial<GenerationSettings>) {
     onChange({ ...value, ...next });
+  }
+
+  /** Manual size changes switch auto-sizing off. */
+  function patchManualSize(next: { width?: number; height?: number }) {
+    onChange({ ...value, ...next, autoGridSize: false });
   }
 
   function handleCopySeed() {
@@ -52,7 +60,7 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
   }
 
   function applyQuickSize(width: number, height: number) {
-    patch({ width, height });
+    patchManualSize({ width, height });
   }
 
   return (
@@ -67,8 +75,30 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
             Grid Size
           </label>
 
-          {/* Grid recommendation badge */}
-          {recommendation && recommendation.minDimension > 0 && (
+          {/* Auto-size banner — grid follows the word list */}
+          {autoActive && (
+            <div className="mb-3 flex items-start gap-2">
+              <div className="flex-1 rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
+                <p className="text-xs font-medium text-primary-700 dark:text-primary-300">
+                  Auto: {recommendation!.width}&times;{recommendation!.height} — sized to your words
+                </p>
+                <p className="text-xs text-primary-600/80 dark:text-primary-400/70 mt-0.5">
+                  {recommendation!.reason}
+                </p>
+              </div>
+              <button
+                onClick={() => patchManualSize({ width: recommendation!.width, height: recommendation!.height })}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-stone-300 dark:border-stone-600
+                           text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-surface-dark-hover
+                           transition-all btn-lift flex-shrink-0"
+              >
+                Customize
+              </button>
+            </div>
+          )}
+
+          {/* Manual mode with words present: suggestion + a way back to auto */}
+          {!autoActive && recommendation && recommendation.minDimension > 0 && (
             <div className="mb-3 flex items-start gap-2">
               <div className="flex-1 rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
                 <p className="text-xs font-medium text-primary-700 dark:text-primary-300">
@@ -79,10 +109,10 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
                 </p>
               </div>
               <button
-                onClick={() => applyQuickSize(recommendation.width, recommendation.height)}
+                onClick={() => patch({ autoGridSize: true })}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-all btn-lift flex-shrink-0"
               >
-                Apply
+                Use auto
               </button>
             </div>
           )}
@@ -100,8 +130,8 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
             </div>
           )}
 
-          {/* Min dimension warning */}
-          {recommendation && recommendation.minDimension > 0 &&
+          {/* Min dimension warning (manual sizing only — auto always fits) */}
+          {!autoActive && recommendation && recommendation.minDimension > 0 &&
            (value.width < recommendation.minDimension && value.height < recommendation.minDimension) && (
             <div className="mb-3 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50/60 dark:bg-red-950/20 px-3 py-2">
               <p className="text-xs text-red-700 dark:text-red-300">
@@ -111,30 +141,40 @@ export function SettingsPanel({ value, onChange, recommendation }: SettingsPanel
             </div>
           )}
 
-          {/* Quick size presets — dynamic if recommendation exists */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {getQuickSizePresets(recommendation).map(({ label, width, height }) => {
-              const isActive = value.width === width && value.height === height;
-              return (
-                <button
-                  key={label}
-                  onClick={() => applyQuickSize(width, height)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-150
-                    ${isActive
-                      ? 'bg-primary-600 text-white shadow-sm'
-                      : 'bg-stone-100 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/60'
-                    }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Manual size controls — hidden while auto-sizing is active */}
+          {!autoActive && (
+            <>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {getQuickSizePresets(recommendation).map(({ label, width, height }) => {
+                  const isActive = value.width === width && value.height === height;
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => applyQuickSize(width, height)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-150
+                        ${isActive
+                          ? 'bg-primary-600 text-white shadow-sm'
+                          : 'bg-stone-100 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/60'
+                        }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <SliderField label="Width" value={value.width} min={2} max={20} onChange={(next) => patch({ width: next })} />
-            <SliderField label="Height" value={value.height} min={2} max={20} onChange={(next) => patch({ height: next })} />
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <SliderField label="Width" value={value.width} min={2} max={20} onChange={(next) => patchManualSize({ width: next })} />
+                <SliderField label="Height" value={value.height} min={2} max={20} onChange={(next) => patchManualSize({ height: next })} />
+              </div>
+            </>
+          )}
+
+          {/* In auto mode, the effective size is shown in the banner above;
+              effectiveSize is also surfaced for screen readers. */}
+          {autoActive && effectiveSize && (
+            <p className="sr-only">Grid size set automatically to {effectiveSize.width} by {effectiveSize.height}</p>
+          )}
         </div>
 
         {value.puzzleMode === 'wordsearch' && (

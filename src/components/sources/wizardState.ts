@@ -37,6 +37,7 @@ function sanitizeSettings(raw: Partial<GenerationSettings> | undefined): Generat
     height: typeof raw?.height === 'number' ? raw.height : defaults.height,
     seedText: typeof raw?.seedText === 'string' ? raw.seedText : defaults.seedText,
     puzzleMode: raw?.puzzleMode === 'wordsearch' ? 'wordsearch' : defaults.puzzleMode,
+    autoGridSize: typeof raw?.autoGridSize === 'boolean' ? raw.autoGridSize : defaults.autoGridSize,
     wordSearchDirections: {
       horizontal: raw?.wordSearchDirections?.horizontal ?? defaults.wordSearchDirections.horizontal,
       vertical: raw?.wordSearchDirections?.vertical ?? defaults.wordSearchDirections.vertical,

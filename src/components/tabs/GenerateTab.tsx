@@ -20,7 +20,8 @@ import {
   createSkeletonFromEntries,
 } from '../../logic/createPuzzle';
 import type { CrosswordResult, PuzzleMode, SkeletonResult, PrioritizedEntry } from '../../logic/types';
-import { recommendGridSize, detectOutlierWords } from '../../logic/gridRecommendation';
+import { recommendGridSize, recommendWordSearchGridSize, detectOutlierWords } from '../../logic/gridRecommendation';
+import { WORD_PACKS, getWordPackById } from '../../presets/wordPacks';
 import { parseFile, normalizeWordInput } from '../../utils/fileParser';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { resolveFileUploadSource } from '../sources/fileUploadSource';
@@ -59,42 +60,37 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
 
   // Skeleton-first state
   const [activeSkeleton, setActiveSkeleton] = useState<SkeletonResult | null>(null);
-  const [showStrictlyInclude, setShowStrictlyInclude] = useState(false);
   const [showTextImport, setShowTextImport] = useState(false);
 
-  // Persist wizard state — but clear strictly-include rows when the checkbox
-  // is off so they don't survive a page reload. They stay in React state
-  // (so re-checking the box restores them within the same session).
+  // Persist wizard state (words, settings, draft text) across reloads.
   useEffect(() => {
-    if (showStrictlyInclude || wizard.settings.puzzleMode === 'wordsearch') {
-      // Save normally — rows are active
-      saveWizardState(wizard);
-    } else {
-      // Strictly-include is unchecked in crossword mode — save with empty rows
-      // so a reload starts clean, but keep rows in React state for this session
-      saveWizardState({
-        ...wizard,
-        table: { rows: [createEmptyEntryRow()], warnings: [] },
-      });
-    }
-  }, [wizard, showStrictlyInclude]);
+    saveWizardState(wizard);
+  }, [wizard]);
 
   // --- Derived ---
 
-  const strictlyIncludeEntries = useMemo(
-    () => showStrictlyInclude ? getGenerationEntriesFromRows(wizard.table.rows) : [],
-    [wizard.table.rows, showStrictlyInclude],
+  const wordEntries = useMemo(
+    () => getGenerationEntriesFromRows(wizard.table.rows),
+    [wizard.table.rows],
   );
 
-  const gridRecommendation = useMemo(() => {
-    if (wizard.settings.puzzleMode !== 'crossword' || strictlyIncludeEntries.length === 0) return null;
-    const lengths = strictlyIncludeEntries.map(e => e.word.length);
-    const rec = recommendGridSize(lengths);
-    const outliers = detectOutlierWords(strictlyIncludeEntries.map(e => e.word));
-    return { ...rec, outliers };
-  }, [strictlyIncludeEntries, wizard.settings.puzzleMode]);
-
   const isCrossword = wizard.settings.puzzleMode === 'crossword';
+
+  const gridRecommendation = useMemo(() => {
+    if (wordEntries.length === 0) return null;
+    const lengths = wordEntries.map(e => e.word.length);
+    if (isCrossword) {
+      const rec = recommendGridSize(lengths);
+      return { ...rec, outliers: detectOutlierWords(wordEntries.map(e => e.word)) };
+    }
+    return { ...recommendWordSearchGridSize(lengths), outliers: [] };
+  }, [wordEntries, isCrossword]);
+
+  // Grid size actually used for generation: the recommendation while
+  // auto-sizing is on, the manual sliders otherwise.
+  const autoActive = wizard.settings.autoGridSize && gridRecommendation !== null;
+  const effectiveWidth = autoActive ? gridRecommendation!.width : wizard.settings.width;
+  const effectiveHeight = autoActive ? gridRecommendation!.height : wizard.settings.height;
 
   // --- Updaters ---
 
@@ -141,7 +137,6 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
     }));
     setPendingImport(null);
     setShowTextImport(false);
-    setShowStrictlyInclude(true); // Show the panel since they just imported words
   }
 
   function requestImport(payload: ImportedEntryRows) {
@@ -164,6 +159,17 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
     } finally { setIsImportingFile(false); }
   }
 
+  function handleLoadPack(packId: string) {
+    const pack = getWordPackById(packId);
+    if (!pack) return;
+    requestImport({
+      entries: pack.entries,
+      warnings: [],
+      sourceLabel: pack.name,
+      sourceSummary: `${pack.name} word pack (${pack.entries.length} words)`,
+    });
+  }
+
   // --- Generation ---
 
   function handleGenerateSkeleton() {
@@ -173,15 +179,15 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
       patchWizard({ settings: { ...wizard.settings, seedText: String(seed) } });
 
-      // Build prioritized entries from strictly-include words (if any)
-      const prioritized: PrioritizedEntry[] = strictlyIncludeEntries.map(e => ({
+      // Every word the teacher added is must-include — that's why they added it
+      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
         word: e.word, clue: e.clue, priority: 'must' as const,
       }));
 
       const skeleton = createSkeletonFromEntries({
         entries: prioritized,
-        width: wizard.settings.width,
-        height: wizard.settings.height,
+        width: effectiveWidth,
+        height: effectiveHeight,
         seed,
       });
 
@@ -195,7 +201,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   }
 
   function handleGenerateWordSearch() {
-    if (strictlyIncludeEntries.length === 0) return;
+    if (wordEntries.length === 0) return;
     setIsGenerating(true);
     setTimeout(() => {
       const parsedSeed = parseInt(wizard.settings.seedText, 10);
@@ -203,9 +209,9 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       patchWizard({ settings: { ...wizard.settings, seedText: String(seed) } });
 
       const result = createWordSearchFromEntries({
-        entries: strictlyIncludeEntries,
-        width: wizard.settings.width,
-        height: wizard.settings.height,
+        entries: wordEntries,
+        width: effectiveWidth,
+        height: effectiveHeight,
         seed,
         wordSearchDirections: wizard.settings.wordSearchDirections,
       });
@@ -214,7 +220,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       const skippedNote = result.skippedWords && result.skippedWords.length > 0
         ? ` | couldn't fit: ${result.skippedWords.join(', ')}`
         : '';
-      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${wizard.settings.width}x${wizard.settings.height} | seed: ${seed}`);
+      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${effectiveWidth}x${effectiveHeight} | seed: ${seed}`);
       setActiveSkeleton(null);
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
@@ -232,14 +238,14 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
     setTimeout(() => {
       patchWizard({ settings: { ...wizard.settings, seedText: String(newSeed) } });
 
-      const prioritized: PrioritizedEntry[] = strictlyIncludeEntries.map(e => ({
+      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
         word: e.word, clue: e.clue, priority: 'must' as const,
       }));
 
       const skeleton = createSkeletonFromEntries({
         entries: prioritized,
-        width: wizard.settings.width,
-        height: wizard.settings.height,
+        width: effectiveWidth,
+        height: effectiveHeight,
         seed: newSeed,
       });
 
@@ -264,9 +270,11 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
     setActiveSkeleton(null);
 
     setTimeout(() => {
-      patchWizard({ settings: { ...wizard.settings, width, height, seedText: String(seed) } });
+      // Accepting an explicit size turns auto-sizing off — otherwise the
+      // recommendation would immediately override the suggested dimensions.
+      patchWizard({ settings: { ...wizard.settings, width, height, autoGridSize: false, seedText: String(seed) } });
 
-      const prioritized: PrioritizedEntry[] = strictlyIncludeEntries.map(e => ({
+      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
         word: e.word, clue: e.clue, priority: 'must' as const,
       }));
 
@@ -395,94 +403,67 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
             </div>
           </div>
 
-          {/* --- Grid Setup (with recommendation) --- */}
+          {/* --- Your Words (the primary input — always visible) --- */}
+          <div className="warm-card p-5">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                Your Words
+              </h3>
+              <select
+                value=""
+                onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
+                aria-label="Load a built-in word pack"
+                className="rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-surface-dark-hover
+                           px-2 py-1.5 text-xs text-stone-600 dark:text-stone-300
+                           focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">Load a word pack…</option>
+                {WORD_PACKS.map(pack => (
+                  <option key={pack.id} value={pack.id}>
+                    {pack.name} ({pack.entries.length})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+              {isCrossword
+                ? 'Every word you add is guaranteed a spot in the puzzle. You can also leave this empty and fill a blank skeleton yourself.'
+                : 'All words will be hidden in your word search.'}
+            </p>
+            {showTextImport ? (
+              <TextImportView
+                rawText={wizard.textImport.rawText}
+                existingRowCount={wizard.table.rows.length}
+                onChange={rawText => patchWizard({ textImport: { rawText } })}
+                onBack={() => setShowTextImport(false)}
+                onImport={() => void handleTextImport()}
+              />
+            ) : (
+              <EntryTableEditor
+                table={wizard.table}
+                onChangeRow={handleChangeRow}
+                onAddRow={handleAddRow}
+                onDeleteRow={handleDeleteRow}
+                onDismissWarnings={handleDismissWarnings}
+                onOpenTextImport={() => setShowTextImport(true)}
+                onImportFile={handleFileImport}
+                isImportingFile={isImportingFile}
+              />
+            )}
+          </div>
+
+          {/* --- Grid Setup (auto-sized from words; customizable) --- */}
           <SettingsPanel
             value={wizard.settings}
             onChange={settings => patchWizard({ settings })}
             recommendation={gridRecommendation}
+            effectiveSize={{ width: effectiveWidth, height: effectiveHeight }}
           />
-
-          {/* --- Strictly Include Words (crossword only) --- */}
-          {isCrossword && (
-            <div className="warm-card p-5">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showStrictlyInclude}
-                  onChange={e => setShowStrictlyInclude(e.target.checked)}
-                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                  Strictly include specific words
-                </span>
-              </label>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 ml-6">
-                These words will be placed first in the skeleton. Remaining slots are for you to fill.
-              </p>
-
-              {showStrictlyInclude && (
-                <div className="mt-4 border-t border-stone-200 dark:border-stone-700/50 pt-4">
-                  {showTextImport ? (
-                    <TextImportView
-                      rawText={wizard.textImport.rawText}
-                      existingRowCount={wizard.table.rows.length}
-                      onChange={rawText => patchWizard({ textImport: { rawText } })}
-                      onBack={() => setShowTextImport(false)}
-                      onImport={() => void handleTextImport()}
-                    />
-                  ) : (
-                    <EntryTableEditor
-                      table={wizard.table}
-                      onChangeRow={handleChangeRow}
-                      onAddRow={handleAddRow}
-                      onDeleteRow={handleDeleteRow}
-                      onDismissWarnings={handleDismissWarnings}
-                      onOpenTextImport={() => setShowTextImport(true)}
-                      onImportFile={handleFileImport}
-                      isImportingFile={isImportingFile}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* --- Word entry for word search (required, not optional) --- */}
-          {!isCrossword && (
-            <div className="warm-card p-5">
-              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-1">
-                Your Words
-              </h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
-                All words will be included in your word search.
-              </p>
-              {showTextImport ? (
-                <TextImportView
-                  rawText={wizard.textImport.rawText}
-                  existingRowCount={wizard.table.rows.length}
-                  onChange={rawText => patchWizard({ textImport: { rawText } })}
-                  onBack={() => setShowTextImport(false)}
-                  onImport={() => void handleTextImport()}
-                />
-              ) : (
-                <EntryTableEditor
-                  table={wizard.table}
-                  onChangeRow={handleChangeRow}
-                  onAddRow={handleAddRow}
-                  onDeleteRow={handleDeleteRow}
-                  onDismissWarnings={handleDismissWarnings}
-                  onOpenTextImport={() => setShowTextImport(true)}
-                  onImportFile={handleFileImport}
-                  isImportingFile={isImportingFile}
-                />
-              )}
-            </div>
-          )}
 
           {/* --- Generate button --- */}
           <button
             onClick={isCrossword ? handleGenerateSkeleton : handleGenerateWordSearch}
-            disabled={isGenerating || (!isCrossword && strictlyIncludeEntries.length === 0)}
+            disabled={isGenerating || (!isCrossword && wordEntries.length === 0)}
             className="w-full px-4 py-3 rounded-xl text-sm font-semibold
                        bg-gradient-to-r from-primary-600 to-primary-700
                        hover:from-primary-700 hover:to-primary-800
@@ -492,7 +473,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
             {isGenerating
               ? 'Generating...'
               : isCrossword
-                ? 'Generate Skeleton'
+                ? (wordEntries.length > 0 ? 'Generate Puzzle' : 'Generate Blank Skeleton')
                 : 'Generate Word Search'}
           </button>
 
@@ -581,11 +562,11 @@ function EmptyState({ isCrossword }: { isCrossword: boolean }) {
       </div>
 
       <h2 className="text-xl font-bold text-stone-800 dark:text-stone-200 mb-2">
-        {isCrossword ? 'Pick a grid size and generate' : 'Enter words and generate'}
+        {isCrossword ? 'Start with your words' : 'Enter words and generate'}
       </h2>
       <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs leading-relaxed">
         {isCrossword
-          ? 'Choose your grid dimensions on the left, then click Generate Skeleton. You\'ll see a visual grid with blank slots to fill with your own words.'
+          ? 'Add your vocabulary on the left — type it, paste it, or load a word pack. The grid sizes itself to fit, and any remaining blanks are yours to fill with suggestions to help.'
           : 'Add your words on the left, choose a grid size, and generate your word search.'}
       </p>
     </div>

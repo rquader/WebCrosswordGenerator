@@ -79,7 +79,7 @@ export function EntryTableEditor({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[45vh] overflow-y-auto scrollbar-thin">
         <table className="w-full border-separate border-spacing-0">
           <thead>
             <tr>
