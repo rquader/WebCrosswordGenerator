@@ -16,6 +16,11 @@ import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import type { CrosswordResult } from '../../logic/types';
 import { assignNumbers } from '../../logic/numbering';
 import type { CellPosition } from '../../hooks/usePuzzleState';
+import {
+  GRID_PAN, GRID_PAGE, GRID_FRAME,
+  CELL_BASE, CELL_PAPER, CELL_BLOCKED, CELL_NUMBER,
+  gridSizingStyle, NUMBER_FONT_SIZE, LETTER_FONT_SIZE,
+} from './gridStyles';
 
 const EMPTY_CELL = '-';
 
@@ -128,19 +133,18 @@ export function PlayableGrid({
   }, [selectedCell, onLetterInput, onDelete, onMove, onCellClick]);
 
   return (
-    <div
-      ref={gridRef}
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      className="inline-block outline-none relative noise-texture rounded-lg"
-      aria-label="Crossword puzzle grid"
-    >
+    <div className={GRID_PAN}>
+      <div
+        ref={gridRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className={`${GRID_PAGE} outline-none`}
+        aria-label="Crossword puzzle grid"
+      >
       <div
         role="grid"
-        className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
-        style={{
-          gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
-        }}
+        className={GRID_FRAME}
+        style={gridSizingStyle(puzzle.width, 34, 50)}
       >
         {puzzle.grid.map((row, y) => (
           <div key={`row-${y}`} role="row" className="contents">
@@ -174,24 +178,25 @@ export function PlayableGrid({
                 if (isRevealed) ariaLabel += ', revealed';
               }
 
-              // Cell background
-              let bgClass = 'bg-grid-cell dark:bg-grid-cell-dark';
+              // Cell background. The paper stays light in every theme, so
+              // interaction colors don't need dark variants.
+              let bgClass = CELL_PAPER;
               if (isEmpty) {
-                bgClass = 'bg-grid-blocked dark:bg-grid-blocked-dark';
+                bgClass = CELL_BLOCKED;
               } else if (isSelected) {
-                bgClass = 'bg-primary-200/80 dark:bg-primary-800/40';
+                bgClass = 'bg-grid-active dark:bg-grid-active-dark';
               } else if (isHighlighted) {
-                bgClass = 'bg-primary-50 dark:bg-primary-950/20';
+                bgClass = 'bg-grid-highlight dark:bg-grid-highlight-dark';
               }
 
-              // Text color — blue/orange for check (color-blind safe)
-              let textClass = 'text-stone-900 dark:text-stone-100';
+              // Letter ink — blue/orange for check (color-blind safe)
+              let textClass = 'text-grid-ink';
               if (checkStatus === 'correct') {
-                textClass = 'text-blue-600 dark:text-blue-400';
+                textClass = 'text-blue-700';
               } else if (checkStatus === 'incorrect') {
-                textClass = 'text-orange-600 dark:text-orange-400';
+                textClass = 'text-orange-700';
               } else if (isRevealed) {
-                textClass = 'text-primary-600 dark:text-primary-400';
+                textClass = 'text-primary-700';
               }
 
               return (
@@ -204,34 +209,35 @@ export function PlayableGrid({
                     if (!isEmpty) onCellClick(x, y);
                   }}
                   className={`
-                    relative w-10 h-10 sm:w-12 sm:h-12
-                    border border-grid-border dark:border-grid-border-dark
-                    flex items-center justify-center ${isEmpty ? 'cursor-default' : 'cursor-text'} select-none
+                    ${CELL_BASE} ${isEmpty ? 'cursor-default' : 'cursor-text'}
                     transition-colors duration-75
                     ${bgClass}
-                    ${!isEmpty && !isSelected ? 'hover:bg-primary-50/60 dark:hover:bg-primary-950/15' : ''}
+                    ${!isEmpty && !isSelected && !isHighlighted ? 'hover:bg-grid-highlight/70 dark:hover:bg-grid-highlight-dark/70' : ''}
                     ${isPopping ? 'animate-cell-pop' : ''}
                     ${isShaking ? 'animate-cell-shake' : ''}
                   `}
                   style={isSelected ? {
-                    boxShadow: '0 0 0 2px rgba(82,88,228,0.35)',
+                    boxShadow: 'inset 0 0 0 2px rgba(82,88,228,0.55)',
                   } : undefined}
                 >
                   {cellNumber !== undefined && (
-                    <span className="absolute top-0.5 left-1 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
+                    <span className={CELL_NUMBER} style={{ fontSize: NUMBER_FONT_SIZE }}>
                       {cellNumber}
                     </span>
                   )}
 
                   {!isEmpty && userLetter && (
-                    <span className={`text-sm sm:text-base font-semibold uppercase ${textClass}`}>
+                    <span
+                      className={`font-semibold uppercase ${textClass}`}
+                      style={{ fontSize: LETTER_FONT_SIZE }}
+                    >
                       {userLetter}
                     </span>
                   )}
 
                   {/* Direction indicator */}
                   {isSelected && (
-                    <div className={`absolute ${isAcross ? 'bottom-0 left-0 right-0 h-0.5' : 'top-0 bottom-0 right-0 w-0.5'} bg-primary-500`} />
+                    <div className={`absolute ${isAcross ? 'bottom-0 left-0 right-0 h-[3px]' : 'top-0 bottom-0 right-0 w-[3px]'} bg-primary-500`} />
                   )}
                 </div>
               );
@@ -241,6 +247,7 @@ export function PlayableGrid({
       </div>
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
+      </div>
     </div>
   );
 }

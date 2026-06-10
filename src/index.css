@@ -112,12 +112,17 @@
     background-color: #faf4e4 !important;
   }
 
+  /* Blocked cells read as true printer's ink on the aged page */
   .sepia .bg-grid-blocked {
-    background-color: #3d3120 !important;
+    background-color: #2b2114 !important;
   }
 
   .sepia .border-grid-border {
     border-color: #b09870 !important;
+  }
+
+  .sepia .border-grid-ink {
+    border-color: #2b2114 !important;
   }
 
   /* Sepia: primary color adjustments for better contrast on warm bg */

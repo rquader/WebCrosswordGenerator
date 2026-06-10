@@ -49,7 +49,7 @@ export function Header({ theme, onCycleTheme }: HeaderProps) {
             <h1 className="font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 leading-none">
               Crossword Generator
             </h1>
-            <p className="text-[10px] tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 mt-1 leading-none">
+            <p className="hidden sm:block text-[10px] tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 mt-1 leading-none">
               Make · Play · Print — all in your browser
             </p>
           </div>

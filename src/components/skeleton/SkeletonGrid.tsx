@@ -11,6 +11,11 @@
 
 import { useMemo, useRef } from 'react';
 import type { SkeletonSlot } from '../../logic/types';
+import {
+  GRID_PAN, GRID_PAGE, GRID_FRAME,
+  CELL_BASE, CELL_PAPER, CELL_BLOCKED, CELL_NUMBER,
+  gridSizingStyle, NUMBER_FONT_SIZE, LETTER_FONT_SIZE,
+} from '../grid/gridStyles';
 
 interface SkeletonGridProps {
   /** The raw grid (may have '-' for empty/blocked). */
@@ -80,13 +85,12 @@ export function SkeletonGrid({
   const totalCells = width * height;
 
   return (
-    <div className="inline-block relative noise-texture rounded-lg" aria-label="Skeleton grid">
+    <div className={GRID_PAN}>
+    <div className={GRID_PAGE} aria-label="Skeleton grid">
       <div
         role="grid"
-        className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
-        style={{
-          gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))`,
-        }}
+        className={GRID_FRAME}
+        style={gridSizingStyle(width, 28, 46)}
       >
         {Array.from({ length: height }, (_, y) =>
           Array.from({ length: width }, (_, x) => {
@@ -124,25 +128,26 @@ export function SkeletonGrid({
               canFlashGreen = mustCountHere < 2;
             }
 
-            // Cell background
+            // Cell background. The paper stays light in every theme, so
+            // state colors don't need dark variants.
             let bgClass: string;
             if (isBlocked) {
-              bgClass = 'bg-grid-blocked dark:bg-grid-blocked-dark';
+              bgClass = CELL_BLOCKED;
             } else if (crossing === 'conflict') {
-              bgClass = 'bg-red-100 dark:bg-red-900/30';
+              bgClass = 'bg-red-100';
             } else if (canFlashGreen) {
-              bgClass = 'bg-emerald-100 dark:bg-emerald-900/30 transition-colors duration-500';
+              bgClass = 'bg-emerald-100 transition-colors duration-500';
             } else if (crossing === 'partial') {
-              bgClass = 'bg-amber-100 dark:bg-amber-900/20';
+              bgClass = 'bg-amber-100';
             } else if (isFilled) {
-              bgClass = 'bg-primary-50 dark:bg-primary-950/30';
+              bgClass = 'bg-primary-100/60';
             } else {
-              bgClass = 'bg-grid-cell dark:bg-grid-cell-dark cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/60';
+              bgClass = `${CELL_PAPER} cursor-pointer hover:bg-grid-highlight/70 dark:hover:bg-grid-highlight-dark/70`;
             }
 
             // Selection: shown as a distinct border ring, not background
             const selectionClass = isSelected
-              ? 'ring-2 ring-primary-500 dark:ring-primary-400 ring-inset'
+              ? 'ring-2 ring-primary-500 ring-inset'
               : '';
 
             return (
@@ -151,9 +156,7 @@ export function SkeletonGrid({
                 role="gridcell"
                 onClick={() => onCellClick?.(x, y)}
                 className={`
-                  relative w-10 h-10 sm:w-12 sm:h-12
-                  border border-grid-border dark:border-grid-border-dark
-                  flex items-center justify-center
+                  ${CELL_BASE}
                   grid-stagger
                   transition-colors duration-150
                   ${bgClass} ${selectionClass}
@@ -162,34 +165,38 @@ export function SkeletonGrid({
               >
                 {/* Cell number */}
                 {cellNumber !== undefined && (
-                  <span className="absolute top-0.5 left-1 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
+                  <span className={CELL_NUMBER} style={{ fontSize: NUMBER_FONT_SIZE }}>
                     {cellNumber}
                   </span>
                 )}
 
-                {/* Letter */}
+                {/* Letter — always ink on paper; tints mark ownership */}
                 {letter && (
-                  <span className={`text-sm sm:text-base font-semibold uppercase select-none
-                    ${isFilled
-                      ? 'text-primary-700 dark:text-primary-300'
-                      : isConstraintLetter
-                        ? 'text-primary-500 dark:text-primary-400'
-                        : 'text-stone-800 dark:text-stone-100'
-                    }
-                  `}>
+                  <span
+                    className={`font-semibold uppercase select-none
+                      ${isFilled
+                        ? 'text-primary-800'
+                        : isConstraintLetter
+                          ? 'text-primary-600'
+                          : 'text-grid-ink'
+                      }
+                    `}
+                    style={{ fontSize: LETTER_FONT_SIZE }}
+                  >
                     {letter}
                   </span>
                 )}
 
                 {/* Empty slot indicator (dot for unfilled cells) */}
                 {isSlotCell && !letter && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-grid-ink/20" />
                 )}
               </div>
             );
           })
         )}
       </div>
+    </div>
     </div>
   );
 }

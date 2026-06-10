@@ -2,15 +2,20 @@
  * Crossword grid display component (read-only, for Generate + Export tabs).
  *
  * Features:
+ * - Print-style treatment (see gridStyles.ts) — paper cells, ink letters
  * - Staggered cell reveal animation on generation
- * - Warm color palette with noise texture
  * - Cell numbers for word starts
- * - Responsive sizing
+ * - Pans inside a scroll frame when wider than the viewport
  */
 
 import { useMemo } from 'react';
 import type { CrosswordResult } from '../../logic/types';
 import { assignNumbers } from '../../logic/numbering';
+import {
+  GRID_PAN, GRID_PAGE, GRID_FRAME,
+  CELL_BASE, CELL_PAPER, CELL_BLOCKED, CELL_NUMBER, CELL_LETTER,
+  gridSizingStyle, NUMBER_FONT_SIZE, LETTER_FONT_SIZE,
+} from './gridStyles';
 
 interface CrosswordGridProps {
   puzzle: CrosswordResult;
@@ -35,67 +40,58 @@ export function CrosswordGrid({ puzzle, showAnswers }: CrosswordGridProps) {
   const totalCells = puzzle.width * puzzle.height;
 
   return (
-    <div className="inline-block relative noise-texture rounded-lg" aria-label="Crossword grid">
-      <div
-        role="grid"
-        className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
-        style={{
-          gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
-        }}
-      >
-        {puzzle.grid.map((row, y) =>
-          row.map((cell, x) => {
-            const isEmpty = cell === EMPTY_CELL;
-            const cellNumber = numberMap.get(x + ',' + y);
-            const cellIndex = y * puzzle.width + x;
-            // Stagger: 30ms per cell, max 600ms total
-            const delay = Math.min(cellIndex * (600 / totalCells), 600);
+    <div className={GRID_PAN}>
+      <div className={GRID_PAGE} aria-label="Crossword grid">
+        <div
+          role="grid"
+          className={GRID_FRAME}
+          style={gridSizingStyle(puzzle.width, 26, 44)}
+        >
+          {puzzle.grid.map((row, y) =>
+            row.map((cell, x) => {
+              const isEmpty = cell === EMPTY_CELL;
+              const cellNumber = numberMap.get(x + ',' + y);
+              const cellIndex = y * puzzle.width + x;
+              // Stagger: 30ms per cell, max 600ms total
+              const delay = Math.min(cellIndex * (600 / totalCells), 600);
 
-            let ariaLabel: string;
-            if (isEmpty) {
-              ariaLabel = 'Blocked cell';
-            } else {
-              ariaLabel = `Row ${y + 1}, Column ${x + 1}`;
-              if (cellNumber !== undefined) {
-                ariaLabel += `, number ${cellNumber}`;
+              let ariaLabel: string;
+              if (isEmpty) {
+                ariaLabel = 'Blocked cell';
+              } else {
+                ariaLabel = `Row ${y + 1}, Column ${x + 1}`;
+                if (cellNumber !== undefined) {
+                  ariaLabel += `, number ${cellNumber}`;
+                }
+                if (showAnswers) {
+                  ariaLabel += `, letter ${cell.toUpperCase()}`;
+                }
               }
-              if (showAnswers) {
-                ariaLabel += `, letter ${cell.toUpperCase()}`;
-              }
-            }
 
-            return (
-              <div
-                key={x + '-' + y}
-                role="gridcell"
-                aria-label={ariaLabel}
-                className={`
-                  relative w-10 h-10 sm:w-12 sm:h-12
-                  border border-grid-border dark:border-grid-border-dark
-                  flex items-center justify-center
-                  grid-stagger
-                  ${isEmpty
-                    ? 'bg-grid-blocked dark:bg-grid-blocked-dark'
-                    : 'bg-grid-cell dark:bg-grid-cell-dark'
-                  }
-                `}
-                style={{ animationDelay: `${delay}ms` }}
-              >
-                {cellNumber !== undefined && (
-                  <span className="absolute top-0.5 left-1 text-[9px] sm:text-[10px] font-medium leading-none text-stone-500 dark:text-stone-400">
-                    {cellNumber}
-                  </span>
-                )}
+              return (
+                <div
+                  key={x + '-' + y}
+                  role="gridcell"
+                  aria-label={ariaLabel}
+                  className={`${CELL_BASE} grid-stagger ${isEmpty ? CELL_BLOCKED : CELL_PAPER}`}
+                  style={{ animationDelay: `${delay}ms` }}
+                >
+                  {cellNumber !== undefined && (
+                    <span className={CELL_NUMBER} style={{ fontSize: NUMBER_FONT_SIZE }}>
+                      {cellNumber}
+                    </span>
+                  )}
 
-                {!isEmpty && showAnswers && (
-                  <span className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 uppercase select-none">
-                    {cell}
-                  </span>
-                )}
-              </div>
-            );
-          })
-        )}
+                  {!isEmpty && showAnswers && (
+                    <span className={CELL_LETTER} style={{ fontSize: LETTER_FONT_SIZE }}>
+                      {cell}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );
