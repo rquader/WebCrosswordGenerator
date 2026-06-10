@@ -43,12 +43,76 @@ export interface SkeletonConfig {
   allowReverseWords?: boolean;
   /** Candidate layouts per generation pass (see PriorityGeneratorConfig). */
   candidateCount?: number;
+  /**
+   * When must-include words don't all fit at the requested size, grow the
+   * grid (both dimensions, up to GROWTH_HARD_CAP) until they do, and report
+   * the original size in `result.grewFrom`.
+   *
+   * Default: true — the product contract is that every user word is placed.
+   * Set false to keep the exact requested size and get failures reported
+   * (with a larger-size suggestion attached when one exists).
+   */
+  growToFit?: boolean;
   /** Emit debug logs. */
   debug?: boolean;
 }
 
+/** Absolute ceiling for auto-grown grids. Beyond this the input is unreasonable. */
+export const GROWTH_HARD_CAP = 30;
+
 /**
  * Generate a skeleton crossword.
+ *
+ * Runs the full pipeline at the requested size. If any must-include word
+ * fails to place and growToFit is on (the default), the grid grows one
+ * cell per side at a time — up to GROWTH_HARD_CAP — until every word
+ * places. The result reports the size actually used, with the original
+ * request in `grewFrom`.
+ */
+export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
+  const growToFit = config.growToFit ?? true;
+
+  const baseline = generateSkeletonAtSize(config, config.width, config.height);
+  if (baseline.failures.length === 0) {
+    return baseline;
+  }
+
+  if (!growToFit) {
+    attachGridSizeSuggestion(baseline, config);
+    return baseline;
+  }
+
+  // Grow both dimensions together until every must-include word places.
+  // Each attempt runs the full pipeline — placement interacts with the
+  // word bank fill, so only the real result tells us whether a size works.
+  let bestFallback = baseline;
+
+  for (let delta = 1; ; delta++) {
+    const width = Math.min(GROWTH_HARD_CAP, config.width + delta);
+    const height = Math.min(GROWTH_HARD_CAP, config.height + delta);
+
+    const attempt = generateSkeletonAtSize(config, width, height);
+
+    if (attempt.failures.length === 0) {
+      attempt.grewFrom = { width: config.width, height: config.height };
+      return attempt;
+    }
+
+    if (attempt.failures.length < bestFallback.failures.length) {
+      attempt.grewFrom = { width: config.width, height: config.height };
+      bestFallback = attempt;
+    }
+
+    if (width === GROWTH_HARD_CAP && height === GROWTH_HARD_CAP) {
+      // Physically unreasonable input (e.g. dozens of very long words).
+      // Return the best attempt; remaining failures are reported honestly.
+      return bestFallback;
+    }
+  }
+}
+
+/**
+ * One full skeleton generation pass at a fixed size.
  *
  * Steps:
  *   1. Separate entries by priority tier (must / can / dont)
@@ -58,28 +122,18 @@ export interface SkeletonConfig {
  *   5. Strip word bank words from the grid → blank skeleton slots
  *   6. Build SkeletonResult with pre-filled and empty slots
  */
-export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
-  const { width, height, seed, entries } = config;
+function generateSkeletonAtSize(
+  config: SkeletonConfig,
+  width: number,
+  height: number,
+): SkeletonResult {
+  const { seed, entries } = config;
   const allowReverse = config.allowReverseWords ?? false;
   const debug = config.debug ?? false;
   const candidateCount = config.candidateCount;
 
   // Step 1: Separate by tier
-  const mustWords: string[] = [];
-  const mustClues: string[] = [];
-  const canWords: string[] = [];
-  const canClues: string[] = [];
-
-  for (const entry of entries) {
-    if (entry.priority === 'must') {
-      mustWords.push(entry.word);
-      mustClues.push(entry.clue);
-    } else if (entry.priority === 'can') {
-      canWords.push(entry.word);
-      canClues.push(entry.clue);
-    }
-    // 'dont' entries are excluded entirely
-  }
+  const { mustWords, mustClues, canWords, canClues } = separateTiers(entries);
 
   // Step 2: Run priority generator with user words only
   const userResult = generateCrosswordWithPriority({
@@ -105,7 +159,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
 
   if (!needsSkeleton) {
     // Enough user words — skip skeleton, return complete puzzle
-    const result = buildResultFromCrossword(
+    return buildResultFromCrossword(
       userResult.crossword,
       userResult.placedMust,
       userResult.placedCan,
@@ -113,8 +167,6 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
       mustWords.length,
       canWords.length,
     );
-    attachGridSizeSuggestion(result, config, mustWords, mustClues, allowReverse);
-    return result;
   }
 
   // Step 4: Fill gaps with word bank words as additional can-include
@@ -155,7 +207,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
   }
 
   // Step 6: Build skeleton — strip bank words from grid, create blank slots
-  const result = buildSkeletonFromFullResult(
+  return buildSkeletonFromFullResult(
     fullResult.crossword,
     bankPlacedWords,
     fullResult.failedMust,
@@ -164,32 +216,43 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
     fullResult.placedMust.length,
     fullResult.placedCan.filter(loc => loc.clue !== '__WORD_BANK__').length,
   );
-  attachGridSizeSuggestion(result, config, mustWords, mustClues, allowReverse);
-  return result;
+}
+
+/** Split prioritized entries into must/can word and clue arrays ('dont' excluded). */
+function separateTiers(entries: PrioritizedEntry[]) {
+  const mustWords: string[] = [];
+  const mustClues: string[] = [];
+  const canWords: string[] = [];
+  const canClues: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.priority === 'must') {
+      mustWords.push(entry.word);
+      mustClues.push(entry.clue);
+    } else if (entry.priority === 'can') {
+      canWords.push(entry.word);
+      canClues.push(entry.clue);
+    }
+  }
+
+  return { mustWords, mustClues, canWords, canClues };
 }
 
 /**
- * When must-include words failed, probe progressively larger grids (up to
- * 20x20) for one where every must-include word places. Attaches the first
- * size that works as `result.suggestion` so the UI can offer a one-click
- * regenerate. Probes are cheap (user words only, few candidates) and only
- * run on the failure path.
+ * Fallback for growToFit: false — when must-include words failed at the
+ * pinned size, probe progressively larger grids for one where every
+ * must-include word places, and attach it as `result.suggestion` so the
+ * UI can offer a one-click regenerate.
  */
-function attachGridSizeSuggestion(
-  result: SkeletonResult,
-  config: SkeletonConfig,
-  mustWords: string[],
-  mustClues: string[],
-  allowReverse: boolean,
-): void {
+function attachGridSizeSuggestion(result: SkeletonResult, config: SkeletonConfig): void {
+  const { mustWords, mustClues } = separateTiers(config.entries);
   if (result.failures.length === 0 || mustWords.length === 0) {
     return;
   }
 
-  const MAX_DIMENSION = 20;
-  for (let delta = 1; delta <= 4; delta++) {
-    const width = Math.min(MAX_DIMENSION, config.width + delta);
-    const height = Math.min(MAX_DIMENSION, config.height + delta);
+  for (let delta = 1; delta <= 8; delta++) {
+    const width = Math.min(GROWTH_HARD_CAP, config.width + delta);
+    const height = Math.min(GROWTH_HARD_CAP, config.height + delta);
     if (width === result.width && height === result.height) {
       return; // Already at the cap — nothing bigger to suggest
     }
@@ -202,7 +265,7 @@ function attachGridSizeSuggestion(
       mustIncludeClues: mustClues,
       canIncludeWords: [],
       canIncludeClues: [],
-      allowReverseWords: allowReverse,
+      allowReverseWords: config.allowReverseWords ?? false,
       candidateCount: 3,
     });
 
@@ -210,7 +273,7 @@ function attachGridSizeSuggestion(
       result.suggestion = { width, height };
       return;
     }
-    if (width === MAX_DIMENSION && height === MAX_DIMENSION) {
+    if (width === GROWTH_HARD_CAP && height === GROWTH_HARD_CAP) {
       return;
     }
   }

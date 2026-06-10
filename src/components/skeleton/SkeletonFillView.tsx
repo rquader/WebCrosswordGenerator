@@ -337,6 +337,15 @@ export function SkeletonFillView({
         </span>
       </div>
 
+      {/* Auto-grow note — the grid was enlarged so every word fits */}
+      {skeleton.grewFrom && (
+        <div className="rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
+          <p className="text-xs text-primary-700 dark:text-primary-300">
+            Grid sized up to {skeleton.width}&times;{skeleton.height} so every word fits.
+          </p>
+        </div>
+      )}
+
       {/* Failure warnings */}
       {skeleton.failures.length > 0 && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2">

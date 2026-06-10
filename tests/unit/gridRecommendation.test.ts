@@ -55,12 +55,12 @@ describe('recommendGridSize', () => {
     expect(rec.width).toBeGreaterThanOrEqual(8);
   });
 
-  it('never recommends above 20 (MAX_GRID_SIZE)', () => {
+  it('never recommends above 26 (MAX_GRID_SIZE)', () => {
     const massive = recommendGridSize([
       12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
       12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
     ]);
-    expect(massive.width).toBeLessThanOrEqual(20);
+    expect(massive.width).toBeLessThanOrEqual(26);
   });
 
   it('returns square grids (width === height)', () => {
@@ -142,7 +142,7 @@ describe('recommendWordSearchGridSize', () => {
     const rec = recommendWordSearchGridSize([
       15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
     ]);
-    expect(rec.width).toBeLessThanOrEqual(20);
+    expect(rec.width).toBeLessThanOrEqual(26);
   });
 });
 

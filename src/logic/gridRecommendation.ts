@@ -14,18 +14,25 @@ import type { GridRecommendation, OutlierWord } from './types';
 
 /** Grid dimension limits. */
 const MIN_GRID_SIZE = 8;
-const MAX_GRID_SIZE = 20;
+const MAX_GRID_SIZE = 26;
+
+/**
+ * Letters-to-cells ratio the engine packs reliably. Calibrated empirically
+ * (Phase 15) against hard 30+ word lists across 20 seeds: the placement
+ * engine fits everything at ~42% density; the recommendation sizes for
+ * exactly that, and skeleton auto-grow covers the rare unlucky seed.
+ */
+const PACKING_DENSITY = 0.42;
 
 /**
  * Recommend a grid size based on must-include words.
  *
  * Algorithm:
- *   1. minDimension = longest word length (hard floor)
- *   2. Estimate total letters: must-include * expansion factor
- *      (skeleton adds connecting words — roughly 1.5-1.8x the user's content)
- *   3. Calculate needed area at ~30% cell density (typical crossword)
- *   4. recommendedDim = max(sqrt(area), minDimension + 1) + padding
- *   5. Clamp to [MIN_GRID_SIZE, MAX_GRID_SIZE]
+ *   1. Area term: total letters / PACKING_DENSITY → side = ceil(sqrt(area))
+ *   2. Structural floor: short lists fail on geometry, not space — crossing
+ *      words need room to extend past each other. min(2*longest, longest+5)
+ *      gives that slack without ballooning lists with one long word.
+ *   3. Clamp to [MIN_GRID_SIZE, MAX_GRID_SIZE].
  *
  * @param wordLengths - Array of word lengths (one per must-include word)
  * @returns Recommendation with dimensions, reason, and outlier warnings
@@ -44,24 +51,10 @@ export function recommendGridSize(wordLengths: number[]): GridRecommendation {
 
   const longestWord = Math.max(...wordLengths);
   const totalLetters = wordLengths.reduce((sum, len) => sum + len, 0);
-  const avgWordLength = totalLetters / wordLengths.length;
 
-  // Expansion factor: shorter average words pack more densely, so reduce
-  // the multiplier for lists dominated by short words.
-  const baseMultiplier = 1.7;
-  const shortWordAdjustment = Math.max(0, (6 - avgWordLength) * 0.1);
-  const expansionFactor = baseMultiplier - shortWordAdjustment;
-
-  const estimatedTotalLetters = totalLetters * expansionFactor;
-
-  // Crossword density target: 30% of cells contain letters
-  const targetDensity = 0.30;
-  const neededArea = estimatedTotalLetters / targetDensity;
-
-  // Minimum dimension: must fit longest word, plus 1 for breathing room
-  const minDimension = longestWord;
-  const fromArea = Math.ceil(Math.sqrt(neededArea));
-  let recommended = Math.max(fromArea, minDimension + 1);
+  const fromArea = Math.ceil(Math.sqrt(totalLetters / PACKING_DENSITY));
+  const structuralFloor = Math.min(longestWord * 2, longestWord + 5);
+  let recommended = Math.max(fromArea, structuralFloor, longestWord + 1);
 
   // Clamp to valid range
   recommended = clamp(recommended, MIN_GRID_SIZE, MAX_GRID_SIZE);
@@ -76,7 +69,7 @@ export function recommendGridSize(wordLengths: number[]): GridRecommendation {
     width: recommended,
     height: recommended,
     reason,
-    minDimension,
+    minDimension: longestWord,
     outliers,
   };
 }

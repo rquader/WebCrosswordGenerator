@@ -78,6 +78,11 @@ export interface PriorityPuzzleOptions {
   allowReverseWords?: boolean;
   /** Candidate layouts per generation (default 5 — see PriorityGeneratorConfig). */
   candidateCount?: number;
+  /**
+   * Skeleton only: grow the grid until every must-include word places
+   * (default true — see SkeletonConfig.growToFit).
+   */
+  growToFit?: boolean;
 }
 
 /**
@@ -128,6 +133,7 @@ export function createSkeletonFromEntries(
     entries: options.entries,
     allowReverseWords: options.allowReverseWords,
     candidateCount: options.candidateCount,
+    growToFit: options.growToFit,
   });
 }
 

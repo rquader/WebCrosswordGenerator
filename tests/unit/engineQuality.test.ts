@@ -121,11 +121,12 @@ describe('must-include placement bug regression', () => {
 });
 
 describe('grid size suggestion on failures', () => {
-  it('suggests a larger grid when a must-include word is too long', () => {
+  it('suggests a larger grid when growth is disabled and a word is too long', () => {
     const result = generateSkeleton({
       width: 4,
       height: 4,
       seed: 42,
+      growToFit: false,
       entries: [
         { word: 'stream', clue: 'Flow of water', priority: 'must' },
         { word: 'sun', clue: 'The nearest star', priority: 'must' },

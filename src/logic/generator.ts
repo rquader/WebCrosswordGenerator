@@ -1,16 +1,20 @@
 /**
  * Crossword puzzle generator engine.
  *
- * This is a faithful port of Generator.java by Armaan Saini.
- * The algorithm places words into a grid using character intersections:
+ * Originally a port of Generator.java by Armaan Saini; the placement rules
+ * were rebuilt in Phase 15 to enforce real crossword structure:
  *
  *   1. Pair words with clues, shuffle (seeded), sort by length descending
- *   2. Place the longest word first at (0,0)
+ *   2. Place the longest word centered in the grid
  *   3. For each remaining word, find grid cells where characters match
  *   4. Try to place at each intersection, respecting direction balancing
- *   5. If placement fails and reverse is allowed, try the word reversed
+ *   5. Words that fail get a rescue pass with no direction forcing
  *
- * Direction balancing logic ensures a mix of horizontal and vertical words.
+ * A placement is only valid under classic crossword rules: every covered
+ * cell is empty or matches the word's letter, the word crosses at least one
+ * existing word, nothing touches it head-to-tail, and no side-by-side
+ * letter pairs are created. Every maximal run of letters in the final grid
+ * is exactly one placed word — nothing is glued together.
  */
 
 import type { DirectionalWord, Intersection, WordCluePair, CrosswordResult, GeneratorConfig } from './types';
@@ -51,6 +55,9 @@ class CrosswordGenerator {
   private debug: boolean;
   private presorted: boolean;
   private firstWordOffset: number;
+  private priorityWordCount: number;
+  private horizontalCount = 0;
+  private verticalCount = 0;
 
   constructor(config: GeneratorConfig) {
     this.width = config.width;
@@ -65,6 +72,7 @@ class CrosswordGenerator {
     this.debug = config.debug ?? false;
     this.presorted = config.presorted ?? false;
     this.firstWordOffset = config.firstWordOffset ?? 0;
+    this.priorityWordCount = config.priorityWordCount ?? 0;
 
     // Initialize grid with empty cells
     this.grid = [];
@@ -119,45 +127,12 @@ class CrosswordGenerator {
 
   // --- Cell inspection ---
 
-  /** Check if a grid cell is occupied (not empty). */
+  /** Check if a grid cell is occupied (not empty). Out-of-bounds counts as empty. */
   private isOccupied(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return false;
+    }
     return this.grid[y][x] !== EMPTY_CELL;
-  }
-
-  /**
-   * Count occupied cells in a row segment from x1 to x2 (inclusive).
-   * Returns -1 if the segment is out of bounds.
-   */
-  private getPartialRowOccupations(y: number, x1: number, x2: number): number {
-    if (x1 < 0 || x2 >= this.width || y < 0 || y >= this.height) {
-      return -1;
-    }
-
-    let count = 0;
-    for (let i = x1; i <= x2; i++) {
-      if (this.isOccupied(i, y)) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  /**
-   * Count occupied cells in a column segment from y1 to y2 (inclusive).
-   * Returns -1 if the segment is out of bounds.
-   */
-  private getPartialColumnOccupations(x: number, y1: number, y2: number): number {
-    if (y1 < 0 || y2 >= this.height || x < 0 || x >= this.width) {
-      return -1;
-    }
-
-    let count = 0;
-    for (let i = y1; i <= y2; i++) {
-      if (this.isOccupied(x, i)) {
-        count++;
-      }
-    }
-    return count;
   }
 
   // --- Word placement ---
@@ -216,40 +191,155 @@ class CrosswordGenerator {
     return result;
   }
 
-  // --- Row/column placement validation ---
+  // --- Placement validation (classic crossword rules) ---
 
   /**
-   * Try to place a word horizontally at an intersection point.
-   * The word is valid if the row segment has exactly 1 occupied cell
-   * (the intersection itself) and it fits within bounds.
+   * Check whether a word may be placed at (startX, startY) in the given
+   * direction. All of these must hold:
+   *
+   *   1. The word stays inside the grid.
+   *   2. The cells immediately before and after the word are empty —
+   *      otherwise the word would glue onto another word end-to-end.
+   *   3. Every covered cell is either empty or already holds the same
+   *      letter (a crossing with a perpendicular word).
+   *   4. No two adjacent covered cells are both occupied — that would mean
+   *      running on top of (or along) a word going the same direction.
+   *   5. Every EMPTY covered cell has empty perpendicular neighbors —
+   *      writing a letter next to an existing word would create an
+   *      accidental unclued two-letter word.
+   *   6. At least one covered cell is a real crossing. (Combined with
+   *      rule 4 this also guarantees the word adds at least one new letter.)
+   *
+   * @returns The number of crossings (>= 1) if the placement is legal,
+   *          or -1 if it is not.
    */
-  private checkRow(word: string, clue: string, loc: Intersection): boolean {
-    const startX = loc.x - loc.charIndex;
-    const endX = startX + word.length - 1;
+  private evaluatePlacement(word: string, startX: number, startY: number, horizontal: boolean): number {
+    const length = word.length;
 
-    const occupations = this.getPartialRowOccupations(loc.y, startX, endX);
-    if (occupations === 1 && this.checkFitsInRow(startX, loc.y, word.length)) {
-      this.placeWord(word, clue, startX, loc.y, true);
-      return true;
+    // Rule 1: bounds
+    if (horizontal) {
+      if (!this.checkFitsInRow(startX, startY, length) || startX < 0 || startY < 0) {
+        return -1;
+      }
+    } else {
+      if (!this.checkFitsInColumn(startX, startY, length) || startX < 0 || startY < 0) {
+        return -1;
+      }
     }
-    return false;
+
+    // Rule 2: no letters butting up against the head or tail
+    const beforeX = horizontal ? startX - 1 : startX;
+    const beforeY = horizontal ? startY : startY - 1;
+    const afterX = horizontal ? startX + length : startX;
+    const afterY = horizontal ? startY : startY + length;
+    if (this.isOccupied(beforeX, beforeY) || this.isOccupied(afterX, afterY)) {
+      return -1;
+    }
+
+    let crossings = 0;
+    let previousOccupied = false;
+
+    for (let i = 0; i < length; i++) {
+      const x = horizontal ? startX + i : startX;
+      const y = horizontal ? startY : startY + i;
+      const occupied = this.isOccupied(x, y);
+
+      if (occupied) {
+        // Rule 3: an occupied cell must match the word's letter
+        if (this.grid[y][x] !== word.charAt(i)) {
+          return -1;
+        }
+        // Rule 4: two occupied cells in a row means a same-direction overlap
+        if (previousOccupied) {
+          return -1;
+        }
+        crossings++;
+      } else {
+        // Rule 5: a new letter must not touch a parallel word sideways
+        const sideAX = horizontal ? x : x - 1;
+        const sideAY = horizontal ? y - 1 : y;
+        const sideBX = horizontal ? x : x + 1;
+        const sideBY = horizontal ? y + 1 : y;
+        if (this.isOccupied(sideAX, sideAY) || this.isOccupied(sideBX, sideBY)) {
+          return -1;
+        }
+      }
+
+      previousOccupied = occupied;
+    }
+
+    // Rule 6: must actually cross something
+    return crossings >= 1 ? crossings : -1;
   }
 
   /**
-   * Try to place a word vertically at an intersection point.
-   * The word is valid if the column segment has exactly 1 occupied cell
-   * (the intersection itself) and it fits within bounds.
+   * Find every legal placement for a word, ranked best-first:
+   *   1. More crossings (better interlock — and frees up future anchors)
+   *   2. Preferred direction (from the balancing logic), if any
+   *   3. Closer to the grid center (keeps layouts compact and centered)
+   *   4. Stable enumeration order (keeps results deterministic)
+   *
+   * @param direction 'horizontal' | 'vertical' to restrict, or null for both
+   * @param preferHorizontal soft preference used as a tiebreaker (null = none)
    */
-  private checkColumn(word: string, clue: string, loc: Intersection): boolean {
-    const startY = loc.y - loc.charIndex;
-    const endY = startY + word.length - 1;
+  private findBestPlacement(
+    word: string,
+    direction: 'horizontal' | 'vertical' | null,
+    preferHorizontal: boolean | null,
+  ): { x: number; y: number; horizontal: boolean } | null {
+    const centerX = (this.width - 1) / 2;
+    const centerY = (this.height - 1) / 2;
 
-    const occupations = this.getPartialColumnOccupations(loc.x, startY, endY);
-    if (occupations === 1 && this.checkFitsInColumn(loc.x, startY, word.length)) {
-      this.placeWord(word, clue, loc.x, startY, false);
-      return true;
+    // The same placement is reachable through each of its crossing anchors,
+    // so remember evaluated starts to avoid ranking duplicates.
+    const seen = new Set<string>();
+
+    let best: { x: number; y: number; horizontal: boolean } | null = null;
+    let bestCrossings = 0;
+    let bestPreferred = false;
+    let bestCenterDist = Infinity;
+
+    for (const loc of this.findAllIntersections(word)) {
+      const tries: { x: number; y: number; horizontal: boolean }[] = [];
+      if (direction !== 'vertical') {
+        tries.push({ x: loc.x - loc.charIndex, y: loc.y, horizontal: true });
+      }
+      if (direction !== 'horizontal') {
+        tries.push({ x: loc.x, y: loc.y - loc.charIndex, horizontal: false });
+      }
+
+      for (const t of tries) {
+        const key = `${t.x},${t.y},${t.horizontal}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+
+        const crossings = this.evaluatePlacement(word, t.x, t.y, t.horizontal);
+        if (crossings < 0) {
+          continue;
+        }
+
+        const midX = t.horizontal ? t.x + (word.length - 1) / 2 : t.x;
+        const midY = t.horizontal ? t.y : t.y + (word.length - 1) / 2;
+        const centerDist = (midX - centerX) ** 2 + (midY - centerY) ** 2;
+        const preferred = preferHorizontal !== null && t.horizontal === preferHorizontal;
+
+        const better =
+          crossings > bestCrossings
+          || (crossings === bestCrossings && !bestPreferred && preferred)
+          || (crossings === bestCrossings && preferred === bestPreferred && centerDist < bestCenterDist);
+
+        if (best === null || better) {
+          best = t;
+          bestCrossings = crossings;
+          bestPreferred = preferred;
+          bestCenterDist = centerDist;
+        }
+      }
     }
-    return false;
+
+    return best;
   }
 
   // --- Main generation algorithm ---
@@ -319,93 +409,305 @@ class CrosswordGenerator {
     this.placeWord(firstWord, firstClue, firstX, firstY, firstHorizontal);
 
     // Track direction counts for balancing
-    let horizontalCount = firstHorizontal ? 1 : 0;
-    let verticalCount = firstHorizontal ? 0 : 1;
+    this.horizontalCount = firstHorizontal ? 1 : 0;
+    this.verticalCount = firstHorizontal ? 0 : 1;
 
-    // Step 5: Place remaining words using intersections
+    // Step 5: Place remaining words using intersections, in two phases.
+    //
+    // The first (priorityWordCount - 1) remaining words are the caller's
+    // high-priority words (the first one is already on the grid). Any that
+    // fail get rescued IMMEDIATELY — before lower-priority words can crowd
+    // the grid. The rest are placed after, with a final rescue sweep for
+    // everything still unplaced.
+    const remaining: WordCluePair[] = [];
     while (this.words.length > 0) {
-      const word = this.words.shift()!;
-      const clue = this.clues.shift()!;
-      const locations = this.findAllIntersections(word);
-      let placementFound = false;
+      remaining.push({ word: this.words.shift()!, clue: this.clues.shift()! });
+    }
 
-      // Try each intersection point
-      for (let i = 0; i < locations.length; i++) {
-        const loc = locations[i];
+    const prioritySplit = Math.min(
+      Math.max((this.priorityWordCount ?? 0) - 1, 0),
+      remaining.length,
+    );
+    const priorityQueue = remaining.slice(0, prioritySplit);
+    const regularQueue = remaining.slice(prioritySplit);
 
-        // Step 6: Direction balancing logic
-        // Determines which direction to try first, and whether to allow fallback
-        let tryHorizontalFirst: boolean;
-        let forceDirection = false;
-        const gap = horizontalCount - verticalCount;
+    // Swap rescue is reserved for priority words: they are guaranteed to
+    // the user, and the escalation is too expensive to spend on hundreds
+    // of best-effort filler words.
+    const priorityWords = new Set(priorityQueue.map(p => p.word));
 
-        if (horizontalCount === 0) {
-          // No horizontal words yet — force horizontal
-          tryHorizontalFirst = true;
-          forceDirection = true;
-        } else if (verticalCount === 0) {
-          // No vertical words yet — force vertical
-          tryHorizontalFirst = false;
-          forceDirection = true;
-        } else if (gap <= -3) {
-          // 3+ more verticals than horizontals — force horizontal
-          tryHorizontalFirst = true;
-          forceDirection = true;
-        } else if (gap >= 3) {
-          // 3+ more horizontals than verticals — force vertical
-          tryHorizontalFirst = false;
-          forceDirection = true;
-        } else if (horizontalCount < 2) {
-          // Only 1 horizontal — try horizontal first, allow fallback
-          tryHorizontalFirst = true;
-        } else if (verticalCount < 2) {
-          // Only 1 vertical — try vertical first, allow fallback
-          tryHorizontalFirst = false;
-        } else if (horizontalCount <= verticalCount) {
-          // Fewer horizontals — 2-in-3 chance to try horizontal first
-          tryHorizontalFirst = this.random.nextInt(3) < 2;
-        } else {
-          // Fewer verticals — 1-in-3 chance horizontal (2-in-3 vertical)
-          tryHorizontalFirst = this.random.nextInt(3) < 1;
-        }
+    let stillUnplaced = this.processQueue(priorityQueue);
+    if (stillUnplaced.length > 0) {
+      stillUnplaced = this.rescuePass(stillUnplaced, word => priorityWords.has(word));
+    }
 
-        // Attempt placement in preferred direction, fallback to other if allowed
-        if (tryHorizontalFirst) {
-          if (this.checkRow(word, clue, loc)) {
-            horizontalCount++;
-            placementFound = true;
-          } else if (!forceDirection && this.checkColumn(word, clue, loc)) {
-            verticalCount++;
-            placementFound = true;
-          }
-        } else {
-          if (this.checkColumn(word, clue, loc)) {
-            verticalCount++;
-            placementFound = true;
-          } else if (!forceDirection && this.checkRow(word, clue, loc)) {
-            horizontalCount++;
-            placementFound = true;
-          }
-        }
+    stillUnplaced.push(...this.processQueue(regularQueue));
+    const failed = this.rescuePass(stillUnplaced, word => priorityWords.has(word));
 
-        if (placementFound) {
-          break;
-        }
-      }
-
-      // Step 7: If placement failed, try the word reversed
-      if (this.allowReverseWords && !placementFound && !this.reverseBlacklist.has(word)) {
-        const reversed = word.split('').reverse().join('');
-        this.words.unshift(reversed);
-        this.clues.unshift(clue);
-        this.reverseBlacklist.add(reversed);
-        this.reversedWordsMap.set(reversed, word);
-      }
+    if (failed.length > 0) {
+      this.debugPrint('Unplaced after rescue: ' + failed.map(p => p.word).join(', '));
     }
 
     this.debugPrint('Final grid:');
     if (this.debug) {
       this.printGrid();
     }
+  }
+
+  /**
+   * Place each queued word at its best available spot, honoring direction
+   * balancing. Words that fail are returned (in their original spelling)
+   * for a rescue pass. Failed words are retried reversed when allowed.
+   */
+  private processQueue(queue: WordCluePair[]): WordCluePair[] {
+    const unplaced: WordCluePair[] = [];
+
+    while (queue.length > 0) {
+      const { word, clue } = queue.shift()!;
+
+      if (this.tryPlaceBalanced(word, clue)) {
+        continue;
+      }
+
+      if (this.allowReverseWords && !this.reverseBlacklist.has(word)) {
+        const reversed = word.split('').reverse().join('');
+        queue.unshift({ word: reversed, clue });
+        this.reverseBlacklist.add(reversed);
+        this.reversedWordsMap.set(reversed, word);
+      } else {
+        const original = this.reversedWordsMap.get(word) ?? word;
+        unplaced.push({ word: original, clue });
+      }
+    }
+
+    return unplaced;
+  }
+
+  /**
+   * Step 6: Direction balancing. Decides the direction constraint for one
+   * word, then places it at the best-ranked legal spot.
+   */
+  private tryPlaceBalanced(word: string, clue: string): boolean {
+    let direction: 'horizontal' | 'vertical' | null = null;
+    let preferHorizontal: boolean | null = null;
+    const gap = this.horizontalCount - this.verticalCount;
+
+    if (this.horizontalCount === 0) {
+      // No horizontal words yet — force horizontal
+      direction = 'horizontal';
+    } else if (this.verticalCount === 0) {
+      // No vertical words yet — force vertical
+      direction = 'vertical';
+    } else if (gap <= -3) {
+      // 3+ more verticals than horizontals — force horizontal
+      direction = 'horizontal';
+    } else if (gap >= 3) {
+      // 3+ more horizontals than verticals — force vertical
+      direction = 'vertical';
+    } else if (this.horizontalCount < 2) {
+      // Only 1 horizontal — prefer horizontal, other direction allowed
+      preferHorizontal = true;
+    } else if (this.verticalCount < 2) {
+      // Only 1 vertical — prefer vertical, other direction allowed
+      preferHorizontal = false;
+    } else if (this.horizontalCount <= this.verticalCount) {
+      // Fewer horizontals — 2-in-3 chance to prefer horizontal
+      preferHorizontal = this.random.nextInt(3) < 2;
+    } else {
+      // Fewer verticals — 1-in-3 chance horizontal (2-in-3 vertical)
+      preferHorizontal = this.random.nextInt(3) < 1;
+    }
+
+    return this.placeAtBest(word, clue, direction, preferHorizontal);
+  }
+
+  /**
+   * Rescue pass: retry unplaced words with no direction forcing — any
+   * intersection, either direction. Placing one word can open intersections
+   * for another, so the pass repeats until a full sweep places nothing.
+   *
+   * When plain retries stall, escalates to swap rescue: temporarily remove
+   * one placed word to unblock the stuck word, and only commit when both
+   * end up on the grid. This handles layouts where a word's usable letters
+   * all got walled in — a failure no amount of extra grid space fixes.
+   *
+   * Returns the words that still couldn't be placed.
+   *
+   * @param swapEligible Which words may use the (expensive) swap escalation.
+   */
+  private rescuePass(
+    unplaced: WordCluePair[],
+    swapEligible: (word: string) => boolean,
+  ): WordCluePair[] {
+    let progress = true;
+
+    while (progress && unplaced.length > 0) {
+      progress = false;
+
+      for (let i = 0; i < unplaced.length; ) {
+        if (this.rescueWord(unplaced[i].word, unplaced[i].clue)) {
+          unplaced.splice(i, 1);
+          progress = true;
+        } else {
+          i++;
+        }
+      }
+
+      if (!progress) {
+        for (let i = 0; i < unplaced.length; ) {
+          if (swapEligible(unplaced[i].word)
+              && this.rescueWordWithSwap(unplaced[i].word, unplaced[i].clue)) {
+            unplaced.splice(i, 1);
+            progress = true;
+          } else {
+            i++;
+          }
+        }
+      }
+    }
+
+    return unplaced;
+  }
+
+  /** Most removal candidates a swap rescue may try per stuck word. */
+  private static readonly SWAP_RESCUE_ATTEMPTS = 60;
+
+  /**
+   * Swap rescue for one stuck word: walk placed words newest-first, and for
+   * each that shares a letter with the stuck word, lift it off the grid,
+   * try to place the stuck word, then put the lifted word back at its best
+   * available spot. Both must succeed or everything is restored exactly.
+   */
+  private rescueWordWithSwap(word: string, clue: string): boolean {
+    const letters = new Set(word.split(''));
+    let attempts = 0;
+
+    for (let i = this.wordLocations.length - 1; i >= 0; i--) {
+      const candidate = this.wordLocations[i];
+      if (!candidate.word.split('').some(c => letters.has(c))) {
+        continue; // Removing it can't give the stuck word an anchor
+      }
+      if (attempts++ >= CrosswordGenerator.SWAP_RESCUE_ATTEMPTS) {
+        return false;
+      }
+
+      const lifted = this.liftWord(i);
+
+      if (this.placeAtBest(word, clue, null, null)) {
+        // The lifted word goes back wherever fits best now.
+        const gridForm = lifted.isReversed
+          ? lifted.word.split('').reverse().join('')
+          : lifted.word;
+        if (this.placeAtBest(gridForm, lifted.clue, null, null)) {
+          return true;
+        }
+        // Could not re-place the lifted word — undo the stuck word too
+        this.liftWord(this.wordLocations.length - 1);
+      }
+
+      this.restoreWord(lifted);
+    }
+
+    return false;
+  }
+
+  /**
+   * Remove a placed word from the grid and bookkeeping. Cells shared with
+   * other placed words keep their letters. Returns the removed location so
+   * it can be restored exactly.
+   */
+  private liftWord(index: number): DirectionalWord {
+    const loc = this.wordLocations[index];
+    this.wordLocations.splice(index, 1);
+
+    for (let i = 0; i < loc.word.length; i++) {
+      const x = loc.isHorizontal ? loc.x + i : loc.x;
+      const y = loc.isHorizontal ? loc.y : loc.y + i;
+      if (!this.isCellCoveredByPlacedWord(x, y)) {
+        this.grid[y][x] = EMPTY_CELL;
+      }
+    }
+
+    if (loc.isHorizontal) {
+      this.horizontalCount--;
+    } else {
+      this.verticalCount--;
+    }
+    return loc;
+  }
+
+  /** Put a lifted word back exactly where it was. */
+  private restoreWord(loc: DirectionalWord): void {
+    const gridForm = loc.isReversed
+      ? loc.word.split('').reverse().join('')
+      : loc.word;
+
+    for (let i = 0; i < gridForm.length; i++) {
+      const x = loc.isHorizontal ? loc.x + i : loc.x;
+      const y = loc.isHorizontal ? loc.y : loc.y + i;
+      this.grid[y][x] = gridForm.charAt(i);
+    }
+
+    this.wordLocations.push(loc);
+    if (loc.isHorizontal) {
+      this.horizontalCount++;
+    } else {
+      this.verticalCount++;
+    }
+  }
+
+  /** Whether any placed word covers the cell (x, y). */
+  private isCellCoveredByPlacedWord(x: number, y: number): boolean {
+    for (const loc of this.wordLocations) {
+      if (loc.isHorizontal) {
+        if (loc.y === y && x >= loc.x && x < loc.x + loc.word.length) {
+          return true;
+        }
+      } else {
+        if (loc.x === x && y >= loc.y && y < loc.y + loc.word.length) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** Rescue one word: any direction, lean toward the less-used one. */
+  private rescueWord(word: string, clue: string): boolean {
+    const forms = [word];
+    if (this.allowReverseWords) {
+      const reversed = word.split('').reverse().join('');
+      this.reversedWordsMap.set(reversed, word);
+      forms.push(reversed);
+    }
+
+    const preferHorizontal = this.horizontalCount <= this.verticalCount;
+    for (const form of forms) {
+      if (this.placeAtBest(form, clue, null, preferHorizontal)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Place a word at its best-ranked legal spot. Returns false if none exists. */
+  private placeAtBest(
+    word: string,
+    clue: string,
+    direction: 'horizontal' | 'vertical' | null,
+    preferHorizontal: boolean | null,
+  ): boolean {
+    const spot = this.findBestPlacement(word, direction, preferHorizontal);
+    if (spot === null) {
+      return false;
+    }
+
+    this.placeWord(word, clue, spot.x, spot.y, spot.horizontal);
+    if (spot.horizontal) {
+      this.horizontalCount++;
+    } else {
+      this.verticalCount++;
+    }
+    return true;
   }
 }

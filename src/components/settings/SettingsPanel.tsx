@@ -164,8 +164,8 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <SliderField label="Width" value={value.width} min={2} max={20} onChange={(next) => patchManualSize({ width: next })} />
-                <SliderField label="Height" value={value.height} min={2} max={20} onChange={(next) => patchManualSize({ height: next })} />
+                <SliderField label="Width" value={value.width} min={2} max={26} onChange={(next) => patchManualSize({ width: next })} />
+                <SliderField label="Height" value={value.height} min={2} max={26} onChange={(next) => patchManualSize({ height: next })} />
               </div>
             </>
           )}
@@ -333,7 +333,7 @@ function getQuickSizePresets(
 
   const rec = recommendation.width;
   const compact = Math.max(8, rec - 2);
-  const spacious = Math.min(20, rec + 3);
+  const spacious = Math.min(26, rec + 3);
 
   return [
     { label: `Compact ${compact}x${compact}`, width: compact, height: compact },

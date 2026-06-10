@@ -85,6 +85,17 @@ export interface GeneratorConfig {
    * Default: 0 (first word centered in the grid).
    */
   firstWordOffset?: number;
+
+  /**
+   * Treat the first N words of the list as high-priority: after they are
+   * processed, any that failed get an immediate rescue pass (all anchors,
+   * both directions) BEFORE the rest of the list is placed. Without this,
+   * a failed priority word would only be retried after lower-priority
+   * words (e.g. hundreds of word-bank fillers) have crowded the grid.
+   *
+   * Default: 0 (no early rescue checkpoint).
+   */
+  priorityWordCount?: number;
 }
 
 /**
@@ -193,8 +204,15 @@ export interface SkeletonResult {
   failures: PlacementFailure[];
 
   /**
-   * When some must-include words failed, a probed larger grid size where
-   * they all place. Undefined when nothing failed or no size up to 20 works.
+   * When the grid auto-grew to fit every must-include word, the size that
+   * was originally requested. Undefined when no growth was needed.
+   */
+  grewFrom?: GridSizeSuggestion;
+
+  /**
+   * Fallback for growToFit: false — a probed larger grid size where all
+   * must-include words place. Undefined when nothing failed, when the grid
+   * auto-grew instead, or when no size up to the cap works.
    */
   suggestion?: GridSizeSuggestion;
 }

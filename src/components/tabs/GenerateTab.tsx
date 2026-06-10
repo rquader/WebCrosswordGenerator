@@ -48,6 +48,12 @@ function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
 }
 
+/** Status line shown above a generated skeleton. */
+function skeletonInfo(skeleton: SkeletonResult, seed: number): string {
+  return `${skeleton.width}x${skeleton.height} | ${skeleton.slots.length} slots | `
+    + `${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`;
+}
+
 export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   // --- State ---
   const [showAnswers, setShowAnswers] = useState(true);
@@ -192,9 +198,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       });
 
       setActiveSkeleton(skeleton);
-      setGenerationInfo(
-        `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`
-      );
+      setGenerationInfo(skeletonInfo(skeleton, seed));
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 10);
@@ -250,9 +254,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       });
 
       setActiveSkeleton(skeleton);
-      setGenerationInfo(
-        `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${newSeed}`
-      );
+      setGenerationInfo(skeletonInfo(skeleton, newSeed));
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 150);
@@ -286,9 +288,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
       });
 
       setActiveSkeleton(skeleton);
-      setGenerationInfo(
-        `${skeleton.slots.length} slots | ${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`
-      );
+      setGenerationInfo(skeletonInfo(skeleton, seed));
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 150);

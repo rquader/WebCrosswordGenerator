@@ -187,6 +187,9 @@ function generateSingleCandidate(
     debug: config.debug,
     presorted: true,
     firstWordOffset,
+    // Must-include words that fail the balanced pass are rescued before
+    // any can-include words get a chance to crowd the grid.
+    priorityWordCount: sortedMust.words.length,
   });
 
   // Classify placed words by tier.

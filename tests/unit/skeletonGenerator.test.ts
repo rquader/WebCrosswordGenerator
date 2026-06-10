@@ -159,11 +159,12 @@ describe('three-tier handling', () => {
     expect(result.canTotalCount).toBe(3);
   });
 
-  it('reports must-include failures', () => {
+  it('reports must-include failures when growth is disabled', () => {
     const result = generateSkeleton({
       width: 4,
       height: 4,
       seed: 42,
+      growToFit: false,
       entries: [
         mustEntry('toolongword', 'Will not fit'),
         mustEntry('hi', 'Short greeting'),
@@ -172,6 +173,22 @@ describe('three-tier handling', () => {
 
     expect(result.failures.length).toBeGreaterThanOrEqual(1);
     expect(result.failures.some(f => f.word === 'toolongword')).toBe(true);
+  });
+
+  it('grows the grid instead of failing by default', () => {
+    const result = generateSkeleton({
+      width: 4,
+      height: 4,
+      seed: 42,
+      entries: [
+        mustEntry('toolongword', 'Will not fit at 4x4'),
+        mustEntry('hi', 'Short greeting'),
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.width).toBeGreaterThanOrEqual('toolongword'.length);
+    expect(result.grewFrom).toEqual({ width: 4, height: 4 });
   });
 });
 
