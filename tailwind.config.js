@@ -50,18 +50,21 @@ export default {
           'sepia-alt': '#ebe0c9', // elevated sepia
           'sepia-hover': '#e2d6bb',
         },
-        // Grid-specific colors — warm neutrals
+        // Grid-specific colors — the grid is styled like PRINT in every theme.
+        // Dark mode uses the "lit paper" treatment: cream cells with ink
+        // letters, like a paper puzzle under a desk lamp on a dark desk.
         grid: {
-          cell: '#ffffff',
-          'cell-dark': '#282522',
-          blocked: '#1a1815',
-          'blocked-dark': '#0f0e0c',
-          highlight: '#e0e1fc',
-          'highlight-dark': '#1e1d3d',
-          active: '#c3c7fa',
-          'active-dark': '#2b2a5a',
-          border: '#d4cfc8',
-          'border-dark': '#3a3730',
+          cell: '#fffdf8',          // paper white (light)
+          'cell-dark': '#ece5d4',   // lit paper (dark mode cells stay light!)
+          ink: '#221c15',           // letter/number ink on paper cells
+          blocked: '#26201a',       // ink block (light)
+          'blocked-dark': '#0c0a08',// near-black block (dark)
+          highlight: '#e3e4fb',     // selection wash (light)
+          'highlight-dark': '#d6d8f6', // selection wash on cream (dark)
+          active: '#c3c7fa',        // focused cell (light)
+          'active-dark': '#b9bef4', // focused cell on cream (dark)
+          border: '#cfc8bb',        // hairlines (light)
+          'border-dark': '#8d8270', // hairlines between lit cells (dark)
         },
         // Word search found-word palette (8 distinct colors)
         ws: {
@@ -78,7 +81,8 @@ export default {
       fontFamily: {
         sans: ['"Plus Jakarta Sans Variable"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        display: ['"Plus Jakarta Sans Variable"', 'system-ui', 'sans-serif'],
+        // Editorial serif — masthead, headings, big moments only
+        display: ['"Fraunces Variable"', 'Georgia', 'serif'],
       },
       borderRadius: {
         'grid': '2px',
@@ -92,6 +96,9 @@ export default {
         'grid-cell': 'inset 0 0 0 1px rgba(30,25,18,0.12)',
         'lift': '0 4px 12px -2px rgba(30,25,18,0.12)',
         'lift-dark': '0 4px 12px -2px rgba(0,0,0,0.35)',
+        // The grid floats like a printed page on the desk
+        'page': '0 1px 2px rgba(30,25,18,0.08), 0 12px 40px -12px rgba(30,25,18,0.25)',
+        'page-dark': '0 1px 2px rgba(0,0,0,0.4), 0 16px 50px -12px rgba(0,0,0,0.6), 0 0 60px -20px rgba(82,88,228,0.12)',
       },
       animation: {
         'fade-in': 'fadeIn 0.35s ease-out',

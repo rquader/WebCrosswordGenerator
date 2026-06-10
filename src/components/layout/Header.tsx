@@ -25,28 +25,32 @@ export function Header({ theme, onCycleTheme }: HeaderProps) {
   return (
     <header className="border-b border-stone-200/50 dark:border-stone-700/25 bg-white/85 dark:bg-surface-dark/85 backdrop-blur-md sticky top-0 z-50 transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        {/* Logo + Title */}
+        {/* Masthead — a tiny printed crossword as the mark, editorial wordmark */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden glow-teal">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary-500 via-primary-600 to-primary-800" />
-            <svg viewBox="0 0 36 36" className="relative z-10 w-5 h-5" fill="none">
-              <rect x="2" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
-              <rect x="13" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
-              <rect x="24" y="2" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
-              <rect x="2" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
-              <rect x="13" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
-              <rect x="24" y="13" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
-              <rect x="2" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
-              <rect x="13" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.4" />
-              <rect x="24" y="24" width="10" height="10" rx="1.5" fill="white" fillOpacity="0.9" />
+          <div className="w-9 h-9 flex items-center justify-center" aria-hidden="true">
+            {/* 3x3 print-style crossword glyph: paper cells, one ink block, letter A */}
+            <svg viewBox="0 0 36 36" className="w-9 h-9">
+              <rect x="1.5" y="1.5" width="33" height="33" rx="3"
+                className="fill-grid-cell dark:fill-grid-cell-dark stroke-stone-900 dark:stroke-stone-100"
+                strokeWidth="2" />
+              <line x1="12.5" y1="2.5" x2="12.5" y2="33.5" className="stroke-stone-900/30 dark:stroke-stone-900/40" strokeWidth="1" />
+              <line x1="23.5" y1="2.5" x2="23.5" y2="33.5" className="stroke-stone-900/30 dark:stroke-stone-900/40" strokeWidth="1" />
+              <line x1="2.5" y1="12.5" x2="33.5" y2="12.5" className="stroke-stone-900/30 dark:stroke-stone-900/40" strokeWidth="1" />
+              <line x1="2.5" y1="23.5" x2="33.5" y2="23.5" className="stroke-stone-900/30 dark:stroke-stone-900/40" strokeWidth="1" />
+              <rect x="23.5" y="2.5" width="10" height="10" className="fill-stone-900 dark:fill-grid-blocked-dark" />
+              <rect x="2.5" y="23.5" width="10" height="10" className="fill-primary-600" />
+              <text x="18" y="21.5" textAnchor="middle"
+                className="fill-stone-900"
+                fontSize="13" fontWeight="700"
+                fontFamily="'Fraunces Variable', Georgia, serif">A</text>
             </svg>
           </div>
           <div>
-            <h1 className="text-base font-bold tracking-tight text-stone-900 dark:text-stone-100 leading-none">
-              CrosswordGen
+            <h1 className="font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 leading-none">
+              Crossword Generator
             </h1>
-            <p className="text-[10px] tracking-widest uppercase text-stone-400 dark:text-stone-500 mt-0.5">
-              Puzzle Studio
+            <p className="text-[10px] tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 mt-1 leading-none">
+              Make · Play · Print — all in your browser
             </p>
           </div>
         </div>

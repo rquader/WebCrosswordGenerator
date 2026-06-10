@@ -6,6 +6,9 @@ import { App } from './App';
 import '@fontsource-variable/plus-jakarta-sans';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/600.css';
+// Fraunces: editorial serif for the masthead, headings, and big moments
+// @ts-ignore — fontsource CSS import
+import '@fontsource-variable/fraunces';
 import './index.css';
 
 const rootElement = document.getElementById('root');
