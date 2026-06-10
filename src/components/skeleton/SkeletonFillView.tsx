@@ -14,6 +14,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { SkeletonResult, SkeletonSlot } from '../../logic/types';
 import { SkeletonGrid } from './SkeletonGrid';
+import { suggestWordsForSlot, planAutoFill } from '../../logic/slotSuggestions';
+import { buildSlotFillPrompt, buildCluePrompt } from '../../utils/aiPromptBuilder';
 
 /** Filled slot data passed back on completion. */
 export interface FilledSlotData {
@@ -93,6 +95,92 @@ export function SkeletonFillView({
   // Every blank slot filled (vacuously true when all slots are user words)
   // and no crossing-letter conflicts.
   const canFinalize = filledCount === totalEmpty && conflictCount === 0;
+
+  // Words already used anywhere in the puzzle — suggestions must avoid these.
+  const usedWords = useMemo(() => {
+    const used = new Set<string>();
+    for (const slot of skeleton.slots) {
+      if (slot.isUserWord && slot.word) used.add(slot.word);
+    }
+    for (const edit of slotEdits.values()) {
+      if (edit.word) used.add(edit.word);
+    }
+    return used;
+  }, [skeleton.slots, slotEdits]);
+
+  const [promptToast, setPromptToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showToast(message: string) {
+    setPromptToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setPromptToast(null), 3000);
+  }
+
+  /** Fill every remaining blank with a consistent suggested word. */
+  function handleAutoFill() {
+    const planned = planAutoFill(skeleton.slots, slotEdits);
+    if (planned.size === 0) {
+      showToast('No matching words found for the remaining blanks');
+      return;
+    }
+    setSlotEdits(prev => {
+      const next = new Map(prev);
+      for (const [slotId, word] of planned) {
+        const current = next.get(slotId) ?? { word: '', clue: '' };
+        next.set(slotId, { ...current, word });
+      }
+      return next;
+    });
+    showToast(`Filled ${planned.size} slot${planned.size !== 1 ? 's' : ''} — add clues to finish`);
+  }
+
+  /**
+   * Copy an AI helper prompt: word suggestions for remaining blanks, or
+   * clue writing once everything is filled. Clipboard only — the app never
+   * contacts any AI service.
+   */
+  async function handleCopyAiPrompt() {
+    const themeWords = skeleton.slots
+      .filter(s => s.isUserWord && s.word)
+      .map(s => s.word!);
+
+    const unfilled = emptySlots.filter(s => (slotEdits.get(s.id)?.word.length ?? 0) !== s.length);
+
+    let prompt: string;
+    if (unfilled.length > 0) {
+      prompt = buildSlotFillPrompt({
+        themeWords,
+        slots: unfilled.map(s => ({
+          label: `${s.id}-${s.direction === 'across' ? 'Across' : 'Down'}`,
+          length: s.length,
+          constraints: liveConstraints.get(s.id) ?? s.constraints,
+        })),
+      });
+    } else {
+      const missingClues = emptySlots
+        .filter(s => {
+          const edit = slotEdits.get(s.id);
+          return edit && edit.word && !edit.clue.trim();
+        })
+        .map(s => ({
+          label: `${s.id}-${s.direction === 'across' ? 'Across' : 'Down'}`,
+          word: slotEdits.get(s.id)!.word,
+        }));
+      if (missingClues.length === 0) {
+        showToast('Nothing left to ask — all slots have words and clues');
+        return;
+      }
+      prompt = buildCluePrompt({ words: missingClues, themeWords });
+    }
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      showToast('Prompt copied — paste it into ChatGPT, Gemini, or Claude');
+    } catch {
+      showToast('Could not access the clipboard');
+    }
+  }
 
   const handleWordChange = useCallback((slotId: number, word: string) => {
     setSlotEdits(prev => {
@@ -288,9 +376,34 @@ export function SkeletonFillView({
 
       {/* Slot fill list */}
       <div className="warm-card p-4 space-y-2 max-h-[40vh] overflow-y-auto scrollbar-thin">
-        <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-2">
-          Fill the slots
-        </p>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+            Fill the slots
+          </p>
+          {totalEmpty > 0 && (
+            <div className="flex items-center gap-2">
+              {promptToast && (
+                <span className="text-xs text-primary-600 dark:text-primary-400 animate-fade-in">
+                  {promptToast}
+                </span>
+              )}
+              <button onClick={handleAutoFill}
+                title="Fill every remaining blank with a common word that fits — you write the clues"
+                className="px-2.5 py-1 rounded-lg border border-stone-300 dark:border-stone-600
+                           text-xs text-stone-600 dark:text-stone-300
+                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+                Auto-fill blanks
+              </button>
+              <button onClick={() => void handleCopyAiPrompt()}
+                title="Copy a ready-made prompt (with each blank's letter pattern) to paste into your AI tool. Nothing is sent anywhere by this app."
+                className="px-2.5 py-1 rounded-lg border border-stone-300 dark:border-stone-600
+                           text-xs text-stone-600 dark:text-stone-300
+                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+                Copy AI prompt
+              </button>
+            </div>
+          )}
+        </div>
         {skeleton.slots.map(slot => {
           if (slot.isUserWord) {
             return <FilledSlotRow key={slot.id} slot={slot} />;
@@ -300,6 +413,14 @@ export function SkeletonFillView({
           const hasConflict = conflicts.has(slot.id);
           const isSelected = selectedSlotId === slot.id;
 
+          // Suggestions must not repeat words used elsewhere, but the slot's
+          // own current word shouldn't filter its own alternatives.
+          const excludeForSlot = new Set(usedWords);
+          if (edit.word) excludeForSlot.delete(edit.word);
+          const suggestions = edit.word.length === slot.length
+            ? []
+            : suggestWordsForSlot(slot.length, constraints, excludeForSlot, 6);
+
           return (
             <EmptySlotRow
               key={slot.id}
@@ -308,6 +429,7 @@ export function SkeletonFillView({
               constraints={constraints}
               hasConflict={hasConflict}
               isSelected={isSelected}
+              suggestions={suggestions}
               onSelect={() => setSelectedSlotId(slot.id)}
               onWordChange={(w) => handleWordChange(slot.id, w)}
               onClueChange={(c) => handleClueChange(slot.id, c)}
@@ -366,13 +488,14 @@ function FilledSlotRow({ slot }: { slot: SkeletonSlot }) {
 }
 
 function EmptySlotRow({
-  slot, edit, constraints, hasConflict, isSelected, onSelect, onWordChange, onClueChange,
+  slot, edit, constraints, hasConflict, isSelected, suggestions, onSelect, onWordChange, onClueChange,
 }: {
   slot: SkeletonSlot;
   edit: { word: string; clue: string };
   constraints: Map<number, string>;
   hasConflict: boolean;
   isSelected: boolean;
+  suggestions: string[];
   onSelect: () => void;
   onWordChange: (word: string) => void;
   onClueChange: (clue: string) => void;
@@ -416,6 +539,24 @@ function EmptySlotRow({
                      focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow" />
       </div>
       {hasConflict && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Letter conflict with a crossing word</p>}
+      {suggestions.length > 0 && (
+        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
+            Ideas
+          </span>
+          {suggestions.map(word => (
+            <button
+              key={word}
+              onClick={(e) => { e.stopPropagation(); onWordChange(word); }}
+              className="px-2 py-0.5 rounded-full text-xs font-mono uppercase
+                         bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300
+                         border border-primary-200/70 dark:border-primary-800/40
+                         hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all">
+              {word}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
