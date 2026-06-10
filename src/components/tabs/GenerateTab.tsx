@@ -36,6 +36,7 @@ import {
 import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
 import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
+import { MiniGridPreview } from '../grid/MiniGridPreview';
 
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
@@ -373,7 +374,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
 
           {/* --- Mode toggle + header --- */}
           <div className="warm-card p-5">
-            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 mb-1">
+            <h2 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100 mb-1">
               {isCrossword ? 'Build a Crossword' : 'Build a Word Search'}
             </h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
@@ -488,7 +489,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
           )}
         </div>
 
-        {/* ============ RIGHT PANEL — Result ============ */}
+        {/* ============ RIGHT PANEL — Result or live preview ============ */}
         <div className="flex-1 min-w-0">
           {puzzle ? (
             <div className="space-y-6 animate-fade-in" key={gridKey}>
@@ -507,6 +508,13 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
               </div>
               <CluePanel puzzle={puzzle} />
             </div>
+          ) : isCrossword && wordEntries.length > 0 ? (
+            <MiniGridPreview
+              entries={wordEntries}
+              width={effectiveWidth}
+              height={effectiveHeight}
+              seedText={wizard.settings.seedText}
+            />
           ) : (
             <EmptyState isCrossword={isCrossword} />
           )}
@@ -561,7 +569,7 @@ function EmptyState({ isCrossword }: { isCrossword: boolean }) {
         </svg>
       </div>
 
-      <h2 className="text-xl font-bold text-stone-800 dark:text-stone-200 mb-2">
+      <h2 className="font-display text-2xl font-semibold text-stone-800 dark:text-stone-200 mb-2">
         {isCrossword ? 'Start with your words' : 'Enter words and generate'}
       </h2>
       <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs leading-relaxed">
