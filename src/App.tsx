@@ -7,6 +7,7 @@ import type { CrosswordResult, PuzzleMode } from './logic/types';
 import { decodePuzzleFromUrl, clearPuzzleHash } from './utils/puzzleUrl';
 
 import { GenerateTab } from './components/tabs/GenerateTab';
+import { AiBuilderTab } from './components/tabs/AiBuilderTab';
 import { PlayTab } from './components/tabs/PlayTab';
 import { ExportTab } from './components/tabs/ExportTab';
 import { HelpTab } from './components/tabs/HelpTab';
@@ -78,6 +79,11 @@ export function App() {
               puzzle={puzzle}
               onPuzzleGenerated={handlePuzzleGenerated}
             />
+          </div>
+        )}
+        {activeTab === 'ai' && (
+          <div role="tabpanel" id="tabpanel-ai" aria-labelledby="tab-ai">
+            <AiBuilderTab onGoToGenerate={() => setActiveTab('generate')} />
           </div>
         )}
         {activeTab === 'play' && puzzle && (
