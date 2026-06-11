@@ -57,12 +57,6 @@ export function Header({ theme, onCycleTheme }: HeaderProps) {
 
         {/* Right side controls */}
         <div className="flex items-center gap-2.5">
-          {/* Privacy badge */}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/40 px-2.5 py-1.5 rounded-full border border-stone-200/50 dark:border-stone-700/30">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
-            <span>Offline-ready</span>
-          </div>
-
           {/* Theme cycle button — shows current mode, click to cycle */}
           <button
             onClick={onCycleTheme}
