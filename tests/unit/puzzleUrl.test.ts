@@ -5,9 +5,10 @@
  * Tests edge cases: empty grids, large puzzles, special characters in clues.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { CrosswordResult } from '../../src/logic/types';
 import { deflate, inflate } from 'pako';
+import { encodePuzzleToUrl, decodePuzzleFromUrl } from '../../src/utils/puzzleUrl';
 
 // We test the core logic (compact format + compression) without DOM dependencies.
 // The actual encodePuzzleToUrl/decodePuzzleFromUrl use window.location,
@@ -268,6 +269,90 @@ describe('puzzleUrl', () => {
       expect(result.width).toBe(12);
       expect(result.height).toBe(12);
       expect(result.wordLocations).toHaveLength(15);
+    });
+  });
+
+  describe('v2: mode + direction vectors (real exported functions)', () => {
+    // encode/decode read window.location — stub it for the node test env
+    beforeEach(() => {
+      (globalThis as { window?: unknown }).window = {
+        location: { href: 'https://example.test/app/', hash: '' },
+      };
+    });
+    afterEach(() => {
+      delete (globalThis as { window?: unknown }).window;
+    });
+
+    const setHashFromUrl = (url: string) => {
+      (globalThis as unknown as { window: { location: { hash: string } } })
+        .window.location.hash = '#' + url.split('#')[1];
+    };
+
+    const wordSearchPuzzle: CrosswordResult = {
+      width: 4,
+      height: 4,
+      grid: [
+        ['c', 'a', 't', 'q'],
+        ['x', 'd', 'z', 'w'],
+        ['n', 'e', 'o', 'q'],
+        ['q', 'r', 'g', 'g'],
+      ],
+      wordLocations: [
+        // across
+        { word: 'cat', clue: 'A pet', x: 0, y: 0, isHorizontal: true, isReversed: false, dx: 1, dy: 0 },
+        // diagonal down-right — exactly what v1 could not represent
+        { word: 'dog', clue: 'Another pet', x: 1, y: 1, isHorizontal: false, isReversed: false, dx: 1, dy: 1 },
+        // up (reversed vertical)
+        { word: 'nxc', clue: 'Nonsense', x: 0, y: 2, isHorizontal: false, isReversed: true, dx: 0, dy: -1 },
+      ],
+    };
+
+    it('word search round-trips with mode and exact vectors', () => {
+      const url = encodePuzzleToUrl(wordSearchPuzzle, 'wordsearch');
+      setHashFromUrl(url);
+      const shared = decodePuzzleFromUrl();
+
+      expect(shared).not.toBeNull();
+      expect(shared!.mode).toBe('wordsearch');
+      expect(shared!.puzzle.grid).toEqual(wordSearchPuzzle.grid);
+
+      const diagonal = shared!.puzzle.wordLocations.find(w => w.word === 'dog');
+      expect(diagonal).toBeDefined();
+      expect(diagonal!.dx).toBe(1);
+      expect(diagonal!.dy).toBe(1);
+
+      const upward = shared!.puzzle.wordLocations.find(w => w.word === 'nxc');
+      expect(upward!.dx).toBe(0);
+      expect(upward!.dy).toBe(-1);
+    });
+
+    it('crosswords still encode as v1 so old clients keep working', () => {
+      const url = encodePuzzleToUrl(smallPuzzle); // default mode
+      const encoded = url.split('#puzzle=')[1];
+      const json = new TextDecoder().decode(inflate(base64UrlDecode(encoded)));
+      const compact = JSON.parse(json);
+
+      expect(compact.v).toBe(1);
+      expect(compact.m).toBeUndefined();
+      expect(compact.words[0].dx).toBeUndefined();
+    });
+
+    it('v1 links (and new crossword links) decode as crosswords', () => {
+      const url = encodePuzzleToUrl(smallPuzzle);
+      setHashFromUrl(url);
+      const shared = decodePuzzleFromUrl();
+
+      expect(shared).not.toBeNull();
+      expect(shared!.mode).toBe('crossword');
+      expect(shared!.puzzle.grid).toEqual(smallPuzzle.grid);
+    });
+
+    it('rejects unknown future versions cleanly', () => {
+      const compact = { v: 3, w: 2, h: 2, g: 'abcd', words: [] };
+      const compressed = deflate(new TextEncoder().encode(JSON.stringify(compact)));
+      setHashFromUrl(`x#puzzle=${base64UrlEncode(compressed)}`);
+
+      expect(decodePuzzleFromUrl()).toBeNull();
     });
   });
 

@@ -31,7 +31,7 @@ export function ExportTab({ puzzle, puzzleMode }: ExportTabProps) {
   const [shareToast, setShareToast] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const handleShare = async () => {
-    const success = await copyPuzzleUrlToClipboard(puzzle);
+    const success = await copyPuzzleUrlToClipboard(puzzle, puzzleMode);
     setShareToast(success ? 'copied' : 'error');
     setTimeout(() => setShareToast('idle'), 3000);
   };

@@ -22,17 +22,27 @@
  */
 
 import { deflate, inflate } from 'pako';
-import type { CrosswordResult, DirectionalWord } from '../logic/types';
+import type { CrosswordResult, DirectionalWord, PuzzleMode } from '../logic/types';
 
 /* ── Compact serialization format ─────────────────────────────────────── */
 
 /**
  * Compact representation of a puzzle for URL encoding.
  * Uses short keys to minimize JSON size before compression.
+ *
+ * Versions:
+ *   v1 — crosswords only (the 'd'/'r' word flags can't express diagonals).
+ *        Still what crosswords encode as, so old deployed clients keep
+ *        decoding new crossword links.
+ *   v2 — adds 'm' (mode) and per-word 'dx'/'dy' unit vectors; used for
+ *        word searches, which v1 could never represent (they shared as
+ *        broken crosswords before).
  */
 interface CompactPuzzle {
   /** Version — for future format migrations */
   v: number;
+  /** Mode (v2): 'c' = crossword, 'w' = word search. Absent = crossword. */
+  m?: 'c' | 'w';
   /** Grid width */
   w: number;
   /** Grid height */
@@ -56,6 +66,15 @@ interface CompactWord {
   d: 'a' | 'd';
   /** Reversed? Only included if true */
   r?: 1;
+  /** Exact direction vector (v2 word search) — one of the 8 unit vectors */
+  dx?: number;
+  dy?: number;
+}
+
+/** A decoded shared puzzle with the mode it was shared as. */
+export interface SharedPuzzle {
+  puzzle: CrosswordResult;
+  mode: PuzzleMode;
 }
 
 
@@ -65,8 +84,8 @@ interface CompactWord {
  * Encode a puzzle into a shareable URL.
  * Returns the full URL with the puzzle encoded in the hash.
  */
-export function encodePuzzleToUrl(puzzle: CrosswordResult): string {
-  const compact = toCompact(puzzle);
+export function encodePuzzleToUrl(puzzle: CrosswordResult, mode: PuzzleMode = 'crossword'): string {
+  const compact = toCompact(puzzle, mode);
   const json = JSON.stringify(compact);
   const compressed = deflate(new TextEncoder().encode(json));
   const encoded = base64UrlEncode(compressed);
@@ -80,8 +99,8 @@ export function encodePuzzleToUrl(puzzle: CrosswordResult): string {
  * Copy the puzzle share URL to clipboard.
  * Returns true if successful, false if clipboard API isn't available.
  */
-export async function copyPuzzleUrlToClipboard(puzzle: CrosswordResult): Promise<boolean> {
-  const url = encodePuzzleToUrl(puzzle);
+export async function copyPuzzleUrlToClipboard(puzzle: CrosswordResult, mode: PuzzleMode = 'crossword'): Promise<boolean> {
+  const url = encodePuzzleToUrl(puzzle, mode);
   try {
     await navigator.clipboard.writeText(url);
     return true;
@@ -102,9 +121,11 @@ export async function copyPuzzleUrlToClipboard(puzzle: CrosswordResult): Promise
 
 /**
  * Check if the current URL contains a shared puzzle.
- * Returns the decoded puzzle or null if no puzzle is in the hash.
+ * Returns the decoded puzzle + mode, or null if no puzzle is in the hash.
+ *
+ * v1 links decode as crosswords — correct, v1 only ever stored crosswords.
  */
-export function decodePuzzleFromUrl(): CrosswordResult | null {
+export function decodePuzzleFromUrl(): SharedPuzzle | null {
   const hash = window.location.hash;
   if (!hash.startsWith('#puzzle=')) return null;
 
@@ -114,12 +135,15 @@ export function decodePuzzleFromUrl(): CrosswordResult | null {
     const json = new TextDecoder().decode(inflate(compressed));
     const compact: CompactPuzzle = JSON.parse(json);
 
-    if (compact.v !== 1) {
+    if (compact.v !== 1 && compact.v !== 2) {
       console.warn(`Unknown puzzle URL version: ${compact.v}`);
       return null;
     }
 
-    return fromCompact(compact);
+    return {
+      puzzle: fromCompact(compact),
+      mode: compact.m === 'w' ? 'wordsearch' : 'crossword',
+    };
   } catch (err) {
     console.warn('Failed to decode puzzle from URL:', err);
     return null;
@@ -139,7 +163,20 @@ export function clearPuzzleHash(): void {
 
 /* ── Compact format conversion ────────────────────────────────────────── */
 
-function toCompact(puzzle: CrosswordResult): CompactPuzzle {
+function toCompact(puzzle: CrosswordResult, mode: PuzzleMode): CompactPuzzle {
+  if (mode === 'wordsearch') {
+    return {
+      v: 2,
+      m: 'w',
+      w: puzzle.width,
+      h: puzzle.height,
+      g: puzzle.grid.map(row => row.join('')).join(''),
+      words: puzzle.wordLocations.map(wordToCompactV2),
+    };
+  }
+
+  // Crosswords stay on v1: the flags express across/down fully, and old
+  // deployed clients keep decoding new crossword links.
   return {
     v: 1,
     w: puzzle.width,
@@ -180,8 +217,19 @@ function wordToCompact(word: DirectionalWord): CompactWord {
   return cw;
 }
 
+/** v2 word-search words always carry the exact direction vector. */
+function wordToCompactV2(word: DirectionalWord): CompactWord {
+  const cw = wordToCompact(word);
+  // Vector should always be present on engine output; the flag-derived
+  // fallback keeps hand-built or legacy results shareable.
+  const sign = word.isReversed ? -1 : 1;
+  cw.dx = word.dx ?? (word.isHorizontal ? sign : 0);
+  cw.dy = word.dy ?? (word.isHorizontal ? 0 : sign);
+  return cw;
+}
+
 function wordFromCompact(cw: CompactWord): DirectionalWord {
-  return {
+  const word: DirectionalWord = {
     word: cw.w,
     clue: cw.c,
     x: cw.x,
@@ -189,6 +237,11 @@ function wordFromCompact(cw: CompactWord): DirectionalWord {
     isHorizontal: cw.d === 'a',
     isReversed: cw.r === 1,
   };
+  if (cw.dx !== undefined && cw.dy !== undefined) {
+    word.dx = cw.dx;
+    word.dy = cw.dy;
+  }
+  return word;
 }
 
 

@@ -37,8 +37,8 @@ export function App() {
   useEffect(() => {
     const shared = decodePuzzleFromUrl();
     if (shared) {
-      setPuzzle(shared);
-      setPuzzleMode('crossword');
+      setPuzzle(shared.puzzle);
+      setPuzzleMode(shared.mode);
       setActiveTab('play');
       setSharedPuzzleLoaded(true);
       clearPuzzleHash();
