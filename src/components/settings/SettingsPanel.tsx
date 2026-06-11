@@ -5,6 +5,7 @@
  * intentionally unaware of where the word list came from.
  */
 
+import { useState } from 'react';
 import type { GenerationSettings } from './generationSettings';
 import type { GridRecommendation } from '../../logic/types';
 
@@ -26,7 +27,7 @@ function Divider() {
 }
 
 export function SettingsPanel({ value, onChange, recommendation, effectiveSize }: SettingsPanelProps) {
-  const seedCopied = false;
+  const [seedCopied, setSeedCopied] = useState(false);
   const autoActive = value.autoGridSize && recommendation != null && recommendation.minDimension > 0;
 
   function patch(next: Partial<GenerationSettings>) {
@@ -41,6 +42,8 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
   function handleCopySeed() {
     if (value.seedText) {
       navigator.clipboard.writeText(value.seedText);
+      setSeedCopied(true);
+      window.setTimeout(() => setSeedCopied(false), 1500);
     }
   }
 
