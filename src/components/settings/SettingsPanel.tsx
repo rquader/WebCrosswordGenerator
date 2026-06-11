@@ -254,9 +254,9 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
             />
             <span>
-              <span className="block text-sm text-stone-600 dark:text-stone-400">Allow two-word answers</span>
+              <span className="block text-sm text-stone-600 dark:text-stone-400">Suggest two-word answers in AI builder</span>
               <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
-                Phrases like &ldquo;extra time&rdquo; go into the grid without the space; their clues are marked (2 words).
+                The AI word builder will suggest phrases like &ldquo;extra time&rdquo; alongside single words.
               </span>
             </span>
           </label>

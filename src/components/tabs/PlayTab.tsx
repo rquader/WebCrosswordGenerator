@@ -108,7 +108,8 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     const clues = state.isAcross ? acrossClues : downClues;
     const clue = clues.find(c => c.number === activeClueNumber);
     if (!clue) return null;
-    return `${activeClueNumber} ${state.isAcross ? 'Across' : 'Down'}: ${clue.clue}`;
+    const twoWordHint = clue.displayWord ? ' (2 words)' : '';
+    return `${activeClueNumber} ${state.isAcross ? 'Across' : 'Down'}: ${clue.clue}${twoWordHint}`;
   }, [activeClueNumber, state.isAcross, acrossClues, downClues]);
 
   return (

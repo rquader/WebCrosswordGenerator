@@ -492,7 +492,7 @@ function FilledSlotRow({ slot }: { slot: SkeletonSlot }) {
         {slot.id}-{slot.direction === 'across' ? 'A' : 'D'}
       </span>
       <span className="text-sm font-medium text-primary-700 dark:text-primary-300 uppercase tracking-wide">
-        {slot.word}
+        {slot.displayWord ?? slot.word}
       </span>
       <span className="text-xs text-stone-400 dark:text-stone-500 ml-auto truncate max-w-[10rem]">
         {slot.clue}

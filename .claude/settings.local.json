@@ -21,7 +21,9 @@
       "Read(//private/tmp/**)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/WebCrosswordGenerator/)",
       "Bash(node /tmp/cw-export-audit.mjs)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(sed -n '340,370p' src/components/skeleton/SkeletonFillView.tsx)",
+      "Bash(sed -n '480,500p' src/components/skeleton/SkeletonFillView.tsx)"
     ]
   },
   "enabledPlugins": {

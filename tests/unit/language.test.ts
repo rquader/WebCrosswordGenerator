@@ -36,21 +36,18 @@ describe('normalizeWord', () => {
     expect(normalizeWord('CAMIÓN', { language: 'spanish' })).toBe('camión');
   });
 
-  it('strips spaces unless two-word answers are allowed', () => {
-    expect(normalizeWord('extra time')).toBe('extratime');
-    expect(normalizeWord('extra time', { allowTwoWords: true })).toBe('extra time');
-    expect(normalizeWord('  extra    time  ', { allowTwoWords: true })).toBe('extra time');
+  it('keeps a single space between two words — phrases always type', () => {
+    expect(normalizeWord('extra time')).toBe('extra time');
+    expect(normalizeWord('  extra    time  ')).toBe('extra time');
+    // The AI-builder flag has no effect on manual normalization.
+    expect(normalizeWord('extra time', { allowTwoWords: false })).toBe('extra time');
   });
 });
 
 describe('normalizeWordWhileTyping', () => {
   it('keeps one trailing space so the second word can be typed', () => {
-    expect(normalizeWordWhileTyping('extra ', { allowTwoWords: true })).toBe('extra ');
-    expect(normalizeWordWhileTyping('extra   ', { allowTwoWords: true })).toBe('extra ');
-  });
-
-  it('still strips the space entirely when phrases are off', () => {
-    expect(normalizeWordWhileTyping('extra ')).toBe('extra');
+    expect(normalizeWordWhileTyping('extra ')).toBe('extra ');
+    expect(normalizeWordWhileTyping('extra   ')).toBe('extra ');
   });
 });
 
@@ -64,14 +61,9 @@ describe('grid/display word split', () => {
 });
 
 describe('validateWord', () => {
-  it('rejects spaces when phrases are off, with a pointer to the setting', () => {
-    const error = validateWord('extra time');
-    expect(error).toContain('two-word answers');
-  });
-
-  it('accepts exactly two words when allowed, rejects three', () => {
-    expect(validateWord('extra time', { allowTwoWords: true })).toBeNull();
-    expect(validateWord('one two three', { allowTwoWords: true })).toBe('Two words at most');
+  it('accepts exactly two words, rejects three', () => {
+    expect(validateWord('extra time')).toBeNull();
+    expect(validateWord('one two three')).toBe('Two words at most');
   });
 
   it('requires at least 2 letters overall', () => {

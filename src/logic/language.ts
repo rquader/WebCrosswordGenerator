@@ -14,10 +14,12 @@
  *
  * Digits are valid in words in every language (CO2, H2O, MP3...).
  *
- * Words may also be two-word phrases ("extra time") when the user has
- * enabled that option. The space exists only in the DISPLAY form of a
- * word — the engine always places the grid form, with the space
- * stripped (see toGridWord). Pure TS — no DOM, no React.
+ * Words may also be two-word phrases ("extra time"). Manual entry always
+ * accepts a phrase — the space exists only in the DISPLAY form of a word;
+ * the engine places the grid form with the space stripped (see toGridWord).
+ * The allowTwoWords option only controls the AI builder: whether the
+ * prompt asks for phrases and the response parser accepts them.
+ * Pure TS — no DOM, no React.
  */
 
 export type PuzzleLanguage =
@@ -61,14 +63,18 @@ export function getLanguageInfo(id: PuzzleLanguage): LanguageInfo {
 /** Options shared by word normalization and validation. */
 export interface WordRules {
   language?: PuzzleLanguage;
-  /** Permit two-word phrases ("extra time"). Off = single words only. */
+  /**
+   * Have the AI builder suggest two-word phrases ("extra time").
+   * Only wordCharsetRegex (the AI response gate) reads this — typed and
+   * uploaded words always accept a phrase regardless.
+   */
   allowTwoWords?: boolean;
 }
 
 /**
  * Normalize a raw user-typed word to the app's internal display form:
  * lowercase, language charset only, digits kept, at most single spaces
- * between words (only when two-word phrases are allowed).
+ * between words.
  *
  * This is the strict batch form — leading/trailing whitespace is gone.
  * For live typing in a text field use normalizeWordWhileTyping, which
@@ -101,12 +107,9 @@ function normalizeKeepingTrailingSpace(raw: string, rules: WordRules): string {
     text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  const allowed = `a-z0-9${info.extraLetters}${rules.allowTwoWords ? ' ' : ''}`;
+  const allowed = `a-z0-9${info.extraLetters} `;
   text = text.replace(new RegExp(`[^${allowed}]`, 'g'), '');
-
-  if (rules.allowTwoWords) {
-    text = text.replace(/ +/g, ' ').replace(/^ +/, '');
-  }
+  text = text.replace(/ +/g, ' ').replace(/^ +/, '');
 
   return text;
 }
@@ -127,18 +130,15 @@ export function isTwoWordPhrase(word: string): boolean {
 }
 
 /**
- * Validate an already-normalized display-form word against the rules.
+ * Validate an already-normalized display-form word.
  * Returns null when valid, otherwise a short human-readable problem.
  */
-export function validateWord(word: string, rules: WordRules = {}): string | null {
+export function validateWord(word: string): string | null {
   if (word.length === 0) {
     return 'Word is required';
   }
 
   const spaceCount = word.split(' ').length - 1;
-  if (spaceCount > 0 && !rules.allowTwoWords) {
-    return 'Single words only — enable two-word answers in Grid Setup to use a phrase';
-  }
   if (spaceCount > 1) {
     return 'Two words at most';
   }

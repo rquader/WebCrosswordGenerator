@@ -44,9 +44,9 @@ describe('parseTextInput', () => {
     expect(result.errors[0]).toContain('Line 2');
   });
 
-  it('cleans words to lowercase alpha only', () => {
+  it('lowercases and keeps a spaced word as a two-word phrase', () => {
     const result = parseTextInput('Hello World: A greeting');
-    expect(result.entries[0].word).toBe('helloworld');
+    expect(result.entries[0].word).toBe('hello world');
   });
 
   it('handles Windows line endings (\\r\\n)', () => {

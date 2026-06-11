@@ -84,7 +84,7 @@ export function validateEntryTableRow(row: EntryTableRow, rules: EntryValidation
   const normalizedWord = normalizeWordInput(row.word, rules);
   const trimmedClue = row.clue.trim();
   const isEmpty = normalizedWord.length === 0 && trimmedClue.length === 0;
-  const wordError = isEmpty ? null : validateWord(normalizedWord, rules);
+  const wordError = isEmpty ? null : validateWord(normalizedWord);
   const clueError = isEmpty || !requireClue || trimmedClue.length > 0 ? null : 'Clue is required';
 
   return {

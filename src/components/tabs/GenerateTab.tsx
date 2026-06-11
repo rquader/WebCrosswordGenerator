@@ -180,7 +180,12 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
     const lengths = wordEntries.map(e => toGridWord(e.word).length);
     if (isCrossword) {
       const rec = recommendGridSize(lengths);
-      return { ...rec, outliers: detectOutlierWords(wordEntries.map(e => toGridWord(e.word))) };
+      // Outliers are detected on grid forms (placement length), but the
+      // warning should name the word the way the user typed it.
+      const gridToDisplay = new Map(wordEntries.map(e => [toGridWord(e.word), e.word]));
+      const outliers = detectOutlierWords(wordEntries.map(e => toGridWord(e.word)))
+        .map(o => ({ ...o, word: gridToDisplay.get(o.word) ?? o.word }));
+      return { ...rec, outliers };
     }
     return { ...recommendWordSearchGridSize(lengths), outliers: [] };
   }, [wordEntries, isCrossword]);
