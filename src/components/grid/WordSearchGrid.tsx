@@ -230,7 +230,8 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
             }
           </div>
 
-          {/* Grid */}
+          {/* Grid — pans horizontally on phones instead of crushing cells */}
+          <div className="max-w-full overflow-x-auto pb-2">
           <div className="inline-block relative noise-texture rounded-lg" tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: 'none' }}>
             <div
               role="grid"
@@ -286,6 +287,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
                 withFill={true}
               />
             </div>
+          </div>
           </div>
         </div>
 

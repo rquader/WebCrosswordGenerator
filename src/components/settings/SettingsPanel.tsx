@@ -88,7 +88,8 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
 
   return (
     <div className="warm-card p-5">
-      <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
+      <h2 className="flex items-baseline gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
+        <span className="font-display text-base leading-none text-accent-600 dark:text-accent-400" aria-hidden="true">2</span>
         Grid Setup
       </h2>
 

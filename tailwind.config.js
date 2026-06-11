@@ -8,6 +8,10 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Warm white — every bg-white card/input in the app picks this up.
+        // Pure #ffffff reads clinical against the warm paper page; print
+        // components are untouched (they use inline #fff on purpose).
+        white: '#fdfbf7',
         // Primary: warm indigo / slate-blue — sophisticated, not "AI green"
         primary: {
           50:  '#f0f1fe',

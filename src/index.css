@@ -58,6 +58,17 @@
   .sepia .warm-card {
     background-color: #f7f0dc;
     border-color: rgba(120, 95, 55, 0.25);
+    /* Warm brown shadows — neutral gray reads wrong on parchment */
+    box-shadow:
+      0 1px 3px 0 rgba(92, 70, 40, 0.1),
+      0 4px 14px -6px rgba(92, 70, 40, 0.16);
+  }
+
+  /* Primary gradient buttons flatten to the sepia ink-indigo — the
+     bg-primary-* override can't catch gradient stop classes */
+  .sepia .from-primary-600 {
+    background-image: none !important;
+    background-color: #3a30a0 !important;
   }
 
   .sepia .bg-white {
