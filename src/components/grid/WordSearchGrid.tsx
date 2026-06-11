@@ -323,7 +323,7 @@ function WordList({ words, foundWords, lastFoundWord }: {
   return (
     <div className="warm-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+        <h3 className="section-label">
           Words to Find
         </h3>
         <span className="text-xs font-mono text-stone-400 dark:text-stone-500">
@@ -342,7 +342,7 @@ function WordList({ words, foundWords, lastFoundWord }: {
       <div className="space-y-3">
         {groupWordsByDirection(words).map(({ label, items }) => (
           <div key={label}>
-            <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5">{label}</h4>
+            <h4 className="sub-label mb-1.5">{label}</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {items.map((wl) => {
                 const isFound = foundSet.has(wl.word);

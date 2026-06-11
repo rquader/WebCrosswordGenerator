@@ -40,7 +40,7 @@ export function ExportTab({ puzzle, puzzleMode }: ExportTabProps) {
     <div className="animate-fade-in space-y-6">
       {/* Export options */}
       <div className="warm-card p-5">
-        <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
+        <h2 className="section-label mb-4">
           Export Options
         </h2>
 
@@ -147,7 +147,7 @@ export function ExportTab({ puzzle, puzzleMode }: ExportTabProps) {
 
       {/* Preview area */}
       <div className="warm-card p-5">
-        <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
+        <h2 className="section-label mb-4">
           Preview
         </h2>
         {puzzleMode === 'wordsearch' ? (

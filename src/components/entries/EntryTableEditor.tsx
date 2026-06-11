@@ -86,9 +86,9 @@ export function EntryTableEditor({
         <table className="w-full border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="text-left text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 pb-2 pr-3">Word</th>
-              <th className="text-left text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 pb-2 pr-3">Clue / Definition</th>
-              <th className="text-right text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 pb-2">Action</th>
+              <th className="text-left sub-label pb-2 pr-3">Word</th>
+              <th className="text-left sub-label pb-2 pr-3">Clue / Definition</th>
+              <th className="text-right sub-label pb-2">Action</th>
             </tr>
           </thead>
           <tbody>

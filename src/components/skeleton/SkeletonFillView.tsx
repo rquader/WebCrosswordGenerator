@@ -391,7 +391,7 @@ export function SkeletonFillView({
       {/* Slot fill list */}
       <div className="warm-card p-4 space-y-2 max-h-[40vh] overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+          <p className="sub-label">
             Fill the slots
           </p>
           {totalEmpty > 0 && (
@@ -555,7 +555,7 @@ function EmptySlotRow({
       {hasConflict && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Letter conflict with a crossing word</p>}
       {suggestions.length > 0 && (
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
+          <span className="sub-label">
             Ideas
           </span>
           {suggestions.map(word => (

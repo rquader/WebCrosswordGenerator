@@ -338,7 +338,7 @@ interface PlayClueListProps {
 function PlayClueList({ title, clues, activeNumber, onClueClick }: PlayClueListProps) {
   return (
     <div className="warm-card p-4">
-      <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-3 uppercase tracking-wider">
+      <h3 className="section-label mb-3">
         {title}
       </h3>
       {clues.length === 0 ? (

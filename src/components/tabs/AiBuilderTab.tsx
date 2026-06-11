@@ -371,7 +371,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
 
             {outcome.issues.length > 0 && (
               <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2.5">
-                <p className="text-xs font-medium uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1.5">
+                <p className="text-overline uppercase font-medium text-amber-700 dark:text-amber-300 mb-1.5">
                   {outcome.issues.length} line{outcome.issues.length !== 1 ? 's' : ''} couldn't be read
                 </p>
                 <ul className="space-y-1">
@@ -396,13 +396,12 @@ function StepHeader({ number, title, muted }: { number: number; title: string; m
       <span
         className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold
           ${muted
-            ? 'bg-stone-200 dark:bg-stone-700/60 text-stone-500 dark:text-stone-400'
-            : 'bg-primary-600 text-white'}`}
+            ? 'bg-well text-ink-3'
+            : 'bg-accent text-accent-ink'}`}
       >
         {number}
       </span>
-      <h3 className={`text-sm font-semibold uppercase tracking-wider
-        ${muted ? 'text-stone-500 dark:text-stone-400' : 'text-stone-900 dark:text-stone-100'}`}>
+      <h3 className={`section-label ${muted ? 'text-ink-3' : ''}`}>
         {title}
       </h3>
     </div>

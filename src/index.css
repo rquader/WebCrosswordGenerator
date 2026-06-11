@@ -266,6 +266,106 @@
 
 /* Component styles */
 @layer components {
+  /* ── Editorial type roles ──────────────────────────────────────────
+   * The five-step scale lives in tailwind.config (overline/meta/body/
+   * lede/title + masthead). These classes bind the recurring roles so
+   * every panel header in the app is the same decision, made once.
+   */
+
+  /* Small tracked caps that head a card section — newspaper kicker. */
+  .section-label {
+    @apply text-overline font-sans uppercase text-ink-2;
+  }
+
+  /* Fainter caps for table columns and sub-groups. */
+  .sub-label {
+    @apply text-overline font-sans uppercase text-ink-3;
+    font-weight: 500;
+  }
+
+  /* Fraunces panel title — bigger editorial moments inside cards. */
+  .card-title {
+    @apply font-display text-title text-ink;
+  }
+
+  /* Fraunces view title — the headline of a whole tab. */
+  .view-title {
+    @apply font-display text-ink;
+    font-size: 1.625rem;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    font-weight: 640;
+    font-variation-settings: 'SOFT' 40, 'WONK' 0;
+  }
+
+  /* ── Button system ─────────────────────────────────────────────────
+   * Three tiers, one shape: slightly squared (rounded-btn), medium
+   * weight, quiet motion. Theme personality comes from the tokens —
+   * oxblood in light, luminous ember in dark, stamped ink in sepia —
+   * so there are no per-theme button rules here at all.
+   */
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-btn
+           font-sans text-body font-medium select-none
+           transition-all duration-150;
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-ghost:disabled {
+    @apply opacity-45 cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-accent-ink px-4 py-2;
+    box-shadow: 0 1px 2px rgba(22, 13, 7, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-accent-2;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-raise);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(22, 13, 7, 0.24);
+  }
+
+  .btn-secondary {
+    @apply border border-line-2 bg-card text-ink px-4 py-2;
+    box-shadow: 0 1px 2px rgba(46, 36, 24, 0.05);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    @apply bg-well;
+    border-color: rgb(var(--ink-3));
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    @apply bg-well;
+    transform: translateY(1px);
+  }
+
+  .btn-ghost {
+    @apply text-ink-2 px-3 py-1.5;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-well text-ink;
+  }
+
+  /* Size modifiers — compose after a tier class. */
+  .btn-sm {
+    @apply text-meta px-2.5 py-1.5 gap-1.5;
+  }
+
+  .btn-lg {
+    @apply text-lede px-5 py-2.5;
+  }
+
   /* Noise texture overlay — adds organic feel to surfaces */
   .noise-texture {
     position: relative;

@@ -29,7 +29,10 @@
       "Bash(lsof -ti:5173)",
       "Bash(xargs kill -9)",
       "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-tokens)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(sed -n '368,380p' src/components/tabs/AiBuilderTab.tsx)",
+      "Bash(sed -n '398,415p' src/components/tabs/AiBuilderTab.tsx)",
+      "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p23)"
     ]
   },
   "enabledPlugins": {

@@ -80,7 +80,7 @@ export function WordBankPanel({ puzzle }: WordBankPanelProps) {
   return (
     <div className="warm-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+        <h3 className="section-label">
           Word Bank
         </h3>
         <span className="text-xs font-mono text-stone-400 dark:text-stone-500">

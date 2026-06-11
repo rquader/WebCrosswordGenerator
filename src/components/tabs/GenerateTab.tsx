@@ -496,7 +496,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           {/* --- Your Words (the primary input — always visible) --- */}
           <div className="warm-card p-5">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <h3 className="flex items-baseline gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+              <h3 className="flex items-baseline gap-2 section-label">
                 <span className="font-display text-base leading-none text-copper-600 dark:text-copper-400" aria-hidden="true">1</span>
                 Your Words
               </h3>
@@ -595,11 +595,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           <button
             onClick={isCrossword ? handleGenerateSkeleton : handleGenerateWordSearch}
             disabled={isGenerating || (!isCrossword && wordEntries.length === 0)}
-            className="w-full px-4 py-3 rounded-xl text-sm font-semibold
-                       bg-gradient-to-r from-primary-600 to-primary-700
-                       hover:from-primary-700 hover:to-primary-800
-                       text-white shadow-md btn-lift
-                       disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="btn-primary btn-lg w-full font-semibold"
           >
             {isGenerating
               ? 'Generating...'
@@ -687,9 +683,9 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
         {payload.sourceSummary}. Your table already has content.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onReplace} className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-md btn-lift">Replace</button>
-        <button onClick={onAppend} className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-600 dark:text-stone-300 btn-lift">Append</button>
-        <button onClick={onCancel} className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-600 dark:text-stone-300 btn-lift">Cancel</button>
+        <button onClick={onReplace} className="btn-primary">Replace</button>
+        <button onClick={onAppend} className="btn-secondary">Append</button>
+        <button onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
     </div>
   );
