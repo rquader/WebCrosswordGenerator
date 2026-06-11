@@ -67,6 +67,17 @@ describe('buildWordListPrompt', () => {
 
     expect(prompt).toContain('(no specific topic');
   });
+
+  it('demands single words with the goalkeeper example in both modes', () => {
+    const crossword = buildWordListPrompt(baseOptions);
+    const wordSearch = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
+
+    for (const prompt of [crossword, wordSearch]) {
+      expect(prompt).toContain('must be a single word');
+      expect(prompt).toContain('no multi-word phrases');
+      expect(prompt).toContain('"goalkeeper" is correct; "goal keeper" is not');
+    }
+  });
 });
 
 describe('parseWordListResponse', () => {
@@ -122,9 +133,26 @@ describe('parseWordListResponse', () => {
     expect(result.issues[0].line).toBe(3);
     expect(result.issues[0].message).toContain('expected: WORD | Clue');
     expect(result.issues[1].line).toBe(4);
-    expect(result.issues[1].message).toContain("isn't a single word");
+    expect(result.issues[1].message).toContain('has a space');
     expect(result.issues[2].line).toBe(5);
     expect(result.issues[2].message).toContain('missing its clue');
+  });
+
+  it('rejects multi-word entries with a specific space message', () => {
+    const response = [
+      '```',                                            // line 1
+      'GOALKEEPER | The player who guards the goal.',   // line 2
+      'goal keeper | Same thing, written as two words.', // line 3
+      '```',
+    ].join('\n');
+
+    const result = parseWordListResponse(response);
+
+    expect(result.entries.map(e => e.word)).toEqual(['GOALKEEPER']);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].line).toBe(3);
+    expect(result.issues[0].message).toContain('"goal keeper" has a space');
+    expect(result.issues[0].message).toContain('must be single words');
   });
 
   it('skips blank lines silently', () => {

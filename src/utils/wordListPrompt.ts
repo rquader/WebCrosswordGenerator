@@ -53,7 +53,8 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   } else {
     lines.push('- Word length: 4 letters or more. Longer words are fine — they do not need to interlock.');
   }
-  lines.push('- Single words only, letters A-Z: no spaces, hyphens, numerals, or abbreviations unless the topic clearly demands them.');
+  lines.push('- Each entry must be a single word — no spaces, no hyphens, no multi-word phrases. "goalkeeper" is correct; "goal keeper" is not.');
+  lines.push('- Letters A-Z only: no numerals or abbreviations.');
   lines.push('- No proper nouns unless they are directly relevant to the topic.');
   lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word.');
   lines.push('');
@@ -169,6 +170,15 @@ export function parseWordListResponse(
 
     const word = cleanWord(line.slice(0, pipeIndex));
     const clue = cleanClue(line.slice(pipeIndex + 1));
+
+    if (/\s/.test(word)) {
+      result.issues.push({
+        line: lineNumber,
+        text: truncateForDisplay(rawLine),
+        message: `Line ${lineNumber} skipped — "${truncateForDisplay(line.slice(0, pipeIndex).trim())}" has a space; puzzle entries must be single words`,
+      });
+      continue;
+    }
 
     if (!/^[A-Z]+$/.test(word) || word.length < 2) {
       result.issues.push({

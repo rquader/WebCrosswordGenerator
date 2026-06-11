@@ -4,7 +4,10 @@
       "Bash(npx vitest:*)",
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(npm test *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: AI prompt demands single words, parser flags spaced entries specifically *)"
     ]
   },
   "enabledPlugins": {
