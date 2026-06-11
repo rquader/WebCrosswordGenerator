@@ -117,6 +117,9 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
   if (!isOpen) return null;
 
   const showAnswersInPreview = activeTab === 'answerKey';
+  // Same cell-cap scheme as PrintContainer so the preview is a faithful
+  // miniature of the printed page at every grid size.
+  const previewCellPx = Math.min(Math.floor(360 / puzzle.width), 40);
 
   return (
     <>
@@ -232,8 +235,17 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
 
                 {/* Grid */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                  <div style={{ width: '100%', maxWidth: '360px' }}>
-                    <PrintGrid puzzle={puzzle} showAnswers={showAnswersInPreview} />
+                  <div
+                    style={{
+                      width: `${previewCellPx * puzzle.width}px`,
+                      maxWidth: '100%',
+                    }}
+                  >
+                    <PrintGrid
+                      puzzle={puzzle}
+                      showAnswers={showAnswersInPreview}
+                      cellSizePx={previewCellPx}
+                    />
                   </div>
                 </div>
 

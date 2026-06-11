@@ -112,7 +112,7 @@ function PrintPage({ puzzle, title, showNameDate, showAnswers }: PrintPageProps)
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
         <div style={{ width: `${gridWidth}px` }}>
-          <PrintGrid puzzle={puzzle} showAnswers={showAnswers} />
+          <PrintGrid puzzle={puzzle} showAnswers={showAnswers} cellSizePx={cellSize} />
         </div>
       </div>
 
