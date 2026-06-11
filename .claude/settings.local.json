@@ -7,7 +7,8 @@
       "Bash(npx vite:*)",
       "Bash(npm test *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'fix: AI prompt demands single words, parser flags spaced entries specifically *)"
+      "Bash(git commit -m 'fix: AI prompt demands single words, parser flags spaced entries specifically *)",
+      "Bash(git commit -m 'feature: Clear All button for the word list with a 5-second undo *)"
     ]
   },
   "enabledPlugins": {

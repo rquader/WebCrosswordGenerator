@@ -32,6 +32,7 @@ import {
   createEntryRowsFromEntries,
   getGenerationEntriesFromRows,
   hasMeaningfulRows,
+  type EntryTableRow,
 } from '../entries/entryTable';
 import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
@@ -68,6 +69,16 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   // Skeleton-first state
   const [activeSkeleton, setActiveSkeleton] = useState<SkeletonResult | null>(null);
   const [showTextImport, setShowTextImport] = useState(false);
+
+  // Cleared word list held for a short undo window
+  const [clearUndo, setClearUndo] = useState<{ rows: EntryTableRow[]; count: number } | null>(null);
+
+  // Auto-dismiss the undo offer; cleanup keeps stale timers from killing a newer offer
+  useEffect(() => {
+    if (!clearUndo) return;
+    const timer = window.setTimeout(() => setClearUndo(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [clearUndo]);
 
   // Persist wizard state (words, settings, draft text) across reloads.
   useEffect(() => {
@@ -128,6 +139,18 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
 
   function handleDismissWarnings() {
     setWizard(prev => ({ ...prev, table: { ...prev.table, warnings: [] } }));
+  }
+
+  function handleClearAll() {
+    if (!hasMeaningfulRows(wizard.table.rows)) return;
+    setClearUndo({ rows: wizard.table.rows, count: wordEntries.length });
+    setWizard(prev => ({ ...prev, table: { rows: [createEmptyEntryRow()], warnings: [] } }));
+  }
+
+  function handleUndoClear() {
+    if (!clearUndo) return;
+    setWizard(prev => ({ ...prev, table: { ...prev.table, rows: clearUndo.rows } }));
+    setClearUndo(null);
   }
 
   // --- Import handlers ---
@@ -413,22 +436,49 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
               <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
                 Your Words
               </h3>
-              <select
-                value=""
-                onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
-                aria-label="Load a built-in word pack"
-                className="rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-surface-dark-hover
-                           px-2 py-1.5 text-xs text-stone-600 dark:text-stone-300
-                           focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Load a word pack…</option>
-                {WORD_PACKS.map(pack => (
-                  <option key={pack.id} value={pack.id}>
-                    {pack.name} ({pack.entries.length})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                {!showTextImport && hasMeaningfulRows(wizard.table.rows) && (
+                  <button
+                    onClick={handleClearAll}
+                    className="px-2 py-1.5 rounded-lg text-xs text-stone-500 dark:text-stone-400
+                               hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30
+                               transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
+                  aria-label="Load a built-in word pack"
+                  className="rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-surface-dark-hover
+                             px-2 py-1.5 text-xs text-stone-600 dark:text-stone-300
+                             focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Load a word pack…</option>
+                  {WORD_PACKS.map(pack => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} ({pack.entries.length})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+            {clearUndo && (
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-stone-200 dark:border-stone-700
+                              bg-stone-50 dark:bg-stone-800/60 px-3 py-2 animate-fade-in"
+                   role="status">
+                <span className="text-xs text-stone-600 dark:text-stone-300">
+                  Cleared {clearUndo.count === 1 ? '1 word' : `${clearUndo.count} words`}.
+                </span>
+                <button
+                  onClick={handleUndoClear}
+                  className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Undo
+                </button>
+              </div>
+            )}
             <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
               {isCrossword
                 ? 'Every word you add is guaranteed a spot in the puzzle. You can also leave this empty and fill a blank skeleton yourself.'
