@@ -196,6 +196,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         width: effectiveWidth,
         height: effectiveHeight,
         seed,
+        growToFit: !wizard.settings.forceDimensions,
       });
 
       setActiveSkeleton(skeleton);
@@ -252,6 +253,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         width: effectiveWidth,
         height: effectiveHeight,
         seed: newSeed,
+        growToFit: !wizard.settings.forceDimensions,
       });
 
       setActiveSkeleton(skeleton);
@@ -286,6 +288,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         width,
         height,
         seed,
+        growToFit: !wizard.settings.forceDimensions,
       });
 
       setActiveSkeleton(skeleton);
@@ -514,6 +517,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
               width={effectiveWidth}
               height={effectiveHeight}
               seedText={wizard.settings.seedText}
+              forceDimensions={wizard.settings.forceDimensions}
             />
           ) : (
             <EmptyState isCrossword={isCrossword} />

@@ -20,13 +20,15 @@ interface MiniGridPreviewProps {
   height: number;
   /** Seed text from settings — preview matches what Generate will produce. */
   seedText: string;
+  /** Mirror of settings.forceDimensions — preview must match generation. */
+  forceDimensions?: boolean;
 }
 
 const DEBOUNCE_MS = 400;
 const FALLBACK_SEED = 1234;
 const EMPTY_CELL = '-';
 
-export function MiniGridPreview({ entries, width, height, seedText }: MiniGridPreviewProps) {
+export function MiniGridPreview({ entries, width, height, seedText, forceDimensions }: MiniGridPreviewProps) {
   const [preview, setPreview] = useState<SkeletonResult | null>(null);
 
   useEffect(() => {
@@ -44,6 +46,7 @@ export function MiniGridPreview({ entries, width, height, seedText }: MiniGridPr
           width,
           height,
           seed,
+          growToFit: !forceDimensions,
         }));
       } catch {
         setPreview(null); // e.g. no entry fits the grid yet
@@ -51,7 +54,7 @@ export function MiniGridPreview({ entries, width, height, seedText }: MiniGridPr
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(handle);
-  }, [entries, width, height, seedText]);
+  }, [entries, width, height, seedText, forceDimensions]);
 
   if (!preview) {
     return null;
@@ -133,6 +136,11 @@ export function MiniGridPreview({ entries, width, height, seedText }: MiniGridPr
         {preview.grewFrom && (
           <p className="text-xs text-primary-600 dark:text-primary-400">
             Sized up so every word fits
+          </p>
+        )}
+        {preview.failures.length > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {preview.failures.length} word{preview.failures.length !== 1 ? 's' : ''} won't fit at this size
           </p>
         )}
         <p className="text-xs text-stone-400 dark:text-stone-500">

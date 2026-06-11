@@ -70,12 +70,27 @@ describe('wizardState', () => {
 
     expect(state.currentStep).toBe('review');
     expect(state.settings.seedText).toBe('1234');
+    // Saved before forceDimensions existed — must default off, not crash
+    expect(state.settings.forceDimensions).toBe(false);
     expect(state.table.warnings).toEqual(['Imported row 3 had no clue']);
     // IDs are regenerated on hydration to avoid collisions, so only check content
     expect(state.table.rows[0].word).toBe('react');
     expect(state.table.rows[0].clue).toBe('A UI library');
     expect(state.table.rows[0].id).toBeTruthy();
     expect(state.textImport.rawText).toBe('java: language');
+  });
+
+  it('round-trips forceDimensions through persistence', () => {
+    const state = createDefaultWizardState();
+    expect(state.settings.forceDimensions).toBe(false);
+
+    state.settings.forceDimensions = true;
+    state.settings.autoGridSize = false;
+    saveWizardState(state);
+
+    const reloaded = loadWizardState();
+    expect(reloaded.settings.forceDimensions).toBe(true);
+    expect(reloaded.settings.autoGridSize).toBe(false);
   });
 
   it('saves and reloads persisted wizard state', () => {

@@ -63,6 +63,26 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
     patchManualSize({ width, height });
   }
 
+  /**
+   * Forcing dimensions implies manual sizing: when checked while auto-size
+   * is active, the current effective size is adopted as the manual size so
+   * the grid pins to exactly what the user is looking at.
+   */
+  function handleToggleForceDimensions() {
+    if (value.forceDimensions) {
+      patch({ forceDimensions: false });
+      return;
+    }
+    const pinned = effectiveSize ?? { width: value.width, height: value.height };
+    onChange({
+      ...value,
+      forceDimensions: true,
+      autoGridSize: false,
+      width: pinned.width,
+      height: pinned.height,
+    });
+  }
+
   return (
     <div className="warm-card p-5">
       <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
@@ -109,7 +129,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
                 </p>
               </div>
               <button
-                onClick={() => patch({ autoGridSize: true })}
+                onClick={() => patch({ autoGridSize: true, forceDimensions: false })}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-all btn-lift flex-shrink-0"
               >
                 Use auto
@@ -175,6 +195,22 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
           {autoActive && effectiveSize && (
             <p className="sr-only">Grid size set automatically to {effectiveSize.width} by {effectiveSize.height}</p>
           )}
+
+          {/* Opt-out of auto-grow: pin the grid to exactly these dimensions */}
+          <label className="mt-3 flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={value.forceDimensions}
+              onChange={() => handleToggleForceDimensions()}
+              className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+            />
+            <span>
+              <span className="block text-sm text-stone-600 dark:text-stone-400">Force dimensions</span>
+              <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                Keep the grid exactly this size. Words that don't fit are reported instead of growing the grid.
+              </span>
+            </span>
+          </label>
         </div>
 
         {value.puzzleMode === 'wordsearch' && (

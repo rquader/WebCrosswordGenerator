@@ -38,6 +38,7 @@ function sanitizeSettings(raw: Partial<GenerationSettings> | undefined): Generat
     seedText: typeof raw?.seedText === 'string' ? raw.seedText : defaults.seedText,
     puzzleMode: raw?.puzzleMode === 'wordsearch' ? 'wordsearch' : defaults.puzzleMode,
     autoGridSize: typeof raw?.autoGridSize === 'boolean' ? raw.autoGridSize : defaults.autoGridSize,
+    forceDimensions: typeof raw?.forceDimensions === 'boolean' ? raw.forceDimensions : defaults.forceDimensions,
     wordSearchDirections: {
       horizontal: raw?.wordSearchDirections?.horizontal ?? defaults.wordSearchDirections.horizontal,
       vertical: raw?.wordSearchDirections?.vertical ?? defaults.wordSearchDirections.vertical,
