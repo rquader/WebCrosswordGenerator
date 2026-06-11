@@ -16,6 +16,16 @@ export interface DirectionalWord {
   clue: string;
   x: number;
   y: number;
+
+  /**
+   * Word search only: the exact unit vector the word runs along, one of the
+   * 8 directions. The legacy isHorizontal/isReversed pair cannot distinguish
+   * the four diagonals, so consumers must prefer this vector when present
+   * (see getWordVector in wordSearchGenerator.ts). Crossword words omit it —
+   * across/down derive exactly from isHorizontal.
+   */
+  dx?: number;
+  dy?: number;
 }
 
 /**
@@ -52,6 +62,13 @@ export interface CrosswordResult {
    * too full for the allowed directions). Omitted when everything placed.
    */
   skippedWords?: string[];
+
+  /**
+   * Word-search only: when the grid auto-grew to fit every word, the size
+   * that was originally requested. Omitted when no growth was needed.
+   * Mirrors SkeletonResult.grewFrom.
+   */
+  grewFrom?: GridSizeSuggestion;
 }
 
 /**

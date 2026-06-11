@@ -46,6 +46,31 @@ export const DEFAULT_WORD_SEARCH_DIRECTIONS: WordSearchDirectionSettings = {
   reversedDiagonal: false,
 };
 
+/**
+ * The unit vector a placed word runs along.
+ *
+ * Word-search words carry the exact dx/dy (any of 8 directions). Older
+ * results and crossword words only have the isHorizontal/isReversed flags,
+ * which can express the 4 straight directions — derive from those.
+ */
+export function getWordVector(wl: DirectionalWord): { dx: number; dy: number } {
+  if (wl.dx !== undefined && wl.dy !== undefined) {
+    return { dx: wl.dx, dy: wl.dy };
+  }
+  const sign = wl.isReversed ? -1 : 1;
+  return wl.isHorizontal ? { dx: sign, dy: 0 } : { dx: 0, dy: sign };
+}
+
+/** Grid coordinates of every cell a placed word covers, in word order. */
+export function getWordCellCoords(wl: DirectionalWord): { x: number; y: number }[] {
+  const { dx, dy } = getWordVector(wl);
+  const cells: { x: number; y: number }[] = [];
+  for (let i = 0; i < wl.word.length; i++) {
+    cells.push({ x: wl.x + i * dx, y: wl.y + i * dy });
+  }
+  return cells;
+}
+
 export interface WordSearchConfig {
   width: number;
   height: number;
@@ -205,7 +230,8 @@ function tryPlaceWord(
       grid[startY + i * dy][startX + i * dx] = word[i];
     }
 
-    // Determine direction type for clue display
+    // Legacy flags kept for crossword-shaped consumers; the dx/dy vector is
+    // the authoritative direction (flags can't distinguish the 4 diagonals).
     const isHorizontal = dy === 0;
     const isReversed = dx < 0 || (dx === 0 && dy < 0);
 
@@ -216,6 +242,8 @@ function tryPlaceWord(
       clue,
       x: startX,
       y: startY,
+      dx,
+      dy,
     });
 
     return true;

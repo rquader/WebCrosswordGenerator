@@ -243,13 +243,17 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         height: effectiveHeight,
         seed,
         wordSearchDirections: wizard.settings.wordSearchDirections,
+        growToFit: !wizard.settings.forceDimensions,
       });
 
       onPuzzleGenerated(result, 'wordsearch');
       const skippedNote = result.skippedWords && result.skippedWords.length > 0
         ? ` | couldn't fit: ${result.skippedWords.join(', ')}`
         : '';
-      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${effectiveWidth}x${effectiveHeight} | seed: ${seed}`);
+      const grewNote = result.grewFrom
+        ? ` (sized up from ${result.grewFrom.width}x${result.grewFrom.height} so every word fits)`
+        : '';
+      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${result.width}x${result.height}${grewNote} | seed: ${seed}`);
       setActiveSkeleton(null);
       setGridKey(prev => prev + 1);
       setIsGenerating(false);

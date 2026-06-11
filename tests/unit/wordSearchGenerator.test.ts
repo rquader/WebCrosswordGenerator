@@ -11,7 +11,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateWordSearch, DEFAULT_WORD_SEARCH_DIRECTIONS } from '@logic/wordSearchGenerator';
+import {
+  generateWordSearch,
+  DEFAULT_WORD_SEARCH_DIRECTIONS,
+  getWordVector,
+  getWordCellCoords,
+} from '@logic/wordSearchGenerator';
 import type { WordSearchConfig } from '@logic/wordSearchGenerator';
 import type { WordSearchDirectionSettings, DirectionalWord } from '@logic/types';
 import { createWordSearchFromEntries } from '@logic/createPuzzle';
@@ -418,6 +423,107 @@ describe('WordSearchGenerator', () => {
       expect(DEFAULT_WORD_SEARCH_DIRECTIONS.diagonal).toBe(false);
       expect(DEFAULT_WORD_SEARCH_DIRECTIONS.reversed).toBe(false);
       expect(DEFAULT_WORD_SEARCH_DIRECTIONS.reversedDiagonal).toBe(false);
+    });
+  });
+
+  describe('direction vector (dx/dy) on placed words', () => {
+    const allDirs: WordSearchDirectionSettings = {
+      horizontal: true, vertical: true, diagonal: true,
+      reversed: true, reversedDiagonal: true,
+    };
+
+    it('every placed word carries a unit vector that spells the word in the grid', () => {
+      // Several seeds so all 8 directions get exercised over the run
+      for (const seed of [1, 7, 42, 99, 1234]) {
+        const result = generateWordSearch(makeConfig({ directions: allDirs, seed }));
+        expect(result.wordLocations.length).toBeGreaterThan(0);
+
+        for (const placed of result.wordLocations) {
+          expect(placed.dx).toBeDefined();
+          expect(placed.dy).toBeDefined();
+          // Unit vector: each component in {-1,0,1}, not both zero
+          expect([-1, 0, 1]).toContain(placed.dx);
+          expect([-1, 0, 1]).toContain(placed.dy);
+          expect(placed.dx !== 0 || placed.dy !== 0).toBe(true);
+
+          // Walking the vector from (x, y) must spell the word exactly
+          const spelled = getWordCellCoords(placed)
+            .map(({ x, y }) => result.grid[y][x])
+            .join('');
+          expect(spelled).toBe(placed.word);
+        }
+      }
+    });
+
+    it('keeps the legacy flags consistent with the vector', () => {
+      const result = generateWordSearch(makeConfig({ directions: allDirs, seed: 7 }));
+      for (const placed of result.wordLocations) {
+        expect(placed.isHorizontal).toBe(placed.dy === 0);
+        expect(placed.isReversed).toBe(placed.dx! < 0 || (placed.dx === 0 && placed.dy! < 0));
+      }
+    });
+
+    it('getWordVector falls back to flags for crossword-style words without a vector', () => {
+      const across: DirectionalWord = { word: 'cat', isHorizontal: true, isReversed: false, clue: '', x: 0, y: 0 };
+      const down: DirectionalWord = { word: 'cat', isHorizontal: false, isReversed: false, clue: '', x: 0, y: 0 };
+      const reversedAcross: DirectionalWord = { word: 'cat', isHorizontal: true, isReversed: true, clue: '', x: 2, y: 0 };
+
+      expect(getWordVector(across)).toEqual({ dx: 1, dy: 0 });
+      expect(getWordVector(down)).toEqual({ dx: 0, dy: 1 });
+      expect(getWordVector(reversedAcross)).toEqual({ dx: -1, dy: 0 });
+    });
+  });
+
+  describe('auto-grow (growToFit)', () => {
+    const entries = [
+      { word: 'photosynthesis', clue: 'How plants make food' }, // 14 letters
+      { word: 'chlorophyll', clue: 'Green pigment' },
+      { word: 'stomata', clue: 'Leaf pores' },
+      { word: 'roots', clue: 'They absorb water' },
+    ];
+
+    it('grows past a too-small requested size until every word places', () => {
+      const result = createWordSearchFromEntries({
+        entries, width: 8, height: 8, seed: 42,
+      });
+
+      expect(result.skippedWords).toBeUndefined();
+      expect(result.wordLocations.length).toBe(entries.length);
+      expect(result.grewFrom).toEqual({ width: 8, height: 8 });
+      expect(Math.max(result.width, result.height)).toBeGreaterThanOrEqual(14);
+    });
+
+    it('does not grow when everything already fits', () => {
+      const result = createWordSearchFromEntries({
+        entries: [{ word: 'cat', clue: 'A pet' }, { word: 'dog', clue: 'Another pet' }],
+        width: 8, height: 8, seed: 42,
+      });
+
+      expect(result.width).toBe(8);
+      expect(result.height).toBe(8);
+      expect(result.grewFrom).toBeUndefined();
+    });
+
+    it('growToFit: false pins the size and reports too-long words honestly', () => {
+      const result = createWordSearchFromEntries({
+        entries, width: 8, height: 8, seed: 42, growToFit: false,
+      });
+
+      expect(result.width).toBe(8);
+      expect(result.height).toBe(8);
+      expect(result.grewFrom).toBeUndefined();
+      // photosynthesis (14) can't exist in an 8x8 — the length filter used
+      // to drop it silently; it must be reported as skipped
+      expect(result.skippedWords).toContain('photosynthesis');
+    });
+
+    it('stays deterministic: same config grows to the same result', () => {
+      const a = createWordSearchFromEntries({ entries, width: 8, height: 8, seed: 7 });
+      const b = createWordSearchFromEntries({ entries, width: 8, height: 8, seed: 7 });
+
+      expect(a.width).toBe(b.width);
+      expect(a.grid).toEqual(b.grid);
+      expect(a.wordLocations).toEqual(b.wordLocations);
     });
   });
 

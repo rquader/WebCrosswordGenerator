@@ -10,6 +10,7 @@
 
 import { useState, useMemo, useCallback, useRef } from 'react';
 import type { CrosswordResult, DirectionalWord } from '../../logic/types';
+import { getWordVector, getWordCellCoords } from '../../logic/wordSearchGenerator';
 
 // 8 distinct colors for found words (warm, high-contrast)
 const WORD_COLORS = [
@@ -393,11 +394,12 @@ function WordList({ words, foundWords, lastFoundWord }: {
 
 /**
  * Group words by their placement direction for display.
+ * Uses the exact vector — the flags alone mislabel diagonals as Down.
  */
 function getDirectionLabel(wl: DirectionalWord): string {
-  if (wl.isHorizontal && !wl.isReversed) return 'Across';
-  if (wl.isHorizontal && wl.isReversed) return 'Reversed Across';
-  if (!wl.isHorizontal && !wl.isReversed) return 'Down';
+  const { dx, dy } = getWordVector(wl);
+  if (dy === 0) return 'Across';
+  if (dx === 0) return 'Down';
   return 'Diagonal';
 }
 
@@ -475,48 +477,9 @@ function getOrderedCells(x1: number, y1: number, x2: number, y2: number): [numbe
 }
 
 /**
- * Get all cells occupied by a placed word.
+ * Get all cells occupied by a placed word — exact, from the stored
+ * direction vector (with a flags fallback for old crossword-style data).
  */
 function getWordCells(wl: DirectionalWord): string[] {
-  const cells: string[] = [];
-  // Determine direction vector from the word's position and the grid
-  // We know the word starts at (wl.x, wl.y) and has isHorizontal and isReversed flags
-  // But for word search, the actual direction could be any of 8
-  // We need to try all 8 directions and find which one matches
-  const directions: [number, number][] = [
-    [1, 0], [0, 1], [1, 1], [-1, 1],
-    [-1, 0], [0, -1], [-1, -1], [1, -1],
-  ];
-
-  for (const [dx, dy] of directions) {
-    const test: string[] = [];
-    for (let i = 0; i < wl.word.length; i++) {
-      test.push(cellKey(wl.x + i * dx, wl.y + i * dy));
-    }
-    // Can't verify without grid, but this is for reveal — just add all 8 and take the one
-    // that fits the direction flags
-    if (wl.isHorizontal && dy === 0) {
-      if ((!wl.isReversed && dx === 1) || (wl.isReversed && dx === -1)) {
-        return test;
-      }
-    } else if (!wl.isHorizontal && dx === 0) {
-      if ((!wl.isReversed && dy === 1) || (wl.isReversed && dy === -1)) {
-        return test;
-      }
-    } else {
-      // Diagonal — check flags
-      const isRev = dx < 0 || (dx === 0 && dy < 0);
-      if (wl.isReversed === isRev && Math.abs(dy) > 0) {
-        // Could be this direction
-        cells.push(...test);
-        return cells;
-      }
-    }
-  }
-
-  // Fallback: just use horizontal right
-  for (let i = 0; i < wl.word.length; i++) {
-    cells.push(cellKey(wl.x + i, wl.y));
-  }
-  return cells;
+  return getWordCellCoords(wl).map(({ x, y }) => cellKey(x, y));
 }

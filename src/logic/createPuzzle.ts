@@ -34,6 +34,13 @@ export interface EntryPuzzleOptions {
   seed: number;
   allowReverseWords?: boolean;
   wordSearchDirections?: WordSearchDirectionSettings;
+
+  /**
+   * Word search only: grow the grid (+1 per side, capped) until every word
+   * places. Default true — mirrors the crossword skeleton's growToFit.
+   * Set false (Force Dimensions) to pin the size and report skipped words.
+   */
+  growToFit?: boolean;
 }
 
 function assertEntriesFit(entries: WordCluePair[], width: number, height: number): void {
@@ -138,20 +145,64 @@ export function createSkeletonFromEntries(
 }
 
 /**
+ * Hard cap for word-search auto-growth, mirroring the skeleton generator's.
+ * A grid at this size that still can't fit a word means the word itself is
+ * unreasonable (30+ letters) — it stays in skippedWords instead of hanging.
+ */
+const WORD_SEARCH_GROW_CAP = 30;
+
+/**
  * Create a word search puzzle from word-clue entries.
+ *
+ * By default the grid grows one cell per side until every word places
+ * (growToFit). With growToFit: false the requested size is honored and
+ * unplaced words are reported in skippedWords — including words that are
+ * longer than the grid, which the length filter would otherwise drop
+ * silently before the generator ever saw them.
  */
 export function createWordSearchFromEntries(options: EntryPuzzleOptions): CrosswordResult {
-  assertEntriesFit(options.entries, options.width, options.height);
+  const growToFit = options.growToFit ?? true;
 
-  const maxDim = Math.max(options.width, options.height);
+  if (!growToFit) {
+    assertEntriesFit(options.entries, options.width, options.height);
+    return wordSearchAtSize(options, options.width, options.height);
+  }
+
+  let width = options.width;
+  let height = options.height;
+  let result = wordSearchAtSize(options, width, height);
+
+  while (result.skippedWords && Math.max(width, height) < WORD_SEARCH_GROW_CAP) {
+    width = Math.min(width + 1, WORD_SEARCH_GROW_CAP);
+    height = Math.min(height + 1, WORD_SEARCH_GROW_CAP);
+    result = wordSearchAtSize(options, width, height);
+  }
+
+  if (width !== options.width || height !== options.height) {
+    result.grewFrom = { width: options.width, height: options.height };
+  }
+  return result;
+}
+
+/** One word-search generation at a specific size, with too-long words reported. */
+function wordSearchAtSize(options: EntryPuzzleOptions, width: number, height: number): CrosswordResult {
+  const maxDim = Math.max(width, height);
   const { words, clues } = prepareForGenerator(options.entries, maxDim);
+  const tooLong = options.entries
+    .filter(e => e.word.length > maxDim)
+    .map(e => e.word);
 
-  return generateWordSearch({
-    width: options.width,
-    height: options.height,
+  const result = generateWordSearch({
+    width,
+    height,
     seed: options.seed,
     words,
     clues,
     directions: options.wordSearchDirections,
   });
+
+  if (tooLong.length > 0) {
+    result.skippedWords = [...(result.skippedWords ?? []), ...tooLong];
+  }
+  return result;
 }
