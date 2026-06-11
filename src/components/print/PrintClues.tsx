@@ -66,6 +66,9 @@ function ClueColumn({ title, clues }: ClueColumnProps) {
               display: 'flex',
               gap: '4px',
               marginBottom: '3px',
+              // Browser print flows long clue lists onto the next page;
+              // break between clues, never through the middle of one.
+              breakInside: 'avoid',
             }}
           >
             <span style={{ fontWeight: 600, minWidth: '18px', textAlign: 'right', flexShrink: 0 }}>

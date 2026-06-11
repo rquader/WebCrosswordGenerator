@@ -15,6 +15,14 @@
 import { jsPDF } from 'jspdf';
 import type { CrosswordResult } from '../logic/types';
 import { assignNumbers } from '../logic/numbering';
+import {
+  PAGE_WIDTH_PT as PAGE_WIDTH,
+  PAGE_HEIGHT_PT as PAGE_HEIGHT,
+  MARGIN_PT as MARGIN,
+  USABLE_WIDTH_PT as USABLE_WIDTH,
+  planBothPrintLayout,
+  studentCellPt,
+} from './printLayout';
 
 export interface PdfExportOptions {
   title: string;
@@ -52,22 +60,33 @@ export function exportAsPdf(puzzle: CrosswordResult, options: PdfExportOptions):
 }
 
 /**
- * Generate a PDF with both student puzzle and answer key (two pages).
+ * Generate a PDF with both student puzzle and answer key.
+ *
+ * One page when everything fits readably (student grid + clues + a
+ * compact answer-key grid below); two pages past the threshold in
+ * printLayout.planBothPrintLayout. The browser print path makes the
+ * same call from the same plan.
  */
 export function exportBothAsPdf(puzzle: CrosswordResult, options: Omit<PdfExportOptions, 'showAnswers'>): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  const plan = planBothPrintLayout(puzzle);
 
-  // Page 1: Student puzzle
-  renderPuzzlePage(doc, puzzle, { ...options, showAnswers: false });
+  if (plan.singlePage) {
+    const bottomY = renderPuzzlePage(doc, puzzle, { ...options, showAnswers: false });
+    renderCompactAnswerKey(doc, puzzle, bottomY, plan.keyCellPt, plan.keyShowsNumbers, options.inkSaver ?? true);
+  } else {
+    // Page 1: Student puzzle
+    renderPuzzlePage(doc, puzzle, { ...options, showAnswers: false });
 
-  // Page 2: Answer key
-  doc.addPage();
-  renderPuzzlePage(doc, puzzle, {
-    title: `${options.title} — Answer Key`,
-    showNameDate: false,
-    showAnswers: true,
-    inkSaver: options.inkSaver,
-  });
+    // Page 2: Answer key
+    doc.addPage();
+    renderPuzzlePage(doc, puzzle, {
+      title: `${options.title} — Answer Key`,
+      showNameDate: false,
+      showAnswers: true,
+      inkSaver: options.inkSaver,
+    });
+  }
 
   const slug = options.title
     .toLowerCase()
@@ -79,15 +98,10 @@ export function exportBothAsPdf(puzzle: CrosswordResult, options: Omit<PdfExport
 
 
 /* ── Internal rendering ───────────────────────────────────────────────── */
+// Page geometry lives in printLayout.ts — shared with the browser print path.
 
-// Page dimensions in points (US Letter)
-const PAGE_WIDTH = 612;   // 8.5 inches
-const PAGE_HEIGHT = 792;  // 11 inches
-const MARGIN = 54;        // 0.75 inches
-const USABLE_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const USABLE_HEIGHT = PAGE_HEIGHT - MARGIN * 2;
-
-function renderPuzzlePage(doc: jsPDF, puzzle: CrosswordResult, options: PdfExportOptions): void {
+/** Render a full puzzle page; returns the y below the last drawn content. */
+function renderPuzzlePage(doc: jsPDF, puzzle: CrosswordResult, options: PdfExportOptions): number {
   const { title, showNameDate, showAnswers } = options;
   let cursorY = MARGIN;
 
@@ -116,7 +130,31 @@ function renderPuzzlePage(doc: jsPDF, puzzle: CrosswordResult, options: PdfExpor
   cursorY = gridResult.bottomY + 16;
 
   // ── Clues ──
-  renderClues(doc, puzzle, cursorY);
+  return renderClues(doc, puzzle, cursorY);
+}
+
+/**
+ * Compact answer-key grid appended below the clues on a single-page
+ * "both" export. Small by design — it's a reference, not the hero.
+ */
+function renderCompactAnswerKey(
+  doc: jsPDF,
+  puzzle: CrosswordResult,
+  startY: number,
+  cellPt: number,
+  showNumbers: boolean,
+  inkSaver: boolean
+): void {
+  let y = startY + 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  const header = 'ANSWER KEY';
+  doc.text(header, (PAGE_WIDTH - doc.getTextWidth(header)) / 2, y + 8);
+  y += 14;
+
+  renderGrid(doc, puzzle, true, y, inkSaver, { cellSize: cellPt, showNumbers });
 }
 
 interface GridRenderResult {
@@ -128,7 +166,8 @@ function renderGrid(
   puzzle: CrosswordResult,
   showAnswers: boolean,
   startY: number,
-  inkSaver: boolean
+  inkSaver: boolean,
+  gridOptions?: { cellSize?: number; showNumbers?: boolean }
 ): GridRenderResult {
   const { cells } = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   const numberMap = new Map<string, number>();
@@ -136,14 +175,14 @@ function renderGrid(
     numberMap.set(`${cell.x},${cell.y}`, cell.number);
   }
 
-  // Calculate cell size: fit grid within usable width, cap height to ~55% of page
-  const maxGridHeight = USABLE_HEIGHT * 0.50;
-  const maxGridWidth = USABLE_WIDTH * 0.85; // leave some horizontal breathing room
-  const cellSize = Math.min(
-    Math.floor(maxGridWidth / puzzle.width),
-    Math.floor(maxGridHeight / puzzle.height),
-    30 // cap so small grids don't look oversized
-  );
+  // Default sizing fits the grid in the upper portion of the page;
+  // callers (compact answer key) may pin an explicit cell size.
+  const cellSize = gridOptions?.cellSize ?? studentCellPt(puzzle);
+  const showNumbers = gridOptions?.showNumbers ?? true;
+
+  // Type scales with the cell so dense grids stay inside their cells.
+  const letterSize = Math.min(11, Math.max(4, cellSize * 0.62));
+  const numberSize = Math.min(6, Math.max(3, cellSize * 0.33));
 
   const gridWidth = cellSize * puzzle.width;
   const gridHeight = cellSize * puzzle.height;
@@ -179,21 +218,21 @@ function renderGrid(
       if (!isEmpty) {
         // Cell number
         const num = numberMap.get(`${x},${y}`);
-        if (num !== undefined) {
+        if (num !== undefined && showNumbers) {
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6);
+          doc.setFontSize(numberSize);
           doc.setTextColor(100, 100, 100);
-          doc.text(String(num), cellX + 1.5, cellY + 6.5);
+          doc.text(String(num), cellX + 1.5, cellY + numberSize + 0.5);
         }
 
         // Answer letter
         if (showAnswers) {
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(11);
+          doc.setFontSize(letterSize);
           doc.setTextColor(0, 0, 0);
           const letterText = letter.toUpperCase();
           const letterWidth = doc.getTextWidth(letterText);
-          doc.text(letterText, cellX + (cellSize - letterWidth) / 2, cellY + cellSize * 0.65);
+          doc.text(letterText, cellX + (cellSize - letterWidth) / 2, cellY + cellSize * 0.68);
         }
       }
     }
@@ -206,35 +245,128 @@ function renderGrid(
   return { bottomY: startY + gridHeight };
 }
 
-function renderClues(doc: jsPDF, puzzle: CrosswordResult, startY: number): void {
+/**
+ * Page-split threshold: if less than this much vertical space remains under
+ * the grid, the clues start on a fresh page instead of cramming a sliver at
+ * the bottom. 120pt fits a column header plus roughly eight clue lines —
+ * anything less reads as a layout mistake on paper.
+ *
+ * Decision (Phase 15 / session 3): puzzle and answer key always stay one
+ * page EACH ("Both" = two pages — a teacher hands out page 1 and keeps
+ * page 2). Within a page, clues flow onto continuation pages as needed;
+ * the old behavior silently truncated them with "(continued...)".
+ */
+const MIN_CLUE_SPACE_PT = 120;
+
+const CLUE_FONT_SIZE = 8.5;
+const CLUE_LINE_HEIGHT = 11;
+const CLUE_HEADER_HEIGHT = 16;
+const COLUMN_GAP = 20;
+
+interface MeasuredClue {
+  numberText: string;
+  numberWidth: number;
+  lines: string[];
+}
+
+/** Pre-wrap a clue list so pagination can measure before drawing. */
+function measureClues(
+  doc: jsPDF,
+  clues: { number: number; clue: string }[],
+  columnWidth: number
+): MeasuredClue[] {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(CLUE_FONT_SIZE);
+
+  return clues.map(clue => {
+    const numberText = `${clue.number}. `;
+    const numberWidth = doc.getTextWidth(numberText);
+    return {
+      numberText,
+      numberWidth,
+      lines: doc.splitTextToSize(clue.clue, columnWidth - numberWidth) as string[],
+    };
+  });
+}
+
+function clueItemHeight(item: MeasuredClue): number {
+  return item.lines.length * CLUE_LINE_HEIGHT + 1;
+}
+
+/** Render all clues (paginating as needed); returns the y below the last clue drawn. */
+function renderClues(doc: jsPDF, puzzle: CrosswordResult, startY: number): number {
   const { acrossClues, downClues } = assignNumbers(
     puzzle.wordLocations, puzzle.width, puzzle.height
   );
 
-  const columnWidth = (USABLE_WIDTH - 20) / 2; // 20pt gap between columns
+  const columnWidth = (USABLE_WIDTH - COLUMN_GAP) / 2;
   const leftX = MARGIN;
-  const rightX = MARGIN + columnWidth + 20;
-  const fontSize = 8.5;
-  const lineHeight = 11;
+  const rightX = MARGIN + columnWidth + COLUMN_GAP;
 
-  // Across clues (left column)
+  const acrossQueue = measureClues(doc, acrossClues, columnWidth);
+  const downQueue = measureClues(doc, downClues, columnWidth);
+
+  // Not enough room under the grid for a meaningful start? Fresh page.
   let y = startY;
-  y = renderClueColumn(doc, 'Across', acrossClues, leftX, y, columnWidth, fontSize, lineHeight);
+  if (PAGE_HEIGHT - MARGIN - y < MIN_CLUE_SPACE_PT) {
+    doc.addPage();
+    y = MARGIN;
+  }
 
-  // Down clues (right column)
-  renderClueColumn(doc, 'Down', downClues, rightX, startY, columnWidth, fontSize, lineHeight);
+  // Each page renders the next chunk of Across on the left and Down on the
+  // right. Loop until both queues are drained — no truncation, ever.
+  let acrossIndex = 0;
+  let downIndex = 0;
+  let isFirstCluePage = true;
+  let lastY = y;
+
+  while (acrossIndex < acrossQueue.length || downIndex < downQueue.length) {
+    if (!isFirstCluePage) {
+      doc.addPage();
+      y = MARGIN;
+    }
+
+    const pageBottom = PAGE_HEIGHT - MARGIN;
+    lastY = y;
+
+    if (acrossIndex < acrossQueue.length) {
+      const title = isFirstCluePage ? 'Across' : 'Across (cont.)';
+      const chunk = renderClueColumnChunk(
+        doc, title, acrossQueue, acrossIndex, leftX, y, columnWidth, pageBottom
+      );
+      acrossIndex = chunk.index;
+      lastY = Math.max(lastY, chunk.y);
+    }
+    if (downIndex < downQueue.length) {
+      const title = isFirstCluePage ? 'Down' : 'Down (cont.)';
+      const chunk = renderClueColumnChunk(
+        doc, title, downQueue, downIndex, rightX, y, columnWidth, pageBottom
+      );
+      downIndex = chunk.index;
+      lastY = Math.max(lastY, chunk.y);
+    }
+
+    isFirstCluePage = false;
+  }
+
+  return lastY;
 }
 
-function renderClueColumn(
+/**
+ * Render as many clues as fit in one column on the current page.
+ * Returns the index of the first clue that did NOT fit (= queue position
+ * for the next page) and the y below the last clue drawn.
+ */
+function renderClueColumnChunk(
   doc: jsPDF,
   title: string,
-  clues: { number: number; clue: string }[],
+  queue: MeasuredClue[],
+  startIndex: number,
   x: number,
   startY: number,
   columnWidth: number,
-  fontSize: number,
-  lineHeight: number
-): number {
+  pageBottom: number
+): { index: number; y: number } {
   let y = startY;
 
   // Column header
@@ -245,43 +377,28 @@ function renderClueColumn(
   y += 4;
   doc.setLineWidth(0.5);
   doc.line(x, y + 6, x + columnWidth, y + 6);
-  y += 12;
+  y += CLUE_HEADER_HEIGHT - 4;
 
-  // Clue items
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(fontSize);
-
-  for (const clue of clues) {
-    const numberText = `${clue.number}. `;
-    const numberWidth = doc.getTextWidth(numberText);
-    const clueTextWidth = columnWidth - numberWidth;
-
-    // Word-wrap the clue text
-    const lines = doc.splitTextToSize(clue.clue, clueTextWidth);
-
-    // Check if we'd overflow the page
-    if (y + lines.length * lineHeight > PAGE_HEIGHT - MARGIN) {
-      // Stop rendering clues — they don't fit
-      doc.setFontSize(7);
-      doc.setTextColor(120, 120, 120);
-      doc.text('(continued...)', x, y + 8);
-      break;
+  let index = startIndex;
+  while (index < queue.length) {
+    const item = queue[index];
+    if (y + clueItemHeight(item) > pageBottom) {
+      break; // continues on the next page
     }
 
-    // Number
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(fontSize);
+    doc.setFontSize(CLUE_FONT_SIZE);
     doc.setTextColor(0, 0, 0);
-    doc.text(numberText, x, y + lineHeight * 0.75);
+    doc.text(item.numberText, x, y + CLUE_LINE_HEIGHT * 0.75);
 
-    // Clue text (may be multi-line)
     doc.setFont('helvetica', 'normal');
-    for (let i = 0; i < lines.length; i++) {
-      doc.text(lines[i], x + numberWidth, y + lineHeight * 0.75 + i * lineHeight);
+    for (let i = 0; i < item.lines.length; i++) {
+      doc.text(item.lines[i], x + item.numberWidth, y + CLUE_LINE_HEIGHT * 0.75 + i * CLUE_LINE_HEIGHT);
     }
 
-    y += lines.length * lineHeight + 1;
+    y += clueItemHeight(item);
+    index++;
   }
 
-  return y;
+  return { index, y };
 }

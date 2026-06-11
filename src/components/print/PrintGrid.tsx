@@ -23,6 +23,8 @@ interface PrintGridProps {
   cellSizePx: number;
   /** Blocked squares as light gray instead of solid black (saves toner). */
   inkSaver: boolean;
+  /** Cell numbers — dropped on the compact answer key where they'd clutter. */
+  showNumbers?: boolean;
 }
 
 const EMPTY_CELL = '-';
@@ -30,7 +32,7 @@ const EMPTY_CELL = '-';
 /** Ink-saver blocked-square gray — light enough to save toner, dark enough to read as "blocked". */
 export const INK_SAVER_BLOCKED = '#D0D0D0';
 
-export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver }: PrintGridProps) {
+export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbers = true }: PrintGridProps) {
   const numberMap = useMemo(() => {
     const { cells } = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
     const map = new Map<string, number>();
@@ -80,7 +82,7 @@ export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver }: PrintGr
                 overflow: 'hidden',
               }}
             >
-              {cellNumber !== undefined && (
+              {cellNumber !== undefined && showNumbers && (
                 <span
                   style={{
                     position: 'absolute',
