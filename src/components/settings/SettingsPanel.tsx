@@ -90,7 +90,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
   return (
     <div className="warm-card p-5">
       <h2 className="flex items-baseline gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
-        <span className="font-display text-base leading-none text-accent-600 dark:text-accent-400" aria-hidden="true">2</span>
+        <span className="font-display text-base leading-none text-copper-600 dark:text-copper-400" aria-hidden="true">2</span>
         Grid Setup
       </h2>
 
@@ -391,7 +391,7 @@ function SliderField({ label, value, min, max, onChange }: SliderFieldProps) {
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         className="w-full h-1.5 rounded-full appearance-none cursor-pointer
                    bg-stone-200 dark:bg-stone-700
-                   accent-primary-600"
+                   copper-primary-600"
       />
       <div className="flex justify-between text-xs text-stone-400 dark:text-stone-500 mt-0.5">
         <span>{min}</span>

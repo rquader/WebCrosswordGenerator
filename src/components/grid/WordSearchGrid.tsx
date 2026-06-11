@@ -211,9 +211,9 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
               <button
                 onClick={handleReveal}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium
-                           border border-accent-300 dark:border-accent-700
-                           text-accent-700 dark:text-accent-400
-                           hover:bg-accent-50 dark:hover:bg-accent-950/30
+                           border border-copper-300 dark:border-copper-700
+                           text-copper-700 dark:text-copper-400
+                           hover:bg-copper-50 dark:hover:bg-copper-950/30
                            transition-colors btn-lift"
               >
                 Reveal

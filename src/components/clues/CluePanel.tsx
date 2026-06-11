@@ -66,7 +66,7 @@ function ClueList({ title, clues }: ClueListProps) {
                   </span>
                 )}
                 {clue.isReversed && (
-                  <span className="ml-1 text-xs text-accent-600 dark:text-accent-400" title="This word is placed in reverse">
+                  <span className="ml-1 text-xs text-copper-600 dark:text-copper-400" title="This word is placed in reverse">
                     (reversed)
                   </span>
                 )}

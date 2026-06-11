@@ -497,7 +497,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           <div className="warm-card p-5">
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3 className="flex items-baseline gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
-                <span className="font-display text-base leading-none text-accent-600 dark:text-accent-400" aria-hidden="true">1</span>
+                <span className="font-display text-base leading-none text-copper-600 dark:text-copper-400" aria-hidden="true">1</span>
                 Your Words
               </h3>
               <div className="flex items-center gap-2">

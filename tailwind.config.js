@@ -12,7 +12,37 @@ export default {
         // Pure #ffffff reads clinical against the warm paper page; print
         // components are untouched (they use inline #fff on purpose).
         white: '#fdfbf7',
-        // Primary: warm indigo / slate-blue — sophisticated, not "AI green"
+
+        /* ── Semantic theme tokens ─────────────────────────────────────
+         * Each reads a CSS variable defined per theme in index.css
+         * (:root = light, .dark, .sepia). Components use ONLY these for
+         * surfaces, text, borders, and interactive color — switching a
+         * theme means changing the variable table, not hunting classes.
+         */
+        page:  'rgb(var(--page) / <alpha-value>)',   // the desk/page behind everything
+        card:  'rgb(var(--card) / <alpha-value>)',   // panels and cards
+        well:  'rgb(var(--well) / <alpha-value>)',   // inset areas, hovers, table stripes
+        ink: {
+          DEFAULT: 'rgb(var(--ink) / <alpha-value>)',   // primary text
+          2: 'rgb(var(--ink-2) / <alpha-value>)',       // secondary text
+          3: 'rgb(var(--ink-3) / <alpha-value>)',       // captions, hints
+        },
+        line: {
+          DEFAULT: 'rgb(var(--line) / <alpha-value>)',  // hairline borders
+          2: 'rgb(var(--line-2) / <alpha-value>)',      // strong borders
+        },
+        // THE interactive color. Light: oxblood (editorial masthead red).
+        // Dark: luminous ember. Sepia: stamped brown-black ink.
+        accent: {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          2: 'rgb(var(--accent-2) / <alpha-value>)',      // hover / pressed
+          ink: 'rgb(var(--accent-ink) / <alpha-value>)',  // text on accent fills
+        },
+        // Small editorial marks: step numerals, active ticks, focus rings.
+        rubric: 'rgb(var(--rubric) / <alpha-value>)',
+
+        // Primary: warm indigo / slate-blue (legacy — components migrate
+        // to the semantic tokens above; grid washes keep their own tokens)
         primary: {
           50:  '#f0f1fe',
           100: '#dde0fc',
@@ -27,8 +57,8 @@ export default {
           950: '#1a1945',
           'd': '#1e1d3d',
         },
-        // Accent: warm copper / terra cotta
-        accent: {
+        // Copper / terra cotta — warm secondary marks (was `accent`)
+        copper: {
           50:  '#fdf5ef',
           100: '#fae8d8',
           200: '#f4cdb0',
@@ -84,14 +114,33 @@ export default {
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans Variable"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
         // Editorial serif — masthead, headings, big moments only
         display: ['"Fraunces Variable"', 'Georgia', 'serif'],
       },
+      /* The deliberate type scale — five named steps. Pair `text-title`
+       * and up with `font-display` (Fraunces); the rest are Jakarta. */
+      fontSize: {
+        overline: ['0.6875rem', { lineHeight: '1.2', letterSpacing: '0.09em', fontWeight: '600' }],
+        meta:     ['0.75rem',   { lineHeight: '1.45' }],
+        body:     ['0.875rem',  { lineHeight: '1.55' }],
+        lede:     ['1rem',      { lineHeight: '1.5' }],
+        title:    ['1.1875rem', { lineHeight: '1.3', letterSpacing: '-0.01em', fontWeight: '600' }],
+        masthead: ['1.375rem',  { lineHeight: '1.2', letterSpacing: '-0.015em', fontWeight: '650' }],
+      },
       borderRadius: {
         'grid': '2px',
+        // Editorial shapes: slightly squared, never pills
+        'btn': '6px',
+        'field': '6px',
+        'card': '10px',
       },
       boxShadow: {
+        // Theme-aware shadows (CSS vars set per theme in index.css):
+        // warm gray on cream, true black at night, brown on parchment.
+        'paper': 'var(--shadow-paper)',   // resting cards
+        'raise': 'var(--shadow-raise)',   // hover lift
+        'float': 'var(--shadow-float)',   // the grid page floating on the desk
         'card': '0 1px 3px 0 rgba(30,25,18,0.06), 0 1px 2px -1px rgba(30,25,18,0.06)',
         'card-hover': '0 4px 12px -2px rgba(30,25,18,0.1), 0 2px 4px -2px rgba(30,25,18,0.06)',
         'card-dark': '0 1px 3px 0 rgba(0,0,0,0.2), 0 1px 2px -1px rgba(0,0,0,0.15)',

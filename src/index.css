@@ -4,6 +4,71 @@
 
 /* Base styles */
 @layer base {
+  /* ── Theme tables ──────────────────────────────────────────────────
+   * One value table per theme; every semantic Tailwind token
+   * (page/card/well, ink, line, accent, rubric — see tailwind.config)
+   * reads from here. Channels are space-separated RGB so Tailwind can
+   * compose alpha (`bg-accent/10`).
+   *
+   * Light  — quality paper: cream, warm near-black ink, oxblood accent.
+   * Dark   — late desk: warm browns-black, lamplight text, ember accent.
+   * Sepia  — reading room: parchment, brown ink, stamped-ink buttons,
+   *          red-ink rubric marks. Fully committed, not tinted light.
+   */
+  :root {
+    --page: 253 251 247;      /* #fdfbf7 cream */
+    --card: 255 254 252;      /* a half-step lighter than the page */
+    --well: 245 240 231;      /* #f5f0e7 inset wash */
+    --ink: 32 27 21;          /* #201b15 warm near-black */
+    --ink-2: 94 85 73;        /* #5e5549 */
+    --ink-3: 152 141 125;     /* #988d7d */
+    --line: 227 220 208;      /* #e3dcd0 hairlines */
+    --line-2: 199 190 174;    /* #c7beae */
+    --accent: 148 47 33;      /* #942f21 oxblood */
+    --accent-2: 120 36 25;    /* #782419 hover/pressed */
+    --accent-ink: 255 251 245;
+    --rubric: 178 84 44;      /* #b2542c copper-brick marks */
+    --shadow-paper: 0 1px 2px rgba(46, 36, 24, 0.05), 0 3px 10px -4px rgba(46, 36, 24, 0.08);
+    --shadow-raise: 0 3px 12px -2px rgba(46, 36, 24, 0.14);
+    --shadow-float: 0 1px 2px rgba(46, 36, 24, 0.08), 0 14px 44px -14px rgba(46, 36, 24, 0.28);
+  }
+
+  .dark {
+    --page: 27 23 20;         /* #1b1714 */
+    --card: 39 34 29;         /* #27221d */
+    --well: 51 45 38;         /* #332d26 */
+    --ink: 241 235 226;       /* #f1ebe2 lamplight */
+    --ink-2: 180 170 156;     /* #b4aa9c */
+    --ink-3: 129 120 107;     /* #81786b */
+    --line: 61 54 46;         /* #3d362e */
+    --line-2: 86 77 66;       /* #564d42 */
+    --accent: 226 122 92;     /* #e27a5c ember */
+    --accent-2: 236 146 119;  /* lighter on hover — luminous, not darker */
+    --accent-ink: 40 23 16;   /* #281710 */
+    --rubric: 224 148 106;    /* #e0946a */
+    --shadow-paper: 0 1px 2px rgba(0, 0, 0, 0.28), 0 3px 10px -4px rgba(0, 0, 0, 0.24);
+    --shadow-raise: 0 4px 14px -2px rgba(0, 0, 0, 0.42);
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 50px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  .sepia {
+    --page: 242 232 213;      /* #f2e8d5 parchment */
+    --card: 236 224 199;      /* #ece0c7 layered old paper */
+    --well: 227 212 181;      /* #e3d4b5 */
+    --ink: 44 24 16;          /* #2c1810 brown ink */
+    --ink-2: 97 68 47;        /* #61442f */
+    --ink-3: 142 111 80;      /* #8e6f50 */
+    --line: 188 161 121;      /* #bca179 */
+    --line-2: 154 126 90;     /* #9a7e5a */
+    --accent: 62 38 23;       /* #3e2617 stamped ink — buttons ARE ink on paper */
+    --accent-2: 44 24 16;     /* pressing pushes to full ink */
+    --accent-ink: 243 233 214;
+    --rubric: 148 60 30;      /* #943c1e red-ink rubrication */
+    --shadow-paper: 0 1px 3px rgba(92, 70, 40, 0.12), 0 4px 14px -6px rgba(92, 70, 40, 0.18);
+    --shadow-raise: 0 3px 14px -2px rgba(92, 70, 40, 0.22);
+    --shadow-float: 0 1px 2px rgba(92, 70, 40, 0.14), 0 14px 44px -14px rgba(70, 50, 26, 0.34);
+  }
+
   html {
     font-family: 'Plus Jakarta Sans Variable', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -11,9 +76,11 @@
   }
 
   body {
-    @apply bg-surface-light text-stone-900 transition-colors duration-300;
+    @apply transition-colors duration-300;
+    background-color: rgb(var(--page));
+    color: rgb(var(--ink));
     /* Faint warm wash from the top — quality paper, not flat white */
-    background-image: radial-gradient(1100px 480px at 50% -8%, rgba(218, 102, 40, 0.045), transparent);
+    background-image: radial-gradient(1100px 480px at 50% -8%, rgba(148, 47, 33, 0.04), transparent);
   }
 
   /* Ambient film grain over the whole page — barely there, never interactive */
@@ -28,9 +95,8 @@
   }
 
   .dark body {
-    @apply bg-surface-dark text-stone-100;
-    /* Desk-lamp ambience: a soft indigo glow falling from above */
-    background-image: radial-gradient(1100px 520px at 50% -8%, rgba(82, 88, 228, 0.08), transparent);
+    /* Desk-lamp ambience: a soft ember glow falling from above */
+    background-image: radial-gradient(1100px 520px at 50% -8%, rgba(226, 122, 92, 0.06), transparent);
   }
 
   .dark body::before {
@@ -39,10 +105,8 @@
 
   /* Sepia mode — warm parchment tones, WCAG AA contrast */
   .sepia body {
-    background-color: #f0e4cc;
-    color: #2e2418;
     /* Aged-paper vignette: edges a touch deeper than the center */
-    background-image: radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(92, 70, 40, 0.07) 100%);
+    background-image: radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(92, 70, 40, 0.08) 100%);
   }
 
   .sepia body::before {
@@ -155,8 +219,8 @@
     background-color: rgba(58, 48, 160, 0.08) !important;
   }
 
-  /* Sepia: accent colors */
-  .sepia .text-accent-600 {
+  /* Sepia: copper marks */
+  .sepia .text-copper-600 {
     color: #a04018 !important;
   }
 
@@ -175,13 +239,13 @@
     border-color: rgba(120, 95, 55, 0.4);
   }
 
-  /* Custom focus-visible: amber accent ring */
+  /* Custom focus-visible: red-ink editor's mark, themed via --rubric */
   :focus {
     outline: none;
   }
 
   :focus-visible {
-    outline: 2px solid theme('colors.accent.500');
+    outline: 2px solid rgb(var(--rubric));
     outline-offset: 2px;
     border-radius: 4px;
   }

@@ -23,7 +23,13 @@
       "Bash(node /tmp/cw-export-audit.mjs)",
       "Bash(git commit -m ' *)",
       "Bash(sed -n '340,370p' src/components/skeleton/SkeletonFillView.tsx)",
-      "Bash(sed -n '480,500p' src/components/skeleton/SkeletonFillView.tsx)"
+      "Bash(sed -n '480,500p' src/components/skeleton/SkeletonFillView.tsx)",
+      "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-before)",
+      "Bash(grep -rhn -o \"accent-[0-9]\\\\{2,3\\\\}\\\\\\(/[0-9]\\\\+\\\\\\)\\\\?\" src/components/ src/App.tsx)",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill -9)",
+      "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-tokens)",
+      "Bash(git commit -q -m ' *)"
     ]
   },
   "enabledPlugins": {

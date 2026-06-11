@@ -116,13 +116,13 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     <div className="animate-fade-in">
       {/* Completion celebration */}
       {state.isComplete && !state.revealedCells.size && (
-        <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-primary-50 via-primary-50 to-accent-50 dark:from-primary-d/40 dark:via-primary-d/30 dark:to-accent-d/20 border border-primary-200/60 dark:border-primary-800/40 text-center animate-slide-up relative overflow-hidden">
+        <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-primary-50 via-primary-50 to-copper-50 dark:from-primary-d/40 dark:via-primary-d/30 dark:to-copper-d/20 border border-primary-200/60 dark:border-primary-800/40 text-center animate-slide-up relative overflow-hidden">
           {/* Confetti particles */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-primary-400 animate-confetti-1" />
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-accent-400 animate-confetti-2" />
+            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-copper-400 animate-confetti-2" />
             <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-primary-300 animate-confetti-3" />
-            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-accent-300 animate-confetti-2" style={{ animationDelay: '0.1s' }} />
+            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-copper-300 animate-confetti-2" style={{ animationDelay: '0.1s' }} />
             <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-primary-500 animate-confetti-1" style={{ animationDelay: '0.15s' }} />
           </div>
 
@@ -222,9 +222,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               <button
                 onClick={state.revealPuzzle}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                           border border-accent-300 dark:border-accent-700
-                           text-accent-700 dark:text-accent-400
-                           hover:bg-accent-50 dark:hover:bg-accent-950/30
+                           border border-copper-300 dark:border-copper-700
+                           text-copper-700 dark:text-copper-400
+                           hover:bg-copper-50 dark:hover:bg-copper-950/30
                            transition-colors btn-lift"
               >
                 Reveal
