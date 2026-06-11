@@ -21,11 +21,16 @@ interface PrintGridProps {
    * (the print page uses ~18-40px cells, the preview can go down to ~13px).
    */
   cellSizePx: number;
+  /** Blocked squares as light gray instead of solid black (saves toner). */
+  inkSaver: boolean;
 }
 
 const EMPTY_CELL = '-';
 
-export function PrintGrid({ puzzle, showAnswers, cellSizePx }: PrintGridProps) {
+/** Ink-saver blocked-square gray — light enough to save toner, dark enough to read as "blocked". */
+export const INK_SAVER_BLOCKED = '#D0D0D0';
+
+export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver }: PrintGridProps) {
   const numberMap = useMemo(() => {
     const { cells } = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
     const map = new Map<string, number>();
@@ -65,7 +70,7 @@ export function PrintGrid({ puzzle, showAnswers, cellSizePx }: PrintGridProps) {
                 position: 'relative',
                 width: '100%',
                 aspectRatio: '1',
-                backgroundColor: isEmpty ? '#000' : '#fff',
+                backgroundColor: isEmpty ? (inkSaver ? INK_SAVER_BLOCKED : '#000') : '#fff',
                 border: '0.5px solid #000',
                 display: 'flex',
                 alignItems: 'center',

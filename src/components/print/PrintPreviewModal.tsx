@@ -34,6 +34,9 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
   const [activeTab, setActiveTab] = useState<PreviewTab>('student');
   const [title, setTitle] = useState('Crossword Puzzle');
   const [showNameDate, setShowNameDate] = useState(true);
+  // Default on: most teachers print on shared school printers — light-gray
+  // blocked squares cut toner use dramatically on dense grids.
+  const [inkSaver, setInkSaver] = useState(true);
   const [printTarget, setPrintTarget] = useState<PrintTarget>('student');
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -245,6 +248,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                       puzzle={puzzle}
                       showAnswers={showAnswersInPreview}
                       cellSizePx={previewCellPx}
+                      inkSaver={inkSaver}
                     />
                   </div>
                 </div>
@@ -278,16 +282,31 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                              transition-colors"
                 />
               </div>
-              <label className="flex items-center gap-2 cursor-pointer select-none sm:pt-5">
-                <input
-                  type="checkbox"
-                  checked={showNameDate}
-                  onChange={(e) => setShowNameDate(e.target.checked)}
-                />
-                <span className="text-sm text-stone-600 dark:text-stone-400">
-                  Name / Date line
-                </span>
-              </label>
+              <div className="flex flex-col gap-1.5 sm:pt-5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showNameDate}
+                    onChange={(e) => setShowNameDate(e.target.checked)}
+                  />
+                  <span className="text-sm text-stone-600 dark:text-stone-400">
+                    Name / Date line
+                  </span>
+                </label>
+                <label
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  title="Blocked squares print light gray instead of solid black"
+                >
+                  <input
+                    type="checkbox"
+                    checked={inkSaver}
+                    onChange={(e) => setInkSaver(e.target.checked)}
+                  />
+                  <span className="text-sm text-stone-600 dark:text-stone-400">
+                    Ink-Saver Mode
+                  </span>
+                </label>
+              </div>
             </div>
 
             {/* Action buttons — Print row */}
@@ -321,7 +340,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
             {/* Action buttons — PDF row */}
             <div className="flex flex-wrap gap-2">
               <ActionButton
-                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate, showAnswers: false })}
+                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate, showAnswers: false, inkSaver })}
                 variant="secondary"
                 disabled={false}
               >
@@ -329,7 +348,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                 PDF Student
               </ActionButton>
               <ActionButton
-                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate: false, showAnswers: true })}
+                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate: false, showAnswers: true, inkSaver })}
                 variant="secondary"
                 disabled={false}
               >
@@ -337,7 +356,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                 PDF Answer Key
               </ActionButton>
               <ActionButton
-                onClick={() => exportBothAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate })}
+                onClick={() => exportBothAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate, inkSaver })}
                 variant="secondary"
                 disabled={false}
               >
@@ -363,6 +382,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
         title={title || 'Crossword Puzzle'}
         showNameDate={showNameDate}
         printTarget={isPrinting ? printTarget : 'student'}
+        inkSaver={inkSaver}
       />
     </>
   );

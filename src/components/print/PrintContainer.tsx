@@ -21,9 +21,11 @@ interface PrintContainerProps {
   showNameDate: boolean;
   /** 'student' = blank grid, 'answerKey' = filled grid, 'both' = two pages */
   printTarget: 'student' | 'answerKey' | 'both';
+  /** Blocked squares as light gray instead of solid black. */
+  inkSaver: boolean;
 }
 
-export function PrintContainer({ puzzle, title, showNameDate, printTarget }: PrintContainerProps) {
+export function PrintContainer({ puzzle, title, showNameDate, printTarget, inkSaver }: PrintContainerProps) {
   const printRoot = document.getElementById('print-root');
   if (!printRoot) return null;
 
@@ -38,6 +40,7 @@ export function PrintContainer({ puzzle, title, showNameDate, printTarget }: Pri
           title={title}
           showNameDate={showNameDate}
           showAnswers={false}
+          inkSaver={inkSaver}
         />
       )}
       {showAnswerKey && (
@@ -46,6 +49,7 @@ export function PrintContainer({ puzzle, title, showNameDate, printTarget }: Pri
           title={showStudent ? `${title} — Answer Key` : title}
           showNameDate={false}
           showAnswers={true}
+          inkSaver={inkSaver}
         />
       )}
     </div>,
@@ -58,9 +62,10 @@ interface PrintPageProps {
   title: string;
   showNameDate: boolean;
   showAnswers: boolean;
+  inkSaver: boolean;
 }
 
-function PrintPage({ puzzle, title, showNameDate, showAnswers }: PrintPageProps) {
+function PrintPage({ puzzle, title, showNameDate, showAnswers, inkSaver }: PrintPageProps) {
   const maxGridWidth = 480;
   const cellSize = Math.min(
     Math.floor(maxGridWidth / puzzle.width),
@@ -112,7 +117,7 @@ function PrintPage({ puzzle, title, showNameDate, showAnswers }: PrintPageProps)
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
         <div style={{ width: `${gridWidth}px` }}>
-          <PrintGrid puzzle={puzzle} showAnswers={showAnswers} cellSizePx={cellSize} />
+          <PrintGrid puzzle={puzzle} showAnswers={showAnswers} cellSizePx={cellSize} inkSaver={inkSaver} />
         </div>
       </div>
 

@@ -20,7 +20,15 @@ export interface PdfExportOptions {
   title: string;
   showNameDate: boolean;
   showAnswers: boolean;
+  /**
+   * Blocked squares as light gray instead of solid black — saves toner.
+   * Default true (matches the print preview's default).
+   */
+  inkSaver?: boolean;
 }
+
+/** Ink-saver blocked-square gray (matches PrintGrid's #D0D0D0). */
+const INK_SAVER_GRAY = 208;
 
 /**
  * Generate and download a PDF of the puzzle.
@@ -58,6 +66,7 @@ export function exportBothAsPdf(puzzle: CrosswordResult, options: Omit<PdfExport
     title: `${options.title} — Answer Key`,
     showNameDate: false,
     showAnswers: true,
+    inkSaver: options.inkSaver,
   });
 
   const slug = options.title
@@ -103,7 +112,7 @@ function renderPuzzlePage(doc: jsPDF, puzzle: CrosswordResult, options: PdfExpor
 
   // ── Grid ──
   cursorY += 4;
-  const gridResult = renderGrid(doc, puzzle, showAnswers, cursorY);
+  const gridResult = renderGrid(doc, puzzle, showAnswers, cursorY, options.inkSaver ?? true);
   cursorY = gridResult.bottomY + 16;
 
   // ── Clues ──
@@ -118,7 +127,8 @@ function renderGrid(
   doc: jsPDF,
   puzzle: CrosswordResult,
   showAnswers: boolean,
-  startY: number
+  startY: number,
+  inkSaver: boolean
 ): GridRenderResult {
   const { cells } = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   const numberMap = new Map<string, number>();
@@ -150,7 +160,11 @@ function renderGrid(
 
       // Cell background
       if (isEmpty) {
-        doc.setFillColor(0, 0, 0);
+        if (inkSaver) {
+          doc.setFillColor(INK_SAVER_GRAY, INK_SAVER_GRAY, INK_SAVER_GRAY);
+        } else {
+          doc.setFillColor(0, 0, 0);
+        }
         doc.rect(cellX, cellY, cellSize, cellSize, 'F');
       } else {
         doc.setFillColor(255, 255, 255);
