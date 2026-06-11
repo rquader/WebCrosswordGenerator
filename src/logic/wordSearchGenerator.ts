@@ -12,6 +12,7 @@
 
 import type { DirectionalWord, CrosswordResult, WordSearchDirectionSettings } from './types';
 import { SeededRandom } from './seedRandom';
+import { BLOCKLIST, MIN_BLOCKED_LENGTH } from '../data/blocklist';
 
 const EMPTY_CELL = '-';
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
@@ -179,6 +180,10 @@ function generateWordSearchOnce(config: WordSearchConfig, seed: number): Crosswo
     }
   }
 
+  // Random fill can spell profanity across any of the 8 directions —
+  // scrub it before the grid leaves the generator.
+  sanitizeFillerLetters(grid, width, height, wordLocations, random);
+
   return {
     grid,
     wordLocations,
@@ -250,6 +255,167 @@ function tryPlaceWord(
   }
 
   return false;
+}
+
+/* ── Filler profanity filter ──────────────────────────────────────────────
+ *
+ * Scans the finished grid in all 8 directions (4 line orientations, each
+ * read forward and backward) for blocklisted strings and re-randomizes the
+ * FILLER cells of any match. Cells belonging to placed words are never
+ * altered — if a match is spelled entirely by real words, it is the user's
+ * own content and is left alone. Runs silently; teachers never see it.
+ */
+
+/** Re-randomize attempts per offending region before giving up on it. */
+const MAX_REGION_FIX_ATTEMPTS = 50;
+
+/** Absolute ceiling of fix iterations per grid — the loop can never hang. */
+const MAX_SANITIZE_PASSES = 400;
+
+/** Blocklist entries the scanner acts on (lowercased, floor applied), cached. */
+let activeBlocklist: string[] | null = null;
+function getActiveBlocklist(): string[] {
+  if (activeBlocklist === null) {
+    activeBlocklist = BLOCKLIST
+      .map(w => w.toLowerCase())
+      .filter(w => w.length >= MIN_BLOCKED_LENGTH);
+  }
+  return activeBlocklist;
+}
+
+interface GridCell {
+  x: number;
+  y: number;
+}
+
+interface BlockedMatch {
+  /** Cells covered by the matched string, in line order. */
+  cells: GridCell[];
+  /** Stable identity of the offending region (start cell – end cell). */
+  key: string;
+}
+
+/**
+ * Every scan line of the grid: rows, columns, and both diagonal
+ * orientations. Reading each line's text forward and backward covers
+ * all 8 word-search directions. Lines shorter than the match floor
+ * are skipped.
+ */
+function collectScanLines(width: number, height: number): GridCell[][] {
+  const lines: GridCell[][] = [];
+
+  const addLine = (startX: number, startY: number, dx: number, dy: number) => {
+    const line: GridCell[] = [];
+    for (let x = startX, y = startY; x >= 0 && x < width && y >= 0 && y < height; x += dx, y += dy) {
+      line.push({ x, y });
+    }
+    if (line.length >= MIN_BLOCKED_LENGTH) {
+      lines.push(line);
+    }
+  };
+
+  for (let y = 0; y < height; y++) addLine(0, y, 1, 0);            // rows
+  for (let x = 0; x < width; x++) addLine(x, 0, 0, 1);             // columns
+  for (let y = 0; y < height; y++) addLine(0, y, 1, 1);            // ↘ from left edge
+  for (let x = 1; x < width; x++) addLine(x, 0, 1, 1);             // ↘ from top edge
+  for (let y = 0; y < height; y++) addLine(width - 1, y, -1, 1);   // ↙ from right edge
+  for (let x = 0; x < width - 1; x++) addLine(x, 0, -1, 1);        // ↙ from top edge
+
+  return lines;
+}
+
+function matchKey(cells: GridCell[]): string {
+  const first = cells[0];
+  const last = cells[cells.length - 1];
+  return `${first.x},${first.y}-${last.x},${last.y}`;
+}
+
+/**
+ * First blocklisted string in the grid that isn't already given up on.
+ * Deterministic scan order keeps same-seed grids reproducible.
+ */
+function findBlockedMatch(
+  grid: string[][],
+  lines: GridCell[][],
+  blocklist: string[],
+  ignored: Set<string>
+): BlockedMatch | null {
+  for (const line of lines) {
+    const text = line.map(cell => grid[cell.y][cell.x]).join('');
+
+    for (const bad of blocklist) {
+      if (bad.length > text.length) continue;
+      const reversed = bad.split('').reverse().join('');
+      const needles = bad === reversed ? [bad] : [bad, reversed];
+
+      for (const needle of needles) {
+        for (let idx = text.indexOf(needle); idx !== -1; idx = text.indexOf(needle, idx + 1)) {
+          const cells = line.slice(idx, idx + needle.length);
+          const key = matchKey(cells);
+          if (!ignored.has(key)) {
+            return { cells, key };
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Scrub blocklisted strings from the finished grid by re-randomizing the
+ * filler cells they run through, rescanning after every fix. Exported for
+ * tests; production callers go through generateWordSearch.
+ */
+export function sanitizeFillerLetters(
+  grid: string[][],
+  width: number,
+  height: number,
+  wordLocations: DirectionalWord[],
+  random: SeededRandom
+): void {
+  const blocklist = getActiveBlocklist();
+  if (blocklist.length === 0) return;
+
+  const locked = new Set<string>();
+  for (const wl of wordLocations) {
+    for (const { x, y } of getWordCellCoords(wl)) {
+      locked.add(`${x},${y}`);
+    }
+  }
+
+  const lines = collectScanLines(width, height);
+  const ignored = new Set<string>();
+  const fixAttempts = new Map<string, number>();
+
+  for (let pass = 0; pass < MAX_SANITIZE_PASSES; pass++) {
+    const match = findBlockedMatch(grid, lines, blocklist, ignored);
+    if (match === null) {
+      return; // clean (modulo regions deliberately left alone)
+    }
+
+    const fillerCells = match.cells.filter(cell => !locked.has(`${cell.x},${cell.y}`));
+    if (fillerCells.length === 0) {
+      // Spelled entirely by placed words ("anal" inside CANAL) — the
+      // user's own content, never altered. Skip without noise.
+      ignored.add(match.key);
+      continue;
+    }
+
+    const attempts = (fixAttempts.get(match.key) ?? 0) + 1;
+    fixAttempts.set(match.key, attempts);
+    if (attempts > MAX_REGION_FIX_ATTEMPTS) {
+      console.warn(`word search filler filter: region ${match.key} still matches after ${MAX_REGION_FIX_ATTEMPTS} fixes — leaving it`);
+      ignored.add(match.key);
+      continue;
+    }
+
+    for (const { x, y } of fillerCells) {
+      grid[y][x] = ALPHABET[random.nextInt(ALPHABET.length)];
+    }
+  }
+
+  console.warn('word search filler filter: pass ceiling reached — a blocked string may remain');
 }
 
 /**
