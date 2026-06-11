@@ -42,6 +42,8 @@ import { MiniGridPreview } from '../grid/MiniGridPreview';
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
   onPuzzleGenerated: (result: CrosswordResult, mode: PuzzleMode) => void;
+  /** Jump to the AI Words tab (bridge from the words card). */
+  onGoToAiWords: () => void;
 }
 
 type ImportDecision = 'replace' | 'append';
@@ -115,7 +117,7 @@ function skeletonToPuzzle(skeleton: SkeletonResult, filledSlots: FilledSlotData[
   };
 }
 
-export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
+export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: GenerateTabProps) {
   // --- State ---
   const [showAnswers, setShowAnswers] = useState(true);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
@@ -539,6 +541,17 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
                 onImportFile={handleFileImport}
                 isImportingFile={isImportingFile}
               />
+            )}
+            {!showTextImport && (
+              <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+                No word list yet?{' '}
+                <button
+                  onClick={onGoToAiWords}
+                  className="font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Build one with AI &rarr;
+                </button>
+              </p>
             )}
           </div>
 

@@ -11,7 +11,8 @@
       "Bash(git commit -m 'feature: Clear All button for the word list with a 5-second undo *)",
       "Bash(git commit -m 'engine: word search direction vectors + auto-grow to fit every word *)",
       "Bash(git commit -m 'safety: word search filler profanity filter — 8-direction scan + regen *)",
-      "Bash(node /tmp/cw-wordsearch-verify.mjs)"
+      "Bash(node /tmp/cw-wordsearch-verify.mjs)",
+      "Bash(git commit -m 'design: drop footer version/offline badge; bridge Generate to AI Words *)"
     ]
   },
   "enabledPlugins": {
