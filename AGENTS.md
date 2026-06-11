@@ -1,7 +1,7 @@
 # CrosswordGen — Puzzle Studio
 
 Fully client-side crossword/word-search generator + player. Ported from a Java Swing app.
-TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~11,500 LOC, 156 tests.
+TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~13,000 LOC, 240 tests.
 
 Target audience: teachers creating puzzles from their own word lists.
 Everything runs in the browser — zero server, zero tracking.
@@ -10,7 +10,7 @@ Everything runs in the browser — zero server, zero tracking.
 ```bash
 npm run dev          # Dev server at http://localhost:5173
 npm run build        # Type-check (tsc) + production build to dist/
-npm run test         # Run all Vitest unit tests (156 currently)
+npm run test         # Run all Vitest unit tests (240 currently)
 npm run test:watch   # Tests in watch mode
 npm run deploy       # Build + push to gh-pages branch (GitHub Pages)
 ```
@@ -27,11 +27,12 @@ Zero external network calls. No exceptions.
 ## Architecture Overview
 ```
 src/logic/         Pure TS engine — zero DOM dependencies, keep it that way
-src/components/    React UI (layout, grid, clues, settings, tabs, skeleton)
+src/components/    React UI (layout, grid, clues, settings, tabs, skeleton, print)
 src/hooks/         useTheme (dark/light/sepia), usePuzzleState (play state)
-src/utils/         fileParser, exportUtils, pdfExport, puzzleUrl
-src/presets/       9 word packs (unit_1-8 + english), 920 entries total
-tests/unit/        Vitest tests (13 test files)
+src/utils/         fileParser, exportUtils, pdfExport, printLayout, puzzleUrl, wordListPrompt
+src/data/          blocklist.ts — word search filler profanity filter (standalone)
+src/presets/       4 word packs (Biology, US History, Spanish, SAT), ~130 entries
+tests/unit/        Vitest tests (19 test files)
 ```
 
 ### Generation Pipeline (read this — it's the novel part)
@@ -58,7 +59,16 @@ Words are categorized into tiers before generation:
 Must-include words are sorted longest-first and placed before any can-include words.
 The core generator runs with `presorted: true` to preserve this ordering.
 
-### Skeleton System
+### Behavior Contract (decided 2026-06-11 — see Obsidian Phase 15)
+- **Default path** (Force Dimensions unchecked): words in → finished puzzle out.
+  Auto-size + auto-grow guarantee every word places. No blank slots, no decisions.
+- **Force Dimensions checked**: pinned grid size, blank-slot skeleton when
+  under-filled, failures reported with a one-click larger-size suggestion.
+- **Empty word list**: "Generate Blank Skeleton" builds a full word-bank skeleton.
+- Word search mirrors the crossword: auto-grows by default (`growToFit`),
+  pins + reports honestly when forced.
+
+### Skeleton System (`bankFill: true` paths only)
 When a user doesn't provide enough words to fill the grid:
 1. Priority generator places user words (must + can)
 2. If placed words fill < 70% of estimated capacity → skeleton mode activates
@@ -67,15 +77,22 @@ When a user doesn't provide enough words to fill the grid:
 5. User fills blank slots manually, with live constraint validation (crossing letters locked)
 
 ### Core Generator Algorithm
-Port of Java's Generator.java. Intersection-based placement:
-1. First word placed at (0, 0) — always
-2. Each subsequent word finds grid cells where its letters match already-placed letters
-3. Tries horizontal then vertical (or vice versa) based on direction balancing
-4. A word is valid at an intersection if that row/column segment has exactly 1 occupied cell
-5. If placement fails and reverse allowed, tries the word reversed
+Classic crossword legality, rebuilt from the Java port —
+`tests/unit/placementGuarantee.test.ts` is the behavioral contract:
+1. First word centered (configurable offset); 5 candidate layouts ranked by quality score
+2. Words place across existing letters; multi-cross allowed, head/tail abutment
+   and parallel adjacency forbidden (no junk runs, ever)
+3. Best-spot selection (crossings → direction preference → centering), rescue
+   passes, swap rescue for stuck must-include words
+4. Reversed words exist only in word search (removed from crosswords)
 
-**Known issue**: First word at (0,0) can block must-include intersections when there's no room
-above row 0. See `Must-Include Placement Bug.md` in Obsidian for analysis and proposed fixes.
+### Word Search Engine (`wordSearchGenerator.ts`)
+Separate engine: 8 direction vectors, overlap allowed, random filler letters.
+Placed words carry exact `dx`/`dy` unit vectors — always read direction via
+`getWordVector`/`getWordCellCoords` (the legacy isHorizontal/isReversed flags
+can't express diagonals). Filler is scrubbed against `src/data/blocklist.ts`
+in all 8 directions before a grid leaves the generator. Share URLs: v1 =
+crossword (still emitted for compatibility), v2 = mode + per-word vectors.
 
 ## Key Files
 | File | What it does |
@@ -87,7 +104,11 @@ above row 0. See `Must-Include Placement Bug.md` in Obsidian for analysis and pr
 | `src/logic/gridRecommendation.ts` | Grid size recommendation + outlier word detection |
 | `src/logic/wordBank.ts` | Curated word bank for skeleton filler (~300 words, lengths 3-12) |
 | `src/logic/types.ts` | All shared type definitions |
-| `src/components/tabs/GenerateTab.tsx` | Main generation UI (skeleton-first flow) |
+| `src/logic/wordSearchGenerator.ts` | Word search engine (8-direction vectors, filler filter) |
+| `src/data/blocklist.ts` | Profanity blocklist for word search filler (update needs no engine knowledge) |
+| `src/utils/wordListPrompt.ts` | AI Words tab — prompt builder + response parser |
+| `src/utils/printLayout.ts` | Shared page geometry — browser print and PDF make the same layout call |
+| `src/components/tabs/GenerateTab.tsx` | Main generation UI (words-to-puzzle flow) |
 | `src/components/skeleton/SkeletonFillView.tsx` | Skeleton fill workspace (constraints, validation) |
 | `src/components/grid/PlayableGrid.tsx` | Interactive crossword grid (keyboard, check, reveal) |
 | `src/utils/puzzleUrl.ts` | URL sharing (pako compression, base64url, hash fragment) |
@@ -110,8 +131,10 @@ Key test patterns: seed reproducibility, edge cases (empty input, single word, o
 - Must look polished and handcrafted — not generic AI output
 - Color palette: indigo primary, warm copper accent (see `tailwind.config.js` for full tokens)
 - Three theme modes: dark (default), light, sepia — with system preference detection
-- Fonts: Plus Jakarta Sans Variable (display), Inter (body)
-- Tabbed interface: Generate | Play | Export | How to Use
+- Fonts: Fraunces Variable (editorial serif — masthead, headings), Plus Jakarta Sans Variable, Inter
+- Design doctrine: "Sunday paper, modern desk" — the grid renders as print in every
+  theme (cream cells + ink letters even in dark mode); warm white token (#fdfbf7)
+- Tabbed interface: Generate | AI Words | Play | Export | How to Use
 
 ## State Management
 - React `useState` for UI state, custom hooks for complex state (`useTheme`, `usePuzzleState`)
