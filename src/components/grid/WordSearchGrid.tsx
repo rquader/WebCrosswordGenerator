@@ -10,19 +10,9 @@
 
 import { useState, useMemo, useCallback, useRef } from 'react';
 import type { CrosswordResult, DirectionalWord } from '../../logic/types';
-import { getWordVector, getWordCellCoords } from '../../logic/wordSearchGenerator';
-
-// 8 distinct colors for found words (warm, high-contrast)
-const WORD_COLORS = [
-  { bg: 'rgba(124,200,160,0.25)', text: '#7cc8a0', border: '#7cc8a0' },  // teal
-  { bg: 'rgba(180,160,232,0.25)', text: '#b4a0e8', border: '#b4a0e8' },  // purple
-  { bg: 'rgba(212,170,96,0.25)',  text: '#d4aa60', border: '#d4aa60' },   // amber
-  { bg: 'rgba(200,120,96,0.25)',  text: '#c87860', border: '#c87860' },   // coral
-  { bg: 'rgba(104,168,216,0.25)', text: '#68a8d8', border: '#68a8d8' },   // blue
-  { bg: 'rgba(200,128,152,0.25)', text: '#c88098', border: '#c88098' },   // rose
-  { bg: 'rgba(160,200,112,0.25)', text: '#a0c870', border: '#a0c870' },   // green
-  { bg: 'rgba(96,192,192,0.25)',  text: '#60c0c0', border: '#60c0c0' },   // cyan
-];
+import { getWordCellCoords, getWordVector } from '../../logic/wordSearchGenerator';
+import { WordCircleOverlay } from './WordCircleOverlay';
+import { WORD_CIRCLE_COLORS } from '../../utils/wordCircleColors';
 
 function cellKey(x: number, y: number): string {
   return x + ',' + y;
@@ -105,7 +95,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
       if (foundWordSet.has(wordLoc.word)) continue;
 
       if (wordLoc.word === selectedStr || wordLoc.word === reversedStr) {
-        const colorIndex = foundWords.length % WORD_COLORS.length;
+        const colorIndex = foundWords.length % WORD_CIRCLE_COLORS.length;
         const newFound: FoundWord = {
           word: wordLoc,
           cells: cellArr,
@@ -169,7 +159,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
   function handleReveal() {
     const allFound: FoundWord[] = puzzle.wordLocations.map((wl, i) => {
       const cells = getWordCells(wl);
-      return { word: wl, cells, colorIndex: i % WORD_COLORS.length };
+      return { word: wl, cells, colorIndex: i % WORD_CIRCLE_COLORS.length };
     });
     setFoundWords(allFound);
     stopTimer();
@@ -245,7 +235,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
             <div
               role="grid"
               aria-label="Word search puzzle grid"
-              className="grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
+              className="relative grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
               style={{
                 gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
               }}
@@ -253,11 +243,9 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
               {puzzle.grid.map((row, y) =>
                 row.map((cell, x) => {
                   const key = cellKey(x, y);
-                  const foundColorIdx = foundCellMap.get(key);
-                  const isFound = foundColorIdx !== undefined;
+                  const isFound = foundCellMap.has(key);
                   const isStart = startCell !== null && startCell.x === x && startCell.y === y;
                   const isPreview = previewCells.has(key);
-                  const color = isFound ? WORD_COLORS[foundColorIdx] : null;
 
                   return (
                     <div
@@ -269,23 +257,17 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
                       className={`
                         relative w-10 h-10 sm:w-11 sm:h-11
                         border border-grid-border dark:border-grid-border-dark
+                        bg-grid-cell dark:bg-grid-cell-dark
                         flex items-center justify-center cursor-pointer select-none
                         transition-all duration-100
                         ${isStart ? 'ring-2 ring-primary-500 z-10' : ''}
-                        ${isPreview && !isFound ? 'bg-primary-100/60 dark:bg-primary-900/30' : ''}
-                        ${!isFound && !isStart && !isPreview ? 'bg-grid-cell dark:bg-grid-cell-dark hover:bg-primary-50/50 dark:hover:bg-primary-950/15' : ''}
+                        ${isPreview ? 'bg-primary-100/60 dark:bg-primary-900/30' : 'hover:bg-primary-50/50 dark:hover:bg-primary-950/15'}
                       `}
-                      style={isFound ? {
-                        backgroundColor: color!.bg,
-                        borderColor: color!.border + '40',
-                      } : undefined}
                     >
                       <span
                         className={`text-sm sm:text-base font-semibold uppercase
-                          ${isFound ? '' : 'text-stone-700 dark:text-stone-300'}
-                          ${isPreview && !isFound ? 'text-primary-700 dark:text-primary-300' : ''}
+                          ${isPreview && !isFound ? 'text-primary-700 dark:text-primary-300' : 'text-stone-700 dark:text-stone-300'}
                         `}
-                        style={isFound ? { color: color!.text } : undefined}
                       >
                         {cell}
                       </span>
@@ -293,6 +275,16 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
                   );
                 })
               )}
+
+              {/* Found words get a real marker circle, exactly like the
+                  printed answer key — not a cell-by-cell tint. */}
+              <WordCircleOverlay
+                words={foundWords.map(fw => fw.word)}
+                gridWidth={puzzle.width}
+                gridHeight={puzzle.height}
+                colorIndexFor={(_, i) => foundWords[i].colorIndex}
+                withFill={true}
+              />
             </div>
           </div>
         </div>
@@ -351,7 +343,7 @@ function WordList({ words, foundWords, lastFoundWord }: {
               {items.map((wl) => {
                 const isFound = foundSet.has(wl.word);
                 const fw = foundMap.get(wl.word);
-                const color = fw ? WORD_COLORS[fw.colorIndex] : null;
+                const color = fw ? WORD_CIRCLE_COLORS[fw.colorIndex % WORD_CIRCLE_COLORS.length] : null;
                 const isJustFound = lastFoundWord === wl.word;
 
                 return (
@@ -367,7 +359,7 @@ function WordList({ words, foundWords, lastFoundWord }: {
                       className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200 ${
                         isFound ? '' : 'bg-stone-300 dark:bg-stone-600'
                       }`}
-                      style={isFound && color ? { backgroundColor: color.text } : undefined}
+                      style={isFound && color ? { backgroundColor: color } : undefined}
                     />
                     <span className={`text-sm font-medium uppercase tracking-wide ${
                       isFound

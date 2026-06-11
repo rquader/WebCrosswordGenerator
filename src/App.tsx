@@ -93,7 +93,7 @@ export function App() {
         )}
         {activeTab === 'export' && puzzle && (
           <div role="tabpanel" id="tabpanel-export" aria-labelledby="tab-export">
-            <ExportTab puzzle={puzzle} />
+            <ExportTab puzzle={puzzle} puzzleMode={puzzleMode} />
           </div>
         )}
         {activeTab === 'help' && (

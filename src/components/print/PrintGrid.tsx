@@ -25,6 +25,12 @@ interface PrintGridProps {
   inkSaver: boolean;
   /** Cell numbers — dropped on the compact answer key where they'd clutter. */
   showNumbers?: boolean;
+  /**
+   * Word search rendering: no inner cell borders (a printed word search is
+   * letters in open space inside one frame), no cell numbers, regular-weight
+   * letters. Blocked squares can't occur — every cell holds a letter.
+   */
+  wordSearch?: boolean;
 }
 
 const EMPTY_CELL = '-';
@@ -32,15 +38,16 @@ const EMPTY_CELL = '-';
 /** Ink-saver blocked-square gray — light enough to save toner, dark enough to read as "blocked". */
 export const INK_SAVER_BLOCKED = '#D0D0D0';
 
-export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbers = true }: PrintGridProps) {
+export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbers = true, wordSearch = false }: PrintGridProps) {
   const numberMap = useMemo(() => {
+    if (wordSearch) return new Map<string, number>();
     const { cells } = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
     const map = new Map<string, number>();
     for (const cell of cells) {
       map.set(`${cell.x},${cell.y}`, cell.number);
     }
     return map;
-  }, [puzzle]);
+  }, [puzzle, wordSearch]);
 
   const letterSize = Math.min(12, Math.max(6, Math.round(cellSizePx * 0.68)));
   const numberSize = Math.min(7, Math.max(4, Math.round(cellSizePx * 0.39)));
@@ -56,7 +63,9 @@ export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbe
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
-        border: '2px solid #000',
+        // Word search: the page draws its own frame OUTSIDE this component so
+        // the circle overlay can align 1:1 with the borderless cell area.
+        border: wordSearch ? 'none' : '2px solid #000',
         lineHeight: 1,
       }}
     >
@@ -73,7 +82,7 @@ export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbe
                 width: '100%',
                 aspectRatio: '1',
                 backgroundColor: isEmpty ? (inkSaver ? INK_SAVER_BLOCKED : '#000') : '#fff',
-                border: '0.5px solid #000',
+                border: wordSearch ? 'none' : '0.5px solid #000',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -102,7 +111,7 @@ export function PrintGrid({ puzzle, showAnswers, cellSizePx, inkSaver, showNumbe
                 <span
                   style={{
                     fontSize: `${letterSize}px`,
-                    fontWeight: 700,
+                    fontWeight: wordSearch ? 500 : 700,
                     color: '#000',
                     textTransform: 'uppercase',
                     userSelect: 'none',

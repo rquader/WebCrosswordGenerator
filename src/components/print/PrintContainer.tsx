@@ -11,13 +11,16 @@
  */
 
 import { createPortal } from 'react-dom';
-import type { CrosswordResult } from '../../logic/types';
+import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { PrintGrid } from './PrintGrid';
 import { PrintClues } from './PrintClues';
+import { PrintWordBank } from './PrintWordBank';
+import { WordCircleOverlay } from '../grid/WordCircleOverlay';
 import { planBothPrintLayout, ptToPx } from '../../utils/printLayout';
 
 interface PrintContainerProps {
   puzzle: CrosswordResult;
+  puzzleMode: PuzzleMode;
   title: string;
   showNameDate: boolean;
   /** 'student' = blank grid, 'answerKey' = filled grid, 'both' = two pages */
@@ -26,12 +29,40 @@ interface PrintContainerProps {
   inkSaver: boolean;
 }
 
-export function PrintContainer({ puzzle, title, showNameDate, printTarget, inkSaver }: PrintContainerProps) {
+export function PrintContainer({ puzzle, puzzleMode, title, showNameDate, printTarget, inkSaver }: PrintContainerProps) {
   const printRoot = document.getElementById('print-root');
   if (!printRoot) return null;
 
   const showStudent = printTarget === 'student' || printTarget === 'both';
   const showAnswerKey = printTarget === 'answerKey' || printTarget === 'both';
+
+  // Word search "Both" is always two pages: the answer key is a full grid
+  // with circled words, and shrinking it to a compact appendix (the
+  // crossword trick) makes the circles overlap into noise. Student page +
+  // key page is the honest layout. The PDF path makes the same call.
+  if (puzzleMode === 'wordsearch') {
+    return createPortal(
+      <div className="print-only" id="print-container">
+        {showStudent && (
+          <WordSearchPrintPage
+            puzzle={puzzle}
+            title={title}
+            showNameDate={showNameDate}
+            withCircles={false}
+          />
+        )}
+        {showAnswerKey && (
+          <WordSearchPrintPage
+            puzzle={puzzle}
+            title={showStudent ? `${title} — Answer Key` : title}
+            showNameDate={false}
+            withCircles={true}
+          />
+        )}
+      </div>,
+      printRoot
+    );
+  }
 
   // "Both" fits on one page when the plan allows it: student grid + clues
   // with a compact answer key below. Same decision as the PDF export.
@@ -76,6 +107,94 @@ export function PrintContainer({ puzzle, title, showNameDate, printTarget, inkSa
       )}
     </div>,
     printRoot
+  );
+}
+
+interface WordSearchPrintPageProps {
+  puzzle: CrosswordResult;
+  title: string;
+  showNameDate: boolean;
+  /** Answer key: circle every placed word on the grid. */
+  withCircles: boolean;
+}
+
+/**
+ * A word search print page: full letter grid (the letters ARE the puzzle),
+ * word bank below on the student page, circled words on the answer key.
+ * No clue columns, no cell numbers, no ink-saver (nothing is blocked).
+ */
+function WordSearchPrintPage({ puzzle, title, showNameDate, withCircles }: WordSearchPrintPageProps) {
+  const maxGridWidth = 480;
+  const cellSize = Math.min(Math.floor(maxGridWidth / puzzle.width), 40);
+  const gridWidth = cellSize * puzzle.width;
+
+  return (
+    <div
+      className="print-page"
+      style={{
+        fontFamily: 'system-ui, -apple-system, Arial, sans-serif',
+        color: '#000',
+        backgroundColor: '#fff',
+        padding: '0.75in',
+        pageBreakAfter: 'always',
+      }}
+    >
+      <h1
+        style={{
+          fontSize: '18px',
+          fontWeight: 700,
+          textAlign: 'center',
+          margin: '0 0 8px 0',
+          color: '#000',
+        }}
+      >
+        {title}
+      </h1>
+
+      {showNameDate && (
+        <div
+          style={{
+            display: 'flex',
+            gap: '32px',
+            fontSize: '10px',
+            marginBottom: '16px',
+            color: '#000',
+          }}
+        >
+          <span>
+            Name: <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '200px' }}>&nbsp;</span>
+          </span>
+          <span>
+            Date: <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '140px' }}>&nbsp;</span>
+          </span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', breakInside: 'avoid' }}>
+        {/* Frame and breathing room live OUT here so the circle overlay's
+            inset-0 box is exactly the cell area — circles align per cell. */}
+        <div style={{ border: '1.5px solid #000', padding: '6px' }}>
+          <div style={{ width: `${gridWidth}px`, position: 'relative' }}>
+            <PrintGrid
+              puzzle={puzzle}
+              showAnswers={true}
+              cellSizePx={cellSize}
+              inkSaver={false}
+              wordSearch={true}
+            />
+            {withCircles && (
+              <WordCircleOverlay
+                words={puzzle.wordLocations}
+                gridWidth={puzzle.width}
+                gridHeight={puzzle.height}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {!withCircles && <PrintWordBank puzzle={puzzle} />}
+    </div>
   );
 }
 

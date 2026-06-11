@@ -13,8 +13,10 @@
  */
 
 import { jsPDF } from 'jspdf';
-import type { CrosswordResult } from '../logic/types';
+import type { CrosswordResult, PuzzleMode } from '../logic/types';
 import { assignNumbers } from '../logic/numbering';
+import { getWordVector } from '../logic/wordSearchGenerator';
+import { WORD_CIRCLE_COLORS, hexToRgb } from './wordCircleColors';
 import {
   PAGE_WIDTH_PT as PAGE_WIDTH,
   PAGE_HEIGHT_PT as PAGE_HEIGHT,
@@ -33,6 +35,12 @@ export interface PdfExportOptions {
    * Default true (matches the print preview's default).
    */
   inkSaver?: boolean;
+  /**
+   * Word search pages render differently: full letter grid (no cell
+   * borders, no numbers), word bank instead of clues, circled words on
+   * the answer key. Default 'crossword'.
+   */
+  puzzleMode?: PuzzleMode;
 }
 
 /** Ink-saver blocked-square gray (matches PrintGrid's #D0D0D0). */
@@ -47,13 +55,21 @@ const INK_SAVER_GRAY = 208;
 export function exportAsPdf(puzzle: CrosswordResult, options: PdfExportOptions): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
 
-  renderPuzzlePage(doc, puzzle, options);
+  if (options.puzzleMode === 'wordsearch') {
+    renderWordSearchPage(doc, puzzle, {
+      title: options.title,
+      showNameDate: options.showNameDate,
+      withCircles: options.showAnswers,
+    });
+  } else {
+    renderPuzzlePage(doc, puzzle, options);
+  }
 
   // Build filename from title
   const slug = options.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'crossword';
+    .replace(/^-|-$/g, '') || 'puzzle';
   const suffix = options.showAnswers ? '-answer-key' : '';
 
   doc.save(`${slug}${suffix}.pdf`);
@@ -69,6 +85,28 @@ export function exportAsPdf(puzzle: CrosswordResult, options: PdfExportOptions):
  */
 export function exportBothAsPdf(puzzle: CrosswordResult, options: Omit<PdfExportOptions, 'showAnswers'>): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+
+  // Word search "both" is always two pages — the key is a full grid with
+  // circled words; compacting it makes the circles unreadable. Mirrors
+  // PrintContainer's call for the browser path.
+  if (options.puzzleMode === 'wordsearch') {
+    renderWordSearchPage(doc, puzzle, {
+      title: options.title,
+      showNameDate: options.showNameDate,
+      withCircles: false,
+    });
+    doc.addPage();
+    renderWordSearchPage(doc, puzzle, {
+      title: `${options.title} — Answer Key`,
+      showNameDate: false,
+      withCircles: true,
+    });
+
+    const wsSlug = options.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'word-search';
+    doc.save(`${wsSlug}-complete.pdf`);
+    return;
+  }
+
   const plan = planBothPrintLayout(puzzle);
 
   if (plan.singlePage) {
@@ -131,6 +169,188 @@ function renderPuzzlePage(doc: jsPDF, puzzle: CrosswordResult, options: PdfExpor
 
   // ── Clues ──
   return renderClues(doc, puzzle, cursorY);
+}
+
+/* ── Word search pages ────────────────────────────────────────────────── */
+
+interface WordSearchPageOptions {
+  title: string;
+  showNameDate: boolean;
+  /** Answer key: circle every placed word. */
+  withCircles: boolean;
+}
+
+/**
+ * A word search page: full letter grid inside a single frame (no cell
+ * borders, no numbers — letters in open space, like every printed word
+ * search), word bank below on the student page, colored circles around
+ * each word on the answer key.
+ */
+function renderWordSearchPage(doc: jsPDF, puzzle: CrosswordResult, options: WordSearchPageOptions): void {
+  let cursorY = MARGIN;
+
+  // ── Title ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  const titleWidth = doc.getTextWidth(options.title);
+  doc.text(options.title, (PAGE_WIDTH - titleWidth) / 2, cursorY + 14);
+  cursorY += 28;
+
+  // ── Name / Date line ──
+  if (options.showNameDate) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('Name:', MARGIN, cursorY + 9);
+    doc.line(MARGIN + 32, cursorY + 10, MARGIN + 200, cursorY + 10);
+    doc.text('Date:', MARGIN + 220, cursorY + 9);
+    doc.line(MARGIN + 250, cursorY + 10, MARGIN + 380, cursorY + 10);
+    cursorY += 22;
+  }
+  cursorY += 6;
+
+  // ── Letter grid ──
+  const cellSize = Math.min(
+    Math.floor((USABLE_WIDTH * 0.92) / puzzle.width),
+    Math.floor(((PAGE_HEIGHT - MARGIN - cursorY) * 0.62) / puzzle.height),
+    26
+  );
+  const gridWidth = cellSize * puzzle.width;
+  const gridHeight = cellSize * puzzle.height;
+  const gridX = (PAGE_WIDTH - gridWidth) / 2;
+  const framePad = 6;
+
+  // Single outer frame
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(1.2);
+  doc.rect(gridX - framePad, cursorY - framePad, gridWidth + framePad * 2, gridHeight + framePad * 2, 'S');
+
+  // Letters at cell centers
+  const letterSize = Math.min(12, Math.max(5, cellSize * 0.6));
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(letterSize);
+  doc.setTextColor(0, 0, 0);
+  for (let y = 0; y < puzzle.height; y++) {
+    for (let x = 0; x < puzzle.width; x++) {
+      const letter = puzzle.grid[y][x].toUpperCase();
+      const w = doc.getTextWidth(letter);
+      doc.text(letter, gridX + x * cellSize + (cellSize - w) / 2, cursorY + y * cellSize + cellSize * 0.66);
+    }
+  }
+
+  // ── Circles (answer key) ──
+  if (options.withCircles) {
+    doc.setLineWidth(Math.max(1, cellSize * 0.07));
+    puzzle.wordLocations.forEach((wl, index) => {
+      const [r, g, b] = hexToRgb(WORD_CIRCLE_COLORS[index % WORD_CIRCLE_COLORS.length]);
+      doc.setDrawColor(r, g, b);
+
+      const { dx, dy } = getWordVector(wl);
+      const x0 = gridX + (wl.x + 0.5) * cellSize;
+      const y0 = cursorY + (wl.y + 0.5) * cellSize;
+      const x1 = gridX + (wl.x + (wl.word.length - 1) * dx + 0.5) * cellSize;
+      const y1 = cursorY + (wl.y + (wl.word.length - 1) * dy + 0.5) * cellSize;
+      drawCapsule(doc, x0, y0, x1, y1, cellSize * 0.38);
+    });
+    doc.setDrawColor(0, 0, 0);
+  }
+
+  cursorY += gridHeight + framePad + 18;
+
+  // ── Word bank (student page) ──
+  if (!options.withCircles) {
+    renderWordBank(doc, puzzle, cursorY);
+  }
+}
+
+/** Word bank: alphabetized words in three columns, no clues. */
+function renderWordBank(doc: jsPDF, puzzle: CrosswordResult, startY: number): void {
+  const words = puzzle.wordLocations.map(wl => wl.word.toUpperCase()).sort();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  doc.text('WORD BANK', MARGIN, startY + 8);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, startY + 12, MARGIN + USABLE_WIDTH, startY + 12);
+
+  const columns = 3;
+  const columnWidth = USABLE_WIDTH / columns;
+  const rowHeight = 13;
+  const rows = Math.ceil(words.length / columns);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  words.forEach((word, i) => {
+    const col = Math.floor(i / rows);
+    const row = i % rows;
+    doc.text(word, MARGIN + col * columnWidth, startY + 26 + row * rowHeight);
+  });
+}
+
+/**
+ * Stroke a rotated capsule (stadium shape) around the segment from
+ * (x0,y0) to (x1,y1) — the classic answer-key circle. Built from two
+ * straight edges and two semicircular caps; each semicircle is two
+ * 90-degree cubic Bezier arcs, all computed in rotated coordinates
+ * directly (jsPDF has no rotation transform for paths).
+ */
+function drawCapsule(doc: jsPDF, x0: number, y0: number, x1: number, y1: number, radius: number): void {
+  const theta = Math.atan2(y1 - y0, x1 - x0);
+
+  // Sample a point on the circle of `radius` around (cx, cy)
+  const at = (cx: number, cy: number, angle: number): [number, number] =>
+    [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+
+  // 90-degree arc (clockwise in screen coords) from `fromAngle` around
+  // (cx, cy): returns the cubic control points and endpoint, absolute.
+  const K = 0.5523; // standard circle-to-Bezier constant
+  const arc90 = (cx: number, cy: number, fromAngle: number): [number, number, number, number, number, number] => {
+    const toAngle = fromAngle - Math.PI / 2;
+    const [sx, sy] = at(cx, cy, fromAngle);
+    const [ex, ey] = at(cx, cy, toAngle);
+    // Tangents for a decreasing-angle sweep: (sin a, -cos a)
+    const c1x = sx + K * radius * Math.sin(fromAngle);
+    const c1y = sy - K * radius * Math.cos(fromAngle);
+    const c2x = ex - K * radius * Math.sin(toAngle);
+    const c2y = ey + K * radius * Math.cos(toAngle);
+    return [c1x, c1y, c2x, c2y, ex, ey];
+  };
+
+  // Path: start at P0's "upper" edge point, straight to P1, cap around P1,
+  // straight back to P0, cap around P0. All angles relative to theta.
+  const start = at(x0, y0, theta + Math.PI / 2);
+  const absSegments: number[][] = [];
+
+  const lineTo = (p: [number, number]) => absSegments.push([p[0], p[1]]);
+  const curve = (c: [number, number, number, number, number, number]) => absSegments.push([...c]);
+
+  lineTo(at(x1, y1, theta + Math.PI / 2));
+  curve(arc90(x1, y1, theta + Math.PI / 2));
+  curve(arc90(x1, y1, theta));
+  lineTo(at(x0, y0, theta - Math.PI / 2));
+  curve(arc90(x0, y0, theta - Math.PI / 2));
+  curve(arc90(x0, y0, theta - Math.PI));
+
+  // jsPDF's lines() wants every segment RELATIVE to the previous endpoint
+  let prevX = start[0];
+  let prevY = start[1];
+  const relSegments = absSegments.map(seg => {
+    if (seg.length === 2) {
+      const rel = [seg[0] - prevX, seg[1] - prevY];
+      prevX = seg[0]; prevY = seg[1];
+      return rel;
+    }
+    const rel = [
+      seg[0] - prevX, seg[1] - prevY,
+      seg[2] - prevX, seg[3] - prevY,
+      seg[4] - prevX, seg[5] - prevY,
+    ];
+    prevX = seg[4]; prevY = seg[5];
+    return rel;
+  });
+
+  doc.lines(relSegments, start[0], start[1], [1, 1], 'S', true);
 }
 
 /**

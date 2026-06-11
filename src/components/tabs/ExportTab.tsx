@@ -10,18 +10,22 @@
  */
 
 import { useState } from 'react';
-import type { CrosswordResult } from '../../logic/types';
+import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
+import { PrintGrid } from '../print/PrintGrid';
+import { PrintWordBank } from '../print/PrintWordBank';
+import { WordCircleOverlay } from '../grid/WordCircleOverlay';
 import { exportAsJson, exportAsPng } from '../../utils/exportUtils';
 import { PrintPreviewModal } from '../print/PrintPreviewModal';
 import { copyPuzzleUrlToClipboard } from '../../utils/puzzleUrl';
 
 interface ExportTabProps {
   puzzle: CrosswordResult;
+  puzzleMode: PuzzleMode;
 }
 
-export function ExportTab({ puzzle }: ExportTabProps) {
+export function ExportTab({ puzzle, puzzleMode }: ExportTabProps) {
   const [includeAnswers, setIncludeAnswers] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [shareToast, setShareToast] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -76,7 +80,7 @@ export function ExportTab({ puzzle }: ExportTabProps) {
             }
             label="PNG Image"
             description="Download as image file"
-            onClick={() => exportAsPng(puzzle, includeAnswers)}
+            onClick={() => exportAsPng(puzzle, includeAnswers, undefined, puzzleMode)}
           />
 
           {/* JSON */}
@@ -88,7 +92,7 @@ export function ExportTab({ puzzle }: ExportTabProps) {
             }
             label="JSON"
             description="Puzzle data (re-importable)"
-            onClick={() => exportAsJson(puzzle)}
+            onClick={() => exportAsJson(puzzle, puzzleMode)}
           />
 
           {/* Answer Key PNG */}
@@ -100,7 +104,12 @@ export function ExportTab({ puzzle }: ExportTabProps) {
             }
             label="Answer Key"
             description="PNG with all answers shown"
-            onClick={() => exportAsPng(puzzle, true, 'crossword-answers.png')}
+            onClick={() => exportAsPng(
+              puzzle,
+              true,
+              puzzleMode === 'wordsearch' ? 'word-search-answers.png' : 'crossword-answers.png',
+              puzzleMode
+            )}
           />
 
           {/* Share Link */}
@@ -141,15 +150,50 @@ export function ExportTab({ puzzle }: ExportTabProps) {
         <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-4 uppercase tracking-wider">
           Preview
         </h2>
-        <div className="flex justify-center mb-6">
-          <CrosswordGrid puzzle={puzzle} showAnswers={includeAnswers} />
-        </div>
-        <CluePanel puzzle={puzzle} />
+        {puzzleMode === 'wordsearch' ? (
+          // Word search preview: paper card with the letter grid (letters
+          // always — they ARE the puzzle), circles when answers are on,
+          // word bank below. Across/Down clue panels don't apply here.
+          <div className="flex justify-center">
+            <div className="bg-white rounded-lg p-5 max-w-full"
+                 style={{ boxShadow: '0 2px 16px -4px rgba(30,25,18,0.12), 0 0 0 1px rgba(30,25,18,0.06)' }}>
+              <div className="flex justify-center mb-4">
+                <div style={{ border: '1.5px solid #000', padding: '5px', maxWidth: '100%' }}>
+                  <div style={{ width: `${Math.min(Math.floor(420 / puzzle.width), 36) * puzzle.width}px`, maxWidth: '100%', position: 'relative' }}>
+                    <PrintGrid
+                      puzzle={puzzle}
+                      showAnswers={true}
+                      cellSizePx={Math.min(Math.floor(420 / puzzle.width), 36)}
+                      inkSaver={false}
+                      wordSearch={true}
+                    />
+                    {includeAnswers && (
+                      <WordCircleOverlay
+                        words={puzzle.wordLocations}
+                        gridWidth={puzzle.width}
+                        gridHeight={puzzle.height}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+              <PrintWordBank puzzle={puzzle} />
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-center mb-6">
+              <CrosswordGrid puzzle={puzzle} showAnswers={includeAnswers} />
+            </div>
+            <CluePanel puzzle={puzzle} />
+          </>
+        )}
       </div>
 
       {/* Print Preview Modal */}
       <PrintPreviewModal
         puzzle={puzzle}
+        puzzleMode={puzzleMode}
         isOpen={showPrintPreview}
         onClose={() => setShowPrintPreview(false)}
       />

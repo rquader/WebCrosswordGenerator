@@ -15,14 +15,17 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { CrosswordResult } from '../../logic/types';
+import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { PrintGrid } from './PrintGrid';
 import { PrintClues } from './PrintClues';
+import { PrintWordBank } from './PrintWordBank';
+import { WordCircleOverlay } from '../grid/WordCircleOverlay';
 import { PrintContainer } from './PrintContainer';
 import { exportAsPdf, exportBothAsPdf } from '../../utils/pdfExport';
 
 interface PrintPreviewModalProps {
   puzzle: CrosswordResult;
+  puzzleMode: PuzzleMode;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -30,9 +33,12 @@ interface PrintPreviewModalProps {
 type PreviewTab = 'student' | 'answerKey';
 type PrintTarget = 'student' | 'answerKey' | 'both';
 
-export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModalProps) {
+export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: PrintPreviewModalProps) {
+  const isWordSearch = puzzleMode === 'wordsearch';
+  const defaultTitle = isWordSearch ? 'Word Search' : 'Crossword Puzzle';
+
   const [activeTab, setActiveTab] = useState<PreviewTab>('student');
-  const [title, setTitle] = useState('Crossword Puzzle');
+  const [title, setTitle] = useState(defaultTitle);
   const [showNameDate, setShowNameDate] = useState(true);
   // Default on: most teachers print on shared school printers — light-gray
   // blocked squares cut toner use dramatically on dense grids.
@@ -207,7 +213,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                     fontFamily: 'system-ui, -apple-system, sans-serif',
                   }}
                 >
-                  {title || 'Crossword Puzzle'}
+                  {title || defaultTitle}
                   {showAnswersInPreview && (
                     <span style={{ fontWeight: 400, fontSize: '12px', color: '#666', marginLeft: '6px' }}>
                       — Answer Key
@@ -238,23 +244,46 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
 
                 {/* Grid */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                  <div
-                    style={{
-                      width: `${previewCellPx * puzzle.width}px`,
-                      maxWidth: '100%',
-                    }}
-                  >
-                    <PrintGrid
-                      puzzle={puzzle}
-                      showAnswers={showAnswersInPreview}
-                      cellSizePx={previewCellPx}
-                      inkSaver={inkSaver}
-                    />
-                  </div>
+                  {isWordSearch ? (
+                    <div style={{ border: '1.5px solid #000', padding: '5px', maxWidth: '100%' }}>
+                      <div style={{ width: `${previewCellPx * puzzle.width}px`, maxWidth: '100%', position: 'relative' }}>
+                        <PrintGrid
+                          puzzle={puzzle}
+                          showAnswers={true}
+                          cellSizePx={previewCellPx}
+                          inkSaver={false}
+                          wordSearch={true}
+                        />
+                        {showAnswersInPreview && (
+                          <WordCircleOverlay
+                            words={puzzle.wordLocations}
+                            gridWidth={puzzle.width}
+                            gridHeight={puzzle.height}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: `${previewCellPx * puzzle.width}px`,
+                        maxWidth: '100%',
+                      }}
+                    >
+                      <PrintGrid
+                        puzzle={puzzle}
+                        showAnswers={showAnswersInPreview}
+                        cellSizePx={previewCellPx}
+                        inkSaver={inkSaver}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Clues */}
-                <PrintClues puzzle={puzzle} />
+                {/* Clues (crossword) / word bank (word search student page) */}
+                {isWordSearch
+                  ? (!showAnswersInPreview && <PrintWordBank puzzle={puzzle} />)
+                  : <PrintClues puzzle={puzzle} />}
               </div>
             </div>
           </div>
@@ -272,7 +301,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Crossword Puzzle"
+                  placeholder={defaultTitle}
                   className="w-full px-3 py-1.5 text-sm rounded-lg
                              bg-white dark:bg-surface-dark
                              border border-stone-200 dark:border-stone-700
@@ -293,19 +322,22 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                     Name / Date line
                   </span>
                 </label>
-                <label
-                  className="flex items-center gap-2 cursor-pointer select-none"
-                  title="Blocked squares print light gray instead of solid black"
-                >
-                  <input
-                    type="checkbox"
-                    checked={inkSaver}
-                    onChange={(e) => setInkSaver(e.target.checked)}
-                  />
-                  <span className="text-sm text-stone-600 dark:text-stone-400">
-                    Ink-Saver Mode
-                  </span>
-                </label>
+                {/* Word search has no blocked squares — ink-saver is meaningless there */}
+                {!isWordSearch && (
+                  <label
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    title="Blocked squares print light gray instead of solid black"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inkSaver}
+                      onChange={(e) => setInkSaver(e.target.checked)}
+                    />
+                    <span className="text-sm text-stone-600 dark:text-stone-400">
+                      Ink-Saver Mode
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
 
@@ -340,7 +372,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
             {/* Action buttons — PDF row */}
             <div className="flex flex-wrap gap-2">
               <ActionButton
-                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate, showAnswers: false, inkSaver })}
+                onClick={() => exportAsPdf(puzzle, { title: title || defaultTitle, showNameDate, showAnswers: false, inkSaver, puzzleMode })}
                 variant="secondary"
                 disabled={false}
               >
@@ -348,7 +380,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                 PDF Student
               </ActionButton>
               <ActionButton
-                onClick={() => exportAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate: false, showAnswers: true, inkSaver })}
+                onClick={() => exportAsPdf(puzzle, { title: title || defaultTitle, showNameDate: false, showAnswers: true, inkSaver, puzzleMode })}
                 variant="secondary"
                 disabled={false}
               >
@@ -356,7 +388,7 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
                 PDF Answer Key
               </ActionButton>
               <ActionButton
-                onClick={() => exportBothAsPdf(puzzle, { title: title || 'Crossword Puzzle', showNameDate, inkSaver })}
+                onClick={() => exportBothAsPdf(puzzle, { title: title || defaultTitle, showNameDate, inkSaver, puzzleMode })}
                 variant="secondary"
                 disabled={false}
               >
@@ -379,7 +411,8 @@ export function PrintPreviewModal({ puzzle, isOpen, onClose }: PrintPreviewModal
       {/* Hidden print container — only visible in @media print */}
       <PrintContainer
         puzzle={puzzle}
-        title={title || 'Crossword Puzzle'}
+        puzzleMode={puzzleMode}
+        title={title || defaultTitle}
         showNameDate={showNameDate}
         printTarget={isPrinting ? printTarget : 'student'}
         inkSaver={inkSaver}
