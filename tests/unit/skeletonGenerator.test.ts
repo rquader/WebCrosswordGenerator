@@ -120,6 +120,67 @@ describe('skeleton generation basics', () => {
 // Three-Tier Handling
 // ============================================================================
 
+describe('bankFill flag (default words-to-puzzle contract)', () => {
+  // A short list on a generous grid — exactly the case that used to
+  // trigger the word-bank skeleton in the default Generate path.
+  const fewWords = [
+    mustEntry('hello', 'Greeting'),
+    mustEntry('world', 'Earth'),
+    mustEntry('lemon', 'A citrus'),
+  ];
+
+  it('bankFill: false never creates blank slots — the words ARE the puzzle', () => {
+    const result = generateSkeleton({
+      width: 13, height: 13, seed: 42,
+      entries: fewWords,
+      bankFill: false,
+    });
+
+    expect(countEmptySlots(result.slots)).toBe(0);
+    expect(result.slots.length).toBe(3);
+    expect(result.mustPlacedCount).toBe(3);
+    expect(result.failures.length).toBe(0);
+    expect(result.slots.every(s => s.isUserWord)).toBe(true);
+  });
+
+  it('default (bankFill on) still builds the classic blank-slot skeleton', () => {
+    const result = generateSkeleton({
+      width: 13, height: 13, seed: 42,
+      entries: fewWords,
+    });
+
+    expect(countEmptySlots(result.slots)).toBeGreaterThan(0);
+  });
+
+  it('bankFill: false still grows to fit every word', () => {
+    const result = generateSkeleton({
+      width: 6, height: 6, seed: 7,
+      entries: [
+        mustEntry('photosynthesis', 'Plant food process'), // 14 letters — can't fit 6x6
+        mustEntry('chlorophyll', 'Green pigment'),
+      ],
+      bankFill: false,
+    });
+
+    expect(result.failures.length).toBe(0);
+    expect(result.grewFrom).toEqual({ width: 6, height: 6 });
+    expect(countEmptySlots(result.slots)).toBe(0);
+  });
+
+  it('empty word list ignores bankFill semantics and still yields a full blank skeleton', () => {
+    // The Generate tab passes bankFill: true for the explicit
+    // blank-skeleton flow; this pins that the engine fills from the bank.
+    const result = generateSkeleton({
+      width: 10, height: 10, seed: 42,
+      entries: [],
+      bankFill: true,
+    });
+
+    expect(countEmptySlots(result.slots)).toBeGreaterThan(0);
+    expect(result.slots.every(s => !s.isUserWord)).toBe(true);
+  });
+});
+
 describe('three-tier handling', () => {
   it('excludes dont-include words entirely', () => {
     const result = generateSkeleton({

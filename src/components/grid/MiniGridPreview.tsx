@@ -47,6 +47,8 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           height,
           seed,
           growToFit: !forceDimensions,
+          // Mirror Generate: blanks only exist behind Force Dimensions
+          bankFill: !!forceDimensions,
         }));
       } catch {
         setPreview(null); // e.g. no entry fits the grid yet
@@ -144,7 +146,9 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           </p>
         )}
         <p className="text-xs text-stone-400 dark:text-stone-500">
-          Generate to fill the blanks and finish your puzzle
+          {blankCount > 0
+            ? 'Generate to fill the blanks and finish your puzzle'
+            : 'Generate to create your puzzle'}
         </p>
       </div>
     </div>

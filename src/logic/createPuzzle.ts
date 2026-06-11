@@ -90,6 +90,12 @@ export interface PriorityPuzzleOptions {
    * (default true — see SkeletonConfig.growToFit).
    */
   growToFit?: boolean;
+  /**
+   * Skeleton only: fill under-used space with word-bank words stripped to
+   * blank slots (default true — see SkeletonConfig.bankFill). The default
+   * Generate path passes false: words in, finished puzzle out.
+   */
+  bankFill?: boolean;
 }
 
 /**
@@ -141,6 +147,7 @@ export function createSkeletonFromEntries(
     allowReverseWords: options.allowReverseWords,
     candidateCount: options.candidateCount,
     growToFit: options.growToFit,
+    bankFill: options.bankFill,
   });
 }
 

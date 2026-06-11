@@ -56,6 +56,65 @@ function skeletonInfo(skeleton: SkeletonResult, seed: number): string {
     + `${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`;
 }
 
+/** Status line for a directly finished puzzle (default words-to-puzzle path). */
+function puzzleInfo(skeleton: SkeletonResult, seed: number): string {
+  const grewNote = skeleton.grewFrom
+    ? ` (sized up from ${skeleton.grewFrom.width}x${skeleton.grewFrom.height} so every word fits)`
+    : '';
+  return `${skeleton.width}x${skeleton.height}${grewNote} | `
+    + `${skeleton.mustPlacedCount} ${skeleton.mustPlacedCount === 1 ? 'word' : 'words'} | seed: ${seed}`;
+}
+
+/**
+ * Turn a skeleton into a playable crossword: user-word slots keep their
+ * words, manually filled slots are written into the grid. Used both by
+ * the fill view's Create button and the direct words-to-puzzle path
+ * (where `filledSlots` is empty because there are no blanks).
+ */
+function skeletonToPuzzle(skeleton: SkeletonResult, filledSlots: FilledSlotData[]): CrosswordResult {
+  const fillMap = new Map<number, FilledSlotData>();
+  for (const f of filledSlots) {
+    fillMap.set(f.slotId, f);
+  }
+
+  // Merge: pre-filled slots (user words) + manually filled slots
+  const allWordLocations = skeleton.slots
+    .map(slot => {
+      const fill = fillMap.get(slot.id);
+      const word = slot.isUserWord ? slot.word! : fill?.word;
+      const clue = slot.isUserWord ? slot.clue! : fill?.clue ?? '';
+      if (!word) return null;
+      return {
+        word,
+        isHorizontal: slot.direction === 'across',
+        isReversed: false,
+        clue,
+        x: slot.startX,
+        y: slot.startY,
+      };
+    })
+    .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
+
+  // Rebuild the grid with user-filled words written into it
+  const grid = skeleton.grid.map(row => [...row]);
+  for (const slot of skeleton.slots) {
+    const fill = fillMap.get(slot.id);
+    if (!fill) continue;
+    for (let i = 0; i < fill.word.length; i++) {
+      const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+      const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+      grid[y][x] = fill.word[i];
+    }
+  }
+
+  return {
+    grid,
+    wordLocations: allWordLocations,
+    width: skeleton.width,
+    height: skeleton.height,
+  };
+}
+
 export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
   // --- State ---
   const [showAnswers, setShowAnswers] = useState(true);
@@ -214,16 +273,30 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         word: e.word, clue: e.clue, priority: 'must' as const,
       }));
 
+      // Blank-slot skeletons only exist behind Force Dimensions or the
+      // explicit blank-skeleton flow; the default path is words → puzzle.
+      const useBankFill = wizard.settings.forceDimensions || wordEntries.length === 0;
+
       const skeleton = createSkeletonFromEntries({
         entries: prioritized,
         width: effectiveWidth,
         height: effectiveHeight,
         seed,
         growToFit: !wizard.settings.forceDimensions,
+        bankFill: useBankFill,
       });
 
-      setActiveSkeleton(skeleton);
-      setGenerationInfo(skeletonInfo(skeleton, seed));
+      const hasBlanks = skeleton.slots.some(s => !s.isUserWord);
+      if (!useBankFill && !hasBlanks && skeleton.failures.length === 0) {
+        // Default path: every word placed, nothing to fill — straight to
+        // the finished puzzle, no decisions needed.
+        onPuzzleGenerated(skeletonToPuzzle(skeleton, []), 'crossword');
+        setGenerationInfo(puzzleInfo(skeleton, seed));
+        setActiveSkeleton(null);
+      } else {
+        setActiveSkeleton(skeleton);
+        setGenerationInfo(skeletonInfo(skeleton, seed));
+      }
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 10);
@@ -281,6 +354,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         height: effectiveHeight,
         seed: newSeed,
         growToFit: !wizard.settings.forceDimensions,
+        bankFill: wizard.settings.forceDimensions || wordEntries.length === 0,
       });
 
       setActiveSkeleton(skeleton);
@@ -316,6 +390,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
         height,
         seed,
         growToFit: !wizard.settings.forceDimensions,
+        bankFill: wizard.settings.forceDimensions || wordEntries.length === 0,
       });
 
       setActiveSkeleton(skeleton);
@@ -327,50 +402,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
 
   function handleSkeletonComplete(filledSlots: FilledSlotData[]) {
     if (!activeSkeleton) return;
-
-    // Build a lookup of user-filled words by slot ID
-    const fillMap = new Map<number, FilledSlotData>();
-    for (const f of filledSlots) {
-      fillMap.set(f.slotId, f);
-    }
-
-    // Merge: pre-filled slots (must-include) + user-filled slots
-    const allWordLocations = activeSkeleton.slots
-      .map(slot => {
-        const fill = fillMap.get(slot.id);
-        const word = slot.isUserWord ? slot.word! : fill?.word;
-        const clue = slot.isUserWord ? slot.clue! : fill?.clue ?? '';
-        if (!word) return null;
-        return {
-          word,
-          isHorizontal: slot.direction === 'across',
-          isReversed: false,
-          clue,
-          x: slot.startX,
-          y: slot.startY,
-        };
-      })
-      .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
-
-    // Rebuild the grid with user-filled words written into it
-    const grid = activeSkeleton.grid.map(row => [...row]);
-    for (const slot of activeSkeleton.slots) {
-      const fill = fillMap.get(slot.id);
-      if (!fill) continue;
-      for (let i = 0; i < fill.word.length; i++) {
-        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
-        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
-        grid[y][x] = fill.word[i];
-      }
-    }
-
-    const crosswordResult: CrosswordResult = {
-      grid,
-      wordLocations: allWordLocations,
-      width: activeSkeleton.width,
-      height: activeSkeleton.height,
-    };
-    onPuzzleGenerated(crosswordResult, 'crossword');
+    onPuzzleGenerated(skeletonToPuzzle(activeSkeleton, filledSlots), 'crossword');
     setActiveSkeleton(null);
     setGridKey(prev => prev + 1);
   }
@@ -409,7 +441,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated }: GenerateTabProps) {
             </h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
               {isCrossword
-                ? 'Pick a grid size, then generate a skeleton to fill with your words.'
+                ? 'Add your words and generate — the grid sizes itself so everything fits.'
                 : 'Enter your words, pick a grid size, and generate.'}
             </p>
 
@@ -632,7 +664,7 @@ function EmptyState({ isCrossword }: { isCrossword: boolean }) {
       </h2>
       <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs leading-relaxed">
         {isCrossword
-          ? 'Add your vocabulary on the left — type it, paste it, or load a word pack. The grid sizes itself to fit, and any remaining blanks are yours to fill with suggestions to help.'
+          ? 'Add your vocabulary on the left — type it, paste it, or load a word pack. The grid sizes itself so every word fits; generate and your puzzle is ready.'
           : 'Add your words on the left, choose a grid size, and generate your word search.'}
       </p>
     </div>

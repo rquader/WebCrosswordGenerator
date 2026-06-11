@@ -53,6 +53,16 @@ export interface SkeletonConfig {
    * (with a larger-size suggestion attached when one exists).
    */
   growToFit?: boolean;
+  /**
+   * Whether an under-filled grid gets word-bank words added and stripped
+   * into blank slots for manual fill (the classic skeleton experience).
+   *
+   * Default: true. The Generate tab passes false on its default path —
+   * the words-to-puzzle contract is "generate and you're done", with
+   * blank-slot skeletons reserved for Force Dimensions and the explicit
+   * blank-skeleton flow (empty word list).
+   */
+  bankFill?: boolean;
   /** Emit debug logs. */
   debug?: boolean;
 }
@@ -154,8 +164,9 @@ function generateSkeletonAtSize(
   // Step 3: Check if skeleton is needed
   // A skeleton is needed if fewer than ~70% of reasonable grid capacity is filled.
   // Rough capacity: for an NxN grid, expect about N*1.2 words at decent density.
+  // With bankFill off the answer is always no — the user's words ARE the puzzle.
   const estimatedCapacity = Math.floor(Math.max(width, height) * 1.2);
-  const needsSkeleton = totalUserPlaced < estimatedCapacity * 0.7;
+  const needsSkeleton = (config.bankFill ?? true) && totalUserPlaced < estimatedCapacity * 0.7;
 
   if (!needsSkeleton) {
     // Enough user words — skip skeleton, return complete puzzle
