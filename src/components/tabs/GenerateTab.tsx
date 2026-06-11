@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
+import { WordSearchPreviewGrid, WordBankPanel } from '../grid/WordSearchPreview';
 import {
   createWordSearchFromEntries,
   createSkeletonFromEntries,
@@ -22,7 +23,8 @@ import {
 import type { CrosswordResult, PuzzleMode, SkeletonResult, PrioritizedEntry } from '../../logic/types';
 import { recommendGridSize, recommendWordSearchGridSize, detectOutlierWords } from '../../logic/gridRecommendation';
 import { WORD_PACKS, getWordPackById } from '../../presets/wordPacks';
-import { parseFile, normalizeWordInput } from '../../utils/fileParser';
+import { parseFile } from '../../utils/fileParser';
+import { normalizeWordWhileTyping, toGridWord } from '../../logic/language';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { resolveFileUploadSource } from '../sources/fileUploadSource';
 import { resolveTextEntrySource } from '../sources/textEntrySource';
@@ -33,6 +35,7 @@ import {
   getGenerationEntriesFromRows,
   hasMeaningfulRows,
   type EntryTableRow,
+  type EntryValidationOptions,
 } from '../entries/entryTable';
 import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
@@ -41,6 +44,8 @@ import { MiniGridPreview } from '../grid/MiniGridPreview';
 
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
+  /** Mode the current `puzzle` was generated as (crossword vs word search). */
+  generatedMode: PuzzleMode;
   onPuzzleGenerated: (result: CrosswordResult, mode: PuzzleMode) => void;
   /** Jump to the AI Words tab (bridge from the words card). */
   onGoToAiWords: () => void;
@@ -93,6 +98,8 @@ function skeletonToPuzzle(skeleton: SkeletonResult, filledSlots: FilledSlotData[
         clue,
         x: slot.startX,
         y: slot.startY,
+        // Two-word phrases keep their spaced form for clue lists.
+        ...(slot.isUserWord && slot.displayWord ? { displayWord: slot.displayWord } : {}),
       };
     })
     .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
@@ -117,7 +124,7 @@ function skeletonToPuzzle(skeleton: SkeletonResult, filledSlots: FilledSlotData[
   };
 }
 
-export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: GenerateTabProps) {
+export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAiWords }: GenerateTabProps) {
   // --- State ---
   const [showAnswers, setShowAnswers] = useState(true);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
@@ -148,19 +155,32 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
 
   // --- Derived ---
 
+  // Language + two-word option + clue policy, shared by every word
+  // entry/validation path. Word searches don't require clues — the word
+  // bank is the puzzle.
+  const wordRules = useMemo<EntryValidationOptions>(
+    () => ({
+      language: wizard.settings.language,
+      allowTwoWords: wizard.settings.allowTwoWords,
+      requireClue: wizard.settings.puzzleMode === 'crossword',
+    }),
+    [wizard.settings.language, wizard.settings.allowTwoWords, wizard.settings.puzzleMode],
+  );
+
   const wordEntries = useMemo(
-    () => getGenerationEntriesFromRows(wizard.table.rows),
-    [wizard.table.rows],
+    () => getGenerationEntriesFromRows(wizard.table.rows, wordRules),
+    [wizard.table.rows, wordRules],
   );
 
   const isCrossword = wizard.settings.puzzleMode === 'crossword';
 
   const gridRecommendation = useMemo(() => {
     if (wordEntries.length === 0) return null;
-    const lengths = wordEntries.map(e => e.word.length);
+    // Sizing cares about placed letters — two-word phrases count without their space.
+    const lengths = wordEntries.map(e => toGridWord(e.word).length);
     if (isCrossword) {
       const rec = recommendGridSize(lengths);
-      return { ...rec, outliers: detectOutlierWords(wordEntries.map(e => e.word)) };
+      return { ...rec, outliers: detectOutlierWords(wordEntries.map(e => toGridWord(e.word))) };
     }
     return { ...recommendWordSearchGridSize(lengths), outliers: [] };
   }, [wordEntries, isCrossword]);
@@ -185,7 +205,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
 
   function handleChangeRow(rowId: string, field: 'word' | 'clue', value: string) {
     updateTableRows(rows => rows.map(row =>
-      row.id !== rowId ? row : { ...row, [field]: field === 'word' ? normalizeWordInput(value) : value }
+      row.id !== rowId ? row : { ...row, [field]: field === 'word' ? normalizeWordWhileTyping(value, wordRules) : value }
     ));
   }
 
@@ -203,7 +223,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
   }
 
   function handleClearAll() {
-    if (!hasMeaningfulRows(wizard.table.rows)) return;
+    if (!hasMeaningfulRows(wizard.table.rows, wordRules)) return;
     setClearUndo({ rows: wizard.table.rows, count: wordEntries.length });
     setWizard(prev => ({ ...prev, table: { rows: [createEmptyEntryRow()], warnings: [] } }));
   }
@@ -217,7 +237,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
   // --- Import handlers ---
 
   function applyImport(payload: ImportedEntryRows, decision: ImportDecision) {
-    const imported = createEntryRowsFromEntries(payload.entries);
+    const imported = createEntryRowsFromEntries(payload.entries, wordRules);
     setWizard(prev => ({
       ...prev,
       table: {
@@ -231,12 +251,12 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
   }
 
   function requestImport(payload: ImportedEntryRows) {
-    if (hasMeaningfulRows(wizard.table.rows)) { setPendingImport(payload); return; }
+    if (hasMeaningfulRows(wizard.table.rows, wordRules)) { setPendingImport(payload); return; }
     applyImport(payload, 'replace');
   }
 
   async function handleTextImport() {
-    const payload = await resolveTextEntrySource(wizard.textImport);
+    const payload = await resolveTextEntrySource(wizard.textImport, wordRules);
     requestImport(payload);
   }
 
@@ -244,7 +264,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
     if (!files || files.length === 0) return;
     setIsImportingFile(true);
     try {
-      const parsed = await parseFile(files[0]);
+      const parsed = await parseFile(files[0], wordRules);
       const payload = await resolveFileUploadSource({ fileName: files[0].name, entries: parsed.entries, warnings: parsed.errors });
       requestImport(payload);
     } finally { setIsImportingFile(false); }
@@ -476,7 +496,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
                 Your Words
               </h3>
               <div className="flex items-center gap-2">
-                {!showTextImport && hasMeaningfulRows(wizard.table.rows) && (
+                {!showTextImport && hasMeaningfulRows(wizard.table.rows, wordRules) && (
                   <button
                     onClick={handleClearAll}
                     className="px-2 py-1.5 rounded-lg text-xs text-stone-500 dark:text-stone-400
@@ -527,6 +547,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
               <TextImportView
                 rawText={wizard.textImport.rawText}
                 existingRowCount={wizard.table.rows.length}
+                wordRules={wordRules}
                 onChange={rawText => patchWizard({ textImport: { rawText } })}
                 onBack={() => setShowTextImport(false)}
                 onImport={() => void handleTextImport()}
@@ -534,6 +555,7 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
             ) : (
               <EntryTableEditor
                 table={wizard.table}
+                wordRules={wordRules}
                 onChangeRow={handleChangeRow}
                 onAddRow={handleAddRow}
                 onDeleteRow={handleDeleteRow}
@@ -597,7 +619,12 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
           {puzzle ? (
             <div className="space-y-6 animate-fade-in" key={gridKey}>
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label
+                  className="flex items-center gap-2 cursor-pointer"
+                  title={generatedMode === 'wordsearch'
+                    ? 'Circle the hidden words, like the printed answer key'
+                    : 'Fill the grid with the answer letters'}
+                >
                   <input type="checkbox" checked={showAnswers} onChange={e => setShowAnswers(e.target.checked)}
                     className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
                   <span className="text-sm text-stone-600 dark:text-stone-400">Show answers</span>
@@ -606,10 +633,23 @@ export function GenerateTab({ puzzle, onPuzzleGenerated, onGoToAiWords }: Genera
                   <span className="text-xs text-stone-400 dark:text-stone-500 font-mono">{generationInfo}</span>
                 )}
               </div>
-              <div className="flex justify-center">
-                <CrosswordGrid puzzle={puzzle} showAnswers={showAnswers} />
-              </div>
-              <CluePanel puzzle={puzzle} />
+              {generatedMode === 'wordsearch' ? (
+                // A word search always shows its letters — "answers" means
+                // circling the hidden words, exactly like the printed key.
+                <>
+                  <div className="flex justify-center">
+                    <WordSearchPreviewGrid puzzle={puzzle} showCircles={showAnswers} />
+                  </div>
+                  <WordBankPanel puzzle={puzzle} />
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-center">
+                    <CrosswordGrid puzzle={puzzle} showAnswers={showAnswers} />
+                  </div>
+                  <CluePanel puzzle={puzzle} />
+                </>
+              )}
             </div>
           ) : isCrossword && wordEntries.length > 0 ? (
             <MiniGridPreview

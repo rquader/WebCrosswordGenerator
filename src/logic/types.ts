@@ -26,6 +26,14 @@ export interface DirectionalWord {
    */
   dx?: number;
   dy?: number;
+
+  /**
+   * Display form of the word when it differs from the placed form —
+   * today that means two-word phrases: `word` is the solid grid form
+   * ("extratime"), `displayWord` keeps the space ("extra time") for
+   * clue lists, word banks, and answer keys. Absent when identical.
+   */
+  displayWord?: string;
 }
 
 /**
@@ -185,6 +193,12 @@ export interface SkeletonSlot {
 
   /** The word filling this slot, if already placed (must/can-include). */
   word?: string;
+
+  /**
+   * Display form of the placed word when it differs from the grid form
+   * (two-word phrases keep their space here). Absent when identical.
+   */
+  displayWord?: string;
 
   /** The clue for this slot, if already placed. */
   clue?: string;

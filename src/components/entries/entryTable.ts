@@ -1,5 +1,15 @@
 import type { WordCluePair } from '../../logic/types';
 import { normalizeWordInput } from '../../utils/fileParser';
+import { validateWord, type WordRules } from '../../logic/language';
+
+/**
+ * Word rules plus table-level policy: crosswords need a clue per word,
+ * word searches don't (the word bank IS the puzzle).
+ */
+export interface EntryValidationOptions extends WordRules {
+  /** Default true. Pass false in word search mode. */
+  requireClue?: boolean;
+}
 
 export interface EntryTableRow {
   id: string;
@@ -55,23 +65,27 @@ export function createEmptyEntryRow(): EntryTableRow {
   };
 }
 
-export function createEntryRowsFromEntries(entries: WordCluePair[]): EntryTableRow[] {
+export function createEntryRowsFromEntries(entries: WordCluePair[], rules: WordRules = {}): EntryTableRow[] {
   return entries.map((entry) => ({
     id: createEntryRowId(),
-    word: normalizeWordInput(entry.word),
+    word: normalizeWordInput(entry.word, rules),
     clue: entry.clue,
   }));
 }
 
 /**
- * Validation stays in one place so table UI, review, and generation use the same rules.
+ * Validation stays in one place so table UI, review, and generation use
+ * the same rules. `rules` carries the puzzle language, the two-word
+ * answers option (see validateWord in logic/language.ts), and whether
+ * clues are required (crossword yes, word search no).
  */
-export function validateEntryTableRow(row: EntryTableRow): EntryRowValidation {
-  const normalizedWord = normalizeWordInput(row.word);
+export function validateEntryTableRow(row: EntryTableRow, rules: EntryValidationOptions = {}): EntryRowValidation {
+  const requireClue = rules.requireClue ?? true;
+  const normalizedWord = normalizeWordInput(row.word, rules);
   const trimmedClue = row.clue.trim();
   const isEmpty = normalizedWord.length === 0 && trimmedClue.length === 0;
-  const wordError = isEmpty || normalizedWord.length > 0 ? null : 'Word is required';
-  const clueError = isEmpty || trimmedClue.length > 0 ? null : 'Clue is required';
+  const wordError = isEmpty ? null : validateWord(normalizedWord, rules);
+  const clueError = isEmpty || !requireClue || trimmedClue.length > 0 ? null : 'Clue is required';
 
   return {
     normalizedWord,
@@ -83,10 +97,10 @@ export function validateEntryTableRow(row: EntryTableRow): EntryRowValidation {
   };
 }
 
-export function getGenerationEntriesFromRows(rows: EntryTableRow[]): WordCluePair[] {
+export function getGenerationEntriesFromRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): WordCluePair[] {
   const entries: WordCluePair[] = [];
   for (const row of rows) {
-    const validation = validateEntryTableRow(row);
+    const validation = validateEntryTableRow(row, rules);
     if (!validation.isValid) continue;
     entries.push({
       word: validation.normalizedWord,
@@ -96,19 +110,19 @@ export function getGenerationEntriesFromRows(rows: EntryTableRow[]): WordCluePai
   return entries;
 }
 
-export function countInvalidOrEmptyRows(rows: EntryTableRow[]): number {
+export function countInvalidOrEmptyRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): number {
   let count = 0;
   for (const row of rows) {
-    if (!validateEntryTableRow(row).isValid) {
+    if (!validateEntryTableRow(row, rules).isValid) {
       count += 1;
     }
   }
   return count;
 }
 
-export function hasMeaningfulRows(rows: EntryTableRow[]): boolean {
+export function hasMeaningfulRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): boolean {
   return rows.some((row) => {
-    const validation = validateEntryTableRow(row);
+    const validation = validateEntryTableRow(row, rules);
     return !validation.isEmpty;
   });
 }

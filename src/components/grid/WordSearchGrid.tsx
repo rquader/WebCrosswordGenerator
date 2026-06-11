@@ -13,6 +13,15 @@ import type { CrosswordResult, DirectionalWord } from '../../logic/types';
 import { getWordCellCoords, getWordVector } from '../../logic/wordSearchGenerator';
 import { WordCircleOverlay } from './WordCircleOverlay';
 import { WORD_CIRCLE_COLORS } from '../../utils/wordCircleColors';
+import {
+  GRID_PAN,
+  GRID_PAGE,
+  GRID_FRAME,
+  CELL_BASE,
+  CELL_LETTER,
+  LETTER_FONT_SIZE,
+  gridSizingStyle,
+} from './gridStyles';
 
 function cellKey(x: number, y: number): string {
   return x + ',' + y;
@@ -103,7 +112,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
         };
         const updated = [...foundWords, newFound];
         setFoundWords(updated);
-        setAnnouncement(`Found: ${wordLoc.word.toUpperCase()}, ${puzzle.wordLocations.length - updated.length} remaining`);
+        setAnnouncement(`Found: ${(wordLoc.displayWord ?? wordLoc.word).toUpperCase()}, ${puzzle.wordLocations.length - updated.length} remaining`);
         setLastFoundAnim(wordLoc.word);
         setTimeout(() => setLastFoundAnim(null), 500);
 
@@ -230,16 +239,17 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
             }
           </div>
 
-          {/* Grid — pans horizontally on phones instead of crushing cells */}
-          <div className="max-w-full overflow-x-auto pb-2">
-          <div className="inline-block relative noise-texture rounded-lg" tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: 'none' }}>
+          {/* Grid — pans horizontally on phones instead of crushing cells.
+              Print treatment from gridStyles: paper cells, INK letters in
+              every theme (the old stone-300 letters vanished on the light
+              paper in dark mode). */}
+          <div className={`${GRID_PAN} pb-2`}>
+          <div className={GRID_PAGE} tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: 'none' }}>
             <div
               role="grid"
               aria-label="Word search puzzle grid"
-              className="relative grid gap-0 border-2 border-stone-700 dark:border-stone-500/70 rounded-sm overflow-hidden"
-              style={{
-                gridTemplateColumns: `repeat(${puzzle.width}, minmax(0, 1fr))`,
-              }}
+              className={`relative ${GRID_FRAME}`}
+              style={gridSizingStyle(puzzle.width, 30, 44)}
             >
               {puzzle.grid.map((row, y) =>
                 row.map((cell, x) => {
@@ -256,20 +266,12 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
                       onClick={() => handleCellClick(x, y)}
                       onMouseEnter={() => handleCellHover(x, y)}
                       className={`
-                        relative w-10 h-10 sm:w-11 sm:h-11
-                        border border-grid-border dark:border-grid-border-dark
-                        bg-grid-cell dark:bg-grid-cell-dark
-                        flex items-center justify-center cursor-pointer select-none
-                        transition-all duration-100
+                        ${CELL_BASE} cursor-pointer transition-all duration-100
+                        ${isPreview ? 'bg-primary-100' : 'bg-grid-cell dark:bg-grid-cell-dark hover:bg-primary-50'}
                         ${isStart ? 'ring-2 ring-primary-500 z-10' : ''}
-                        ${isPreview ? 'bg-primary-100/60 dark:bg-primary-900/30' : 'hover:bg-primary-50/50 dark:hover:bg-primary-950/15'}
                       `}
                     >
-                      <span
-                        className={`text-sm sm:text-base font-semibold uppercase
-                          ${isPreview && !isFound ? 'text-primary-700 dark:text-primary-300' : 'text-stone-700 dark:text-stone-300'}
-                        `}
-                      >
+                      <span className={CELL_LETTER} style={{ fontSize: LETTER_FONT_SIZE }}>
                         {cell}
                       </span>
                     </div>
@@ -368,7 +370,7 @@ function WordList({ words, foundWords, lastFoundWord }: {
                         ? 'line-through text-stone-400 dark:text-stone-500'
                         : 'text-stone-700 dark:text-stone-300'
                     }`}>
-                      {wl.word}
+                      {wl.displayWord ?? wl.word}
                     </span>
                     <span className={`text-xs truncate ${
                       isFound ? 'text-stone-300 dark:text-stone-600' : 'text-stone-400 dark:text-stone-500'

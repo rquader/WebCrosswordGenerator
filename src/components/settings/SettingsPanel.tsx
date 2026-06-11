@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import type { GenerationSettings } from './generationSettings';
 import type { GridRecommendation } from '../../logic/types';
+import { LANGUAGES, type PuzzleLanguage } from '../../logic/language';
 
 interface SettingsPanelProps {
   value: GenerationSettings;
@@ -212,6 +213,50 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               <span className="block text-sm text-stone-600 dark:text-stone-400">Force dimensions</span>
               <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
                 Keep the grid exactly this size. Words that don't fit are reported instead of growing the grid.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <Divider />
+
+        {/* Language + word shape — applies to entries, the AI prompt, and
+            (word search) the filler letter filter. */}
+        <div>
+          <label htmlFor="settings-language" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+            Language
+          </label>
+          <select
+            id="settings-language"
+            value={value.language}
+            onChange={(e) => patch({ language: e.target.value as PuzzleLanguage })}
+            className="w-full rounded-lg border border-stone-300 dark:border-stone-600
+                       bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
+                       px-3 py-2 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                       transition-shadow"
+          >
+            {LANGUAGES.map(lang => (
+              <option key={lang.id} value={lang.id}>{lang.label}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            {value.language === 'spanish'
+              ? 'Spanish keeps Á É Í Ó Ú Ü Ñ in words. Clues and AI suggestions follow the language too.'
+              : 'Words use plain A-Z and digits. Clues and AI suggestions follow the language too.'}
+          </p>
+
+          <label className="mt-3 flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={value.allowTwoWords}
+              onChange={() => patch({ allowTwoWords: !value.allowTwoWords })}
+              className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+            />
+            <span>
+              <span className="block text-sm text-stone-600 dark:text-stone-400">Allow two-word answers</span>
+              <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                Phrases like &ldquo;extra time&rdquo; go into the grid without the space; their clues are marked (2 words).
               </span>
             </span>
           </label>

@@ -1,6 +1,7 @@
 import type { EntryTableDraft } from '../entries/entryTable';
 import { createDefaultGenerationSettings, type GenerationSettings } from '../settings/generationSettings';
 import { createEmptyEntryRow } from '../entries/entryTable';
+import { isPuzzleLanguage } from '../../logic/language';
 import type { TextEntryDraft } from './types';
 
 export const WORD_SOURCE_WIZARD_STORAGE_KEY = 'crossword-word-source-wizard';
@@ -39,6 +40,8 @@ function sanitizeSettings(raw: Partial<GenerationSettings> | undefined): Generat
     puzzleMode: raw?.puzzleMode === 'wordsearch' ? 'wordsearch' : defaults.puzzleMode,
     autoGridSize: typeof raw?.autoGridSize === 'boolean' ? raw.autoGridSize : defaults.autoGridSize,
     forceDimensions: typeof raw?.forceDimensions === 'boolean' ? raw.forceDimensions : defaults.forceDimensions,
+    language: isPuzzleLanguage(raw?.language) ? raw.language : defaults.language,
+    allowTwoWords: typeof raw?.allowTwoWords === 'boolean' ? raw.allowTwoWords : defaults.allowTwoWords,
     wordSearchDirections: {
       horizontal: raw?.wordSearchDirections?.horizontal ?? defaults.wordSearchDirections.horizontal,
       vertical: raw?.wordSearchDirections?.vertical ?? defaults.wordSearchDirections.vertical,

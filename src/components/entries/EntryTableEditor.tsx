@@ -1,8 +1,10 @@
 import { useRef } from 'react';
-import { validateEntryTableRow, type EntryTableDraft, type EntryTableRow } from './entryTable';
+import { validateEntryTableRow, type EntryTableDraft, type EntryTableRow, type EntryValidationOptions } from './entryTable';
 
 interface EntryTableEditorProps {
   table: EntryTableDraft;
+  /** Language, two-word option, and clue policy — matches generation. */
+  wordRules?: EntryValidationOptions;
   onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowId: string) => void;
@@ -16,6 +18,7 @@ interface EntryTableEditorProps {
 
 export function EntryTableEditor({
   table,
+  wordRules,
   onChangeRow,
   onAddRow,
   onDeleteRow,
@@ -93,6 +96,7 @@ export function EntryTableEditor({
               <EntryTableRowEditor
                 key={row.id}
                 row={row}
+                wordRules={wordRules}
                 onChangeRow={onChangeRow}
                 onDeleteRow={onDeleteRow}
               />
@@ -128,14 +132,17 @@ export function EntryTableEditor({
 
 function EntryTableRowEditor({
   row,
+  wordRules,
   onChangeRow,
   onDeleteRow,
 }: {
   row: EntryTableRow;
+  wordRules?: EntryValidationOptions;
   onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
   onDeleteRow: (rowId: string) => void;
 }) {
-  const validation = validateEntryTableRow(row);
+  const validation = validateEntryTableRow(row, wordRules ?? {});
+  const clueOptional = wordRules?.requireClue === false;
 
   return (
     <tr className="align-top">
@@ -154,7 +161,7 @@ function EntryTableRowEditor({
         <input
           value={row.clue}
           onChange={(e) => onChangeRow(row.id, 'clue', e.target.value)}
-          placeholder="definition or clue"
+          placeholder={clueOptional ? 'optional for word search' : 'definition or clue'}
           className="w-full rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         {validation.clueError && (

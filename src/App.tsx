@@ -77,6 +77,7 @@ export function App() {
           <div role="tabpanel" id="tabpanel-generate" aria-labelledby="tab-generate">
             <GenerateTab
               puzzle={puzzle}
+              generatedMode={puzzleMode}
               onPuzzleGenerated={handlePuzzleGenerated}
               onGoToAiWords={() => setActiveTab('ai')}
             />

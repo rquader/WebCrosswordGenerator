@@ -265,7 +265,7 @@ function renderWordSearchPage(doc: jsPDF, puzzle: CrosswordResult, options: Word
 
 /** Word bank: alphabetized words in three columns, no clues. */
 function renderWordBank(doc: jsPDF, puzzle: CrosswordResult, startY: number): void {
-  const words = puzzle.wordLocations.map(wl => wl.word.toUpperCase()).sort();
+  const words = puzzle.wordLocations.map(wl => (wl.displayWord ?? wl.word).toUpperCase()).sort();
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -519,18 +519,34 @@ function renderClues(doc: jsPDF, puzzle: CrosswordResult, startY: number): numbe
     puzzle.wordLocations, puzzle.width, puzzle.height
   );
 
+  // Two-word answers carry their marker inside the clue text so the
+  // measuring/wrapping pass accounts for it like any other word.
+  const withMarkers = (clues: typeof acrossClues) =>
+    clues.map(c => (c.displayWord ? { ...c, clue: `${c.clue} (2 words)` } : c));
+  const markedAcross = withMarkers(acrossClues);
+  const markedDown = withMarkers(downClues);
+  const hasTwoWordAnswers = puzzle.wordLocations.some(w => w.displayWord);
+
   const columnWidth = (USABLE_WIDTH - COLUMN_GAP) / 2;
   const leftX = MARGIN;
   const rightX = MARGIN + columnWidth + COLUMN_GAP;
 
-  const acrossQueue = measureClues(doc, acrossClues, columnWidth);
-  const downQueue = measureClues(doc, downClues, columnWidth);
+  const acrossQueue = measureClues(doc, markedAcross, columnWidth);
+  const downQueue = measureClues(doc, markedDown, columnWidth);
 
   // Not enough room under the grid for a meaningful start? Fresh page.
   let y = startY;
   if (PAGE_HEIGHT - MARGIN - y < MIN_CLUE_SPACE_PT) {
     doc.addPage();
     y = MARGIN;
+  }
+
+  if (hasTwoWordAnswers) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Answers marked (2 words) are written in the grid without the space.', MARGIN, y + 8);
+    y += 14;
   }
 
   // Each page renders the next chunk of Across on the left and Down on the

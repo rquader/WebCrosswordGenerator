@@ -54,7 +54,7 @@ interface CompactPuzzle {
 }
 
 interface CompactWord {
-  /** Word text */
+  /** Word text (grid form — no spaces) */
   w: string;
   /** Clue text */
   c: string;
@@ -69,6 +69,11 @@ interface CompactWord {
   /** Exact direction vector (v2 word search) — one of the 8 unit vectors */
   dx?: number;
   dy?: number;
+  /**
+   * Display word for two-word answers ("extra time"). Optional extra key —
+   * old deployed clients parse and ignore it, so v1 stays compatible.
+   */
+  dw?: string;
 }
 
 /** A decoded shared puzzle with the mode it was shared as. */
@@ -214,6 +219,7 @@ function wordToCompact(word: DirectionalWord): CompactWord {
     d: word.isHorizontal ? 'a' : 'd',
   };
   if (word.isReversed) cw.r = 1;
+  if (word.displayWord) cw.dw = word.displayWord;
   return cw;
 }
 
@@ -240,6 +246,9 @@ function wordFromCompact(cw: CompactWord): DirectionalWord {
   if (cw.dx !== undefined && cw.dy !== undefined) {
     word.dx = cw.dx;
     word.dy = cw.dy;
+  }
+  if (cw.dw !== undefined) {
+    word.displayWord = cw.dw;
   }
   return word;
 }

@@ -18,7 +18,10 @@ export interface NumberedCell {
 
 export interface NumberedClue {
   number: number;
+  /** Grid form of the answer (no spaces) — matches the placed cells. */
   word: string;
+  /** Spaced display form for two-word answers. Absent when identical. */
+  displayWord?: string;
   clue: string;
   isHorizontal: boolean;
   isReversed: boolean;
@@ -68,6 +71,7 @@ export function assignNumbers(
         const clue: NumberedClue = {
           number,
           word: word.word,
+          ...(word.displayWord ? { displayWord: word.displayWord } : {}),
           clue: word.clue,
           isHorizontal: word.isHorizontal,
           isReversed: word.isReversed,

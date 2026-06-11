@@ -82,8 +82,8 @@ export function PlayableGrid({
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!selectedCell) return;
 
-    // Letter input
-    if (e.key.length === 1 && e.key.match(/[a-zA-Z]/)) {
+    // Letter input — any language letter (Ñ, accented vowels) plus digits.
+    if (e.key.length === 1 && e.key.match(/[\p{L}0-9]/u)) {
       e.preventDefault();
       onLetterInput(e.key);
       setAnnouncement(`Entered ${e.key.toUpperCase()}`);

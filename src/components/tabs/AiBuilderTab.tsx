@@ -17,6 +17,18 @@ import { buildWordListPrompt, parseWordListResponse, type ParseIssue } from '../
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { getGenerationEntriesFromRows, createEntryRowsFromEntries, hasMeaningfulRows } from '../entries/entryTable';
 import { recommendGridSize, recommendWordSearchGridSize } from '../../logic/gridRecommendation';
+import { toGridWord } from '../../logic/language';
+import type { EntryValidationOptions } from '../entries/entryTable';
+import type { GenerationSettings } from '../settings/generationSettings';
+
+/** Language, two-word option, and clue policy for a settings snapshot. */
+function rulesFromSettings(settings: GenerationSettings): EntryValidationOptions {
+  return {
+    language: settings.language,
+    allowTwoWords: settings.allowTwoWords,
+    requireClue: settings.puzzleMode === 'crossword',
+  };
+}
 
 const DRAFT_STORAGE_KEY = 'crossword-ai-builder-draft';
 const MIN_WORDS = 1;
@@ -79,7 +91,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
   const [wizardSnapshot] = useState(() => loadWizardState());
 
   const existingWords = useMemo(
-    () => getGenerationEntriesFromRows(wizardSnapshot.table.rows).map(e => e.word),
+    () => getGenerationEntriesFromRows(wizardSnapshot.table.rows, rulesFromSettings(wizardSnapshot.settings)).map(e => e.word),
     [wizardSnapshot],
   );
 
@@ -88,7 +100,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
   const { gridWidth, gridHeight } = useMemo(() => {
     const settings = wizardSnapshot.settings;
     if (settings.autoGridSize && existingWords.length > 0) {
-      const lengths = existingWords.map(w => w.length);
+      const lengths = existingWords.map(w => toGridWord(w).length);
       const rec = settings.puzzleMode === 'crossword'
         ? recommendGridSize(lengths)
         : recommendWordSearchGridSize(lengths);
@@ -106,6 +118,8 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     gridWidth,
     gridHeight,
     puzzleMode: wizardSnapshot.settings.puzzleMode,
+    language: wizardSnapshot.settings.language,
+    allowTwoWords: wizardSnapshot.settings.allowTwoWords,
   }), [draft, existingWords, gridWidth, gridHeight, wizardSnapshot]);
 
   function patchDraft(next: Partial<BuilderDraft>) {
@@ -127,13 +141,19 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     // Re-read at import time: cheap, and guards against multiple imports
     // in one visit (each import writes new state).
     const wizard = loadWizardState();
-    const currentWords = getGenerationEntriesFromRows(wizard.table.rows).map(e => e.word);
+    const rules = rulesFromSettings(wizard.settings);
+    const currentWords = getGenerationEntriesFromRows(wizard.table.rows, rules).map(e => e.word);
 
-    const parsed = parseWordListResponse(response, currentWords);
+    const parsed = parseWordListResponse(response, currentWords, {
+      language: rules.language,
+      allowTwoWords: rules.allowTwoWords,
+      // Word search prompts ask for bare words — parse them that way.
+      wordsOnly: wizard.settings.puzzleMode === 'wordsearch',
+    });
 
     if (parsed.entries.length > 0) {
-      const imported = createEntryRowsFromEntries(parsed.entries);
-      const keepExisting = hasMeaningfulRows(wizard.table.rows);
+      const imported = createEntryRowsFromEntries(parsed.entries, rules);
+      const keepExisting = hasMeaningfulRows(wizard.table.rows, rules);
       saveWizardState({
         ...wizard,
         table: {
@@ -334,7 +354,9 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2.5">
                 <p className="text-sm text-amber-700 dark:text-amber-300">
                   No words found in that text. Make sure you pasted the AI's reply —
-                  it should contain lines like <span className="font-mono">WORD | Clue</span>.
+                  it should contain {wizardSnapshot.settings.puzzleMode === 'wordsearch'
+                    ? <>one word per line</>
+                    : <>lines like <span className="font-mono">WORD | Clue</span></>}.
                 </p>
               </div>
             )}

@@ -75,8 +75,53 @@ describe('buildWordListPrompt', () => {
     for (const prompt of [crossword, wordSearch]) {
       expect(prompt).toContain('must be a single word');
       expect(prompt).toContain('no multi-word phrases');
-      expect(prompt).toContain('"goalkeeper" is correct; "goal keeper" is not');
+      expect(prompt).toContain('"goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not');
     }
+  });
+
+  it('forbids symbols and accents but allows digits, in both modes', () => {
+    // Real AI deviation: "EXTRA_TIME" came back from a prompt that only
+    // banned spaces and hyphens. The prompt must close every join-character
+    // loophole and offer the escape hatch (pick a different word).
+    const crossword = buildWordListPrompt(baseOptions);
+    const wordSearch = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
+
+    for (const prompt of [crossword, wordSearch]) {
+      expect(prompt).toContain('no underscores');
+      expect(prompt).toContain('letters A-Z and digits 0-9');
+      expect(prompt).toContain('no punctuation, no abbreviations, no other symbols');
+      expect(prompt).toContain('accented letters in their plain form');
+      expect(prompt).toContain('choose a different single word instead — never join words with a symbol');
+      expect(prompt).toContain('ALL CAPS using only the letters A-Z and digits');
+    }
+  });
+
+  it('states the language for words and clues, with the Spanish charset', () => {
+    const english = buildWordListPrompt(baseOptions);
+    expect(english).toContain('Language: English. Every word and every clue must be written in English.');
+
+    const spanish = buildWordListPrompt({ ...baseOptions, language: 'spanish' });
+    expect(spanish).toContain('Language: Spanish');
+    expect(spanish).toContain('Á É Í Ó Ú Ü Ñ');
+
+    const german = buildWordListPrompt({ ...baseOptions, language: 'german' });
+    expect(german).toContain('Write umlauts as plain vowels and ß as SS');
+  });
+
+  it('switches to underscore-joined phrases when two-word answers are on', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, allowTwoWords: true });
+
+    expect(prompt).toContain('one underscore joining the words: "EXTRA_TIME"');
+    expect(prompt).toContain('TWO_WORDS');
+    expect(prompt).not.toContain('"goalkeeper" is correct');
+  });
+
+  it('asks for bare words with no clues in word search mode', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
+
+    expect(prompt).toContain('Words only — no clues or definitions.');
+    expect(prompt).toContain('one word per line');
+    expect(prompt).not.toContain('WORD | Clue text');
   });
 });
 
@@ -153,6 +198,96 @@ describe('parseWordListResponse', () => {
     expect(result.issues[0].line).toBe(3);
     expect(result.issues[0].message).toContain('"goal keeper" has a space');
     expect(result.issues[0].message).toContain('must be single words');
+  });
+
+  it('flags words joined with underscores or hyphens when phrases are off', () => {
+    const response = [
+      '```',                                                  // line 1
+      'EXTRA_TIME | Additional minutes played after a draw.', // line 2
+      'WELL-KNOWN | Familiar to many people.',                // line 3
+      'OFFSIDE | A position past the last defender.',         // line 4
+      '```',
+    ].join('\n');
+
+    const result = parseWordListResponse(response);
+
+    expect(result.entries.map(e => e.word)).toEqual(['OFFSIDE']);
+    expect(result.issues).toHaveLength(2);
+    expect(result.issues[0].line).toBe(2);
+    expect(result.issues[0].message).toContain('"EXTRA_TIME"');
+    expect(result.issues[0].message).toContain('letters and digits only');
+    expect(result.issues[1].line).toBe(3);
+    expect(result.issues[1].message).toContain('"WELL-KNOWN"');
+  });
+
+  it('accepts digits in words', () => {
+    const response = '```\nCO2 | The gas plants take in.\n```';
+
+    const result = parseWordListResponse(response);
+
+    expect(result.entries).toEqual([{ word: 'CO2', clue: 'The gas plants take in.' }]);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('accepts Spanish letters only when the language is Spanish', () => {
+    const response = '```\nJALAPEÑO | Un chile picante.\n```';
+
+    const spanish = parseWordListResponse(response, [], { language: 'spanish' });
+    expect(spanish.entries.map(e => e.word)).toEqual(['JALAPEÑO']);
+
+    const english = parseWordListResponse(response, []);
+    expect(english.entries).toHaveLength(0);
+    expect(english.issues).toHaveLength(1);
+  });
+
+  it('converts underscores and spaces to a spaced phrase when two-word answers are on', () => {
+    const response = [
+      '```',
+      'EXTRA_TIME | Minutes added after a draw.',     // underscore: prompt format
+      'ICE CREAM | A frozen dessert.',                // literal space also tolerated
+      'ONE_TWO_THREE | Too many words.',              // three words: rejected
+      '```',
+    ].join('\n');
+
+    const result = parseWordListResponse(response, [], { allowTwoWords: true });
+
+    expect(result.entries.map(e => e.word)).toEqual(['EXTRA TIME', 'ICE CREAM']);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].message).toContain('more than two words');
+  });
+
+  it('parses bare word lists in words-only mode (word search)', () => {
+    const response = [
+      'Here are your words!',
+      '```',
+      '1. STOMATA',
+      '**ROOTS**',
+      'NOT A WORD LINE !!!',
+      'XYLEM | Tissue that carries water upward.',  // stray pipe line still fine
+      '```',
+    ].join('\n');
+
+    const result = parseWordListResponse(response, [], { wordsOnly: true });
+
+    expect(result.entries.map(e => e.word)).toEqual(['STOMATA', 'ROOTS', 'XYLEM']);
+    expect(result.entries[0].clue).toBe('');
+    expect(result.entries[2].clue).toBe('Tissue that carries water upward.');
+    // the junk line inside the fence is reported, not silently dropped
+    expect(result.issues).toHaveLength(1);
+  });
+
+  it('words-only mode skips prose silently when the AI omitted the fence', () => {
+    const response = [
+      'Sure! Here are your words:',
+      'NECTAR',
+      'POLLEN',
+      'Hope this helps!',  // two valid-looking words... but so is this line? no — spaces
+    ].join('\n');
+
+    const result = parseWordListResponse(response, [], { wordsOnly: true });
+
+    expect(result.entries.map(e => e.word)).toEqual(['NECTAR', 'POLLEN']);
+    expect(result.issues).toHaveLength(0);
   });
 
   it('skips blank lines silently', () => {

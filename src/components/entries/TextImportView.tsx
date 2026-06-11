@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { parseTextInput } from '../../utils/fileParser';
+import type { WordRules } from '../../logic/language';
 
 interface TextImportViewProps {
   rawText: string;
   existingRowCount: number;
+  /** Puzzle language + two-word option, so the preview parses like the import will. */
+  wordRules?: WordRules;
   onChange: (rawText: string) => void;
   onBack: () => void;
   onImport: () => void;
@@ -12,11 +15,12 @@ interface TextImportViewProps {
 export function TextImportView({
   rawText,
   existingRowCount,
+  wordRules,
   onChange,
   onBack,
   onImport,
 }: TextImportViewProps) {
-  const preview = useMemo(() => parseTextInput(rawText), [rawText]);
+  const preview = useMemo(() => parseTextInput(rawText, wordRules ?? {}), [rawText, wordRules]);
 
   return (
     <div className="warm-card p-5 space-y-4">

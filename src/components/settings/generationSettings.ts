@@ -1,5 +1,6 @@
 import type { PuzzleMode, WordSearchDirectionSettings } from '../../logic/types';
 import { DEFAULT_WORD_SEARCH_DIRECTIONS } from '../../logic/wordSearchGenerator';
+import { DEFAULT_LANGUAGE, type PuzzleLanguage } from '../../logic/language';
 
 export interface GenerationSettings {
   width: number;
@@ -18,6 +19,16 @@ export interface GenerationSettings {
    * by a resize. Implies manual sizing (autoGridSize off).
    */
   forceDimensions: boolean;
+  /**
+   * Puzzle language. Decides the word charset (Spanish keeps accents and Ñ),
+   * the AI prompt's language, and the word-search filler blocklist.
+   */
+  language: PuzzleLanguage;
+  /**
+   * Permit two-word phrases ("extra time") as entries. They place in the
+   * grid without the space; clue lists mark them "(2 words)".
+   */
+  allowTwoWords: boolean;
 }
 
 export function createDefaultGenerationSettings(): GenerationSettings {
@@ -29,5 +40,7 @@ export function createDefaultGenerationSettings(): GenerationSettings {
     wordSearchDirections: { ...DEFAULT_WORD_SEARCH_DIRECTIONS },
     autoGridSize: true,
     forceDimensions: false,
+    language: DEFAULT_LANGUAGE,
+    allowTwoWords: false,
   };
 }

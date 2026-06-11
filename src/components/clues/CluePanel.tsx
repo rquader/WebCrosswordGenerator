@@ -19,10 +19,19 @@ export function CluePanel({ puzzle }: CluePanelProps) {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   }, [puzzle]);
 
+  const hasTwoWordAnswers = puzzle.wordLocations.some(w => w.displayWord);
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <ClueList title="Across" clues={acrossClues} />
-      <ClueList title="Down" clues={downClues} />
+    <div className="space-y-3">
+      {hasTwoWordAnswers && (
+        <p className="text-xs text-stone-400 dark:text-stone-500 italic">
+          Answers marked (2 words) are written in the grid without the space.
+        </p>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ClueList title="Across" clues={acrossClues} />
+        <ClueList title="Down" clues={downClues} />
+      </div>
     </div>
   );
 }
@@ -51,6 +60,11 @@ function ClueList({ title, clues }: ClueListProps) {
               </span>
               <span className="text-sm text-stone-700 dark:text-stone-300">
                 {clue.clue}
+                {clue.displayWord && (
+                  <span className="ml-1 text-xs text-stone-400 dark:text-stone-500" title="The answer is two words, written without the space">
+                    (2 words)
+                  </span>
+                )}
                 {clue.isReversed && (
                   <span className="ml-1 text-xs text-accent-600 dark:text-accent-400" title="This word is placed in reverse">
                     (reversed)

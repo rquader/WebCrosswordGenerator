@@ -13,7 +13,15 @@
       "Bash(git commit -m 'safety: word search filler profanity filter — 8-direction scan + regen *)",
       "Bash(node /tmp/cw-wordsearch-verify.mjs)",
       "Bash(git commit -m 'design: drop footer version/offline badge; bridge Generate to AI Words *)",
-      "Bash(git commit -m 'chore: cleanup — wire the seed-copied checkmark that could never show *)"
+      "Bash(git commit -m 'chore: cleanup — wire the seed-copied checkmark that could never show *)",
+      "Bash(perl -i -ne 'if \\($. == 101\\) { print \"    text = text.normalize\\(q\\(NFD\\)\\).replace\\(/[\\\\\\\\u0300-\\\\\\\\u036f]/g, q\\(\\)\\);\\\\n\" } else { print }' src/logic/language.ts)",
+      "Bash(sed -n '99,103p' src/logic/language.ts)",
+      "Bash(sed -n '60,100p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/grid/gridStyles.ts)",
+      "Bash(sed -n '1,60p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/grid/WordCircleOverlay.tsx)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/WebCrosswordGenerator/)",
+      "Bash(node /tmp/cw-export-audit.mjs)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "enabledPlugins": {

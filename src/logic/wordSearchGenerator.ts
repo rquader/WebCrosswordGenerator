@@ -12,7 +12,7 @@
 
 import type { DirectionalWord, CrosswordResult, WordSearchDirectionSettings } from './types';
 import { SeededRandom } from './seedRandom';
-import { BLOCKLIST, MIN_BLOCKED_LENGTH } from '../data/blocklist';
+import { getFullBlocklist, MIN_BLOCKED_LENGTH } from '../data/blocklist';
 
 const EMPTY_CELL = '-';
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
@@ -272,13 +272,15 @@ const MAX_REGION_FIX_ATTEMPTS = 50;
 /** Absolute ceiling of fix iterations per grid — the loop can never hang. */
 const MAX_SANITIZE_PASSES = 400;
 
-/** Blocklist entries the scanner acts on (lowercased, floor applied), cached. */
+/**
+ * Blocklist entries the scanner acts on (floor applied), cached. Every
+ * language's list is active in every puzzle — see src/data/blocklist.ts
+ * for why the filter is language-independent.
+ */
 let activeBlocklist: string[] | null = null;
 function getActiveBlocklist(): string[] {
   if (activeBlocklist === null) {
-    activeBlocklist = BLOCKLIST
-      .map(w => w.toLowerCase())
-      .filter(w => w.length >= MIN_BLOCKED_LENGTH);
+    activeBlocklist = getFullBlocklist().filter(w => w.length >= MIN_BLOCKED_LENGTH);
   }
   return activeBlocklist;
 }

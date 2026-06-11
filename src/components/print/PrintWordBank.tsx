@@ -16,7 +16,7 @@ interface PrintWordBankProps {
 
 export function PrintWordBank({ puzzle }: PrintWordBankProps) {
   const words = useMemo(
-    () => [...puzzle.wordLocations].map(wl => wl.word).sort((a, b) => a.localeCompare(b)),
+    () => [...puzzle.wordLocations].map(wl => wl.displayWord ?? wl.word).sort((a, b) => a.localeCompare(b)),
     [puzzle]
   );
 

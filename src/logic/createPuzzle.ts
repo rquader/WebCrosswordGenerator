@@ -8,10 +8,17 @@
  * Phase 10 adds:
  *   - createSkeletonFromEntries() — three-tier priority system + adaptive skeleton
  *   - createPuzzleWithPriority() — priority placement without skeleton
+ *
+ * Two-word phrases: entries may arrive with a space ("extra time").
+ * The generators only ever see the solid grid form ("extratime") — these
+ * entry points strip the space before placement and re-attach the spaced
+ * form as `displayWord` on everything that surfaces to the UI (placed
+ * words, skeleton slots, skipped/failed word lists). See language.ts.
  */
 
 import type {
   CrosswordResult,
+  DirectionalWord,
   WordCluePair,
   WordSearchDirectionSettings,
   PrioritizedEntry,
@@ -23,6 +30,7 @@ import { generateWordSearch } from './wordSearchGenerator';
 import { generateCrosswordWithPriority } from './priorityGenerator';
 import { generateSkeleton } from './skeletonGenerator';
 import { filterByLength, prepareForGenerator } from './databaseProcessor';
+import { toGridWord } from './language';
 
 /**
  * Options for creating a puzzle from word-clue entries.
@@ -43,6 +51,49 @@ export interface EntryPuzzleOptions {
   growToFit?: boolean;
 }
 
+/* ── Two-word phrase plumbing ─────────────────────────────────────────── */
+
+/**
+ * Convert entries to the grid form the generators understand, remembering
+ * which grid words have a different display form (i.e. contained a space).
+ */
+function toGridFormEntries<T extends WordCluePair>(
+  entries: T[]
+): { entries: T[]; displayByGridWord: Map<string, string> } {
+  const displayByGridWord = new Map<string, string>();
+  const converted = entries.map(entry => {
+    const gridWord = toGridWord(entry.word);
+    if (gridWord !== entry.word) {
+      displayByGridWord.set(gridWord, entry.word);
+    }
+    return gridWord === entry.word ? entry : { ...entry, word: gridWord };
+  });
+  return { entries: converted, displayByGridWord };
+}
+
+/** Attach displayWord to placed words whose grid form had a spaced original. */
+function attachDisplayWords(
+  words: DirectionalWord[],
+  displayByGridWord: Map<string, string>
+): void {
+  if (displayByGridWord.size === 0) return;
+  for (const wl of words) {
+    const display = displayByGridWord.get(wl.word);
+    if (display !== undefined) {
+      wl.displayWord = display;
+    }
+  }
+}
+
+/** Map grid-form words in a report list back to their display form. */
+function toDisplayList(
+  words: string[],
+  displayByGridWord: Map<string, string>
+): string[] {
+  if (displayByGridWord.size === 0) return words;
+  return words.map(w => displayByGridWord.get(w) ?? w);
+}
+
 function assertEntriesFit(entries: WordCluePair[], width: number, height: number): void {
   const maxDim = Math.max(width, height);
   if (filterByLength(entries, maxDim).length === 0) {
@@ -54,12 +105,13 @@ function assertEntriesFit(entries: WordCluePair[], width: number, height: number
  * Create a crossword puzzle from word-clue entries.
  */
 export function createPuzzleFromEntries(options: EntryPuzzleOptions): CrosswordResult {
-  assertEntriesFit(options.entries, options.width, options.height);
+  const { entries, displayByGridWord } = toGridFormEntries(options.entries);
+  assertEntriesFit(entries, options.width, options.height);
 
   const maxDim = Math.max(options.width, options.height);
-  const { words, clues } = prepareForGenerator(options.entries, maxDim);
+  const { words, clues } = prepareForGenerator(entries, maxDim);
 
-  return generateCrossword({
+  const result = generateCrossword({
     width: options.width,
     height: options.height,
     seed: options.seed,
@@ -68,6 +120,9 @@ export function createPuzzleFromEntries(options: EntryPuzzleOptions): CrosswordR
     // Reversed entries aren't a crossword convention — off unless asked for.
     allowReverseWords: options.allowReverseWords ?? false,
   });
+
+  attachDisplayWords(result.wordLocations, displayByGridWord);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,10 +166,11 @@ export interface PriorityPuzzleOptions {
 export function createPuzzleWithPriority(
   options: PriorityPuzzleOptions
 ): PriorityGeneratorResult {
-  const mustEntries = options.entries.filter(e => e.priority === 'must');
-  const canEntries = options.entries.filter(e => e.priority === 'can');
+  const { entries, displayByGridWord } = toGridFormEntries(options.entries);
+  const mustEntries = entries.filter(e => e.priority === 'must');
+  const canEntries = entries.filter(e => e.priority === 'can');
 
-  return generateCrosswordWithPriority({
+  const result = generateCrosswordWithPriority({
     width: options.width,
     height: options.height,
     seed: options.seed,
@@ -125,6 +181,16 @@ export function createPuzzleWithPriority(
     allowReverseWords: options.allowReverseWords ?? false,
     candidateCount: options.candidateCount,
   });
+
+  attachDisplayWords(result.crossword.wordLocations, displayByGridWord);
+  attachDisplayWords(result.placedMust, displayByGridWord);
+  attachDisplayWords(result.placedCan, displayByGridWord);
+  result.failedMust = result.failedMust.map(f => ({
+    ...f,
+    word: displayByGridWord.get(f.word) ?? f.word,
+  }));
+  result.skippedCan = toDisplayList(result.skippedCan, displayByGridWord);
+  return result;
 }
 
 /**
@@ -139,16 +205,34 @@ export function createPuzzleWithPriority(
 export function createSkeletonFromEntries(
   options: PriorityPuzzleOptions
 ): SkeletonResult {
-  return generateSkeleton({
+  const { entries, displayByGridWord } = toGridFormEntries(options.entries);
+
+  const result = generateSkeleton({
     width: options.width,
     height: options.height,
     seed: options.seed,
-    entries: options.entries,
+    entries,
     allowReverseWords: options.allowReverseWords,
     candidateCount: options.candidateCount,
     growToFit: options.growToFit,
     bankFill: options.bankFill,
   });
+
+  if (displayByGridWord.size > 0) {
+    for (const slot of result.slots) {
+      if (slot.word !== undefined) {
+        const display = displayByGridWord.get(slot.word);
+        if (display !== undefined) {
+          slot.displayWord = display;
+        }
+      }
+    }
+    result.failures = result.failures.map(f => ({
+      ...f,
+      word: displayByGridWord.get(f.word) ?? f.word,
+    }));
+  }
+  return result;
 }
 
 /**
@@ -169,33 +253,46 @@ const WORD_SEARCH_GROW_CAP = 30;
  */
 export function createWordSearchFromEntries(options: EntryPuzzleOptions): CrosswordResult {
   const growToFit = options.growToFit ?? true;
+  const { entries, displayByGridWord } = toGridFormEntries(options.entries);
 
-  if (!growToFit) {
-    assertEntriesFit(options.entries, options.width, options.height);
-    return wordSearchAtSize(options, options.width, options.height);
-  }
-
+  let result: CrosswordResult;
   let width = options.width;
   let height = options.height;
-  let result = wordSearchAtSize(options, width, height);
 
-  while (result.skippedWords && Math.max(width, height) < WORD_SEARCH_GROW_CAP) {
-    width = Math.min(width + 1, WORD_SEARCH_GROW_CAP);
-    height = Math.min(height + 1, WORD_SEARCH_GROW_CAP);
-    result = wordSearchAtSize(options, width, height);
+  if (!growToFit) {
+    assertEntriesFit(entries, width, height);
+    result = wordSearchAtSize(options, entries, width, height);
+  } else {
+    result = wordSearchAtSize(options, entries, width, height);
+
+    while (result.skippedWords && Math.max(width, height) < WORD_SEARCH_GROW_CAP) {
+      width = Math.min(width + 1, WORD_SEARCH_GROW_CAP);
+      height = Math.min(height + 1, WORD_SEARCH_GROW_CAP);
+      result = wordSearchAtSize(options, entries, width, height);
+    }
+
+    if (width !== options.width || height !== options.height) {
+      result.grewFrom = { width: options.width, height: options.height };
+    }
   }
 
-  if (width !== options.width || height !== options.height) {
-    result.grewFrom = { width: options.width, height: options.height };
+  attachDisplayWords(result.wordLocations, displayByGridWord);
+  if (result.skippedWords) {
+    result.skippedWords = toDisplayList(result.skippedWords, displayByGridWord);
   }
   return result;
 }
 
 /** One word-search generation at a specific size, with too-long words reported. */
-function wordSearchAtSize(options: EntryPuzzleOptions, width: number, height: number): CrosswordResult {
+function wordSearchAtSize(
+  options: EntryPuzzleOptions,
+  gridFormEntries: WordCluePair[],
+  width: number,
+  height: number
+): CrosswordResult {
   const maxDim = Math.max(width, height);
-  const { words, clues } = prepareForGenerator(options.entries, maxDim);
-  const tooLong = options.entries
+  const { words, clues } = prepareForGenerator(gridFormEntries, maxDim);
+  const tooLong = gridFormEntries
     .filter(e => e.word.length > maxDim)
     .map(e => e.word);
 

@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateWordSearch, sanitizeFillerLetters } from '@logic/wordSearchGenerator';
 import { SeededRandom } from '@logic/seedRandom';
-import { BLOCKLIST, MIN_BLOCKED_LENGTH } from '../../src/data/blocklist';
+import { BLOCKLIST, BLOCKLISTS, MIN_BLOCKED_LENGTH, getFullBlocklist } from '../../src/data/blocklist';
 import type { WordSearchDirectionSettings } from '@logic/types';
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
@@ -187,5 +187,31 @@ describe('generated word searches are clean', () => {
     const r1 = generateWordSearch(config);
     const r2 = generateWordSearch(config);
     expect(r1.grid).toEqual(r2.grid);
+  });
+});
+
+describe('per-language blocklists', () => {
+  it('scrub list combines every language, regardless of puzzle language', () => {
+    const full = getFullBlocklist();
+    expect(full).toContain('fuck');     // English
+    expect(full).toContain('mierda');   // Spanish
+    expect(full).toContain('merde');    // French
+    expect(full).toContain('fotze');    // German
+    expect(full).toContain('cazz');     // Italian
+    expect(full).toContain('porra');    // Portuguese
+    expect(full.length).toBeGreaterThan(300);
+  });
+
+  it('deduplicates entries shared between lists', () => {
+    // 'merda' appears in both the Italian and Portuguese lists.
+    const full = getFullBlocklist();
+    expect(full.filter(w => w === 'merda')).toHaveLength(1);
+  });
+
+  it('every language list survives the scanner floor', () => {
+    for (const lang of ['english', 'spanish', 'french', 'german', 'italian', 'portuguese'] as const) {
+      const usable = BLOCKLISTS[lang].filter(w => w.length >= MIN_BLOCKED_LENGTH);
+      expect(usable.length).toBeGreaterThan(25);
+    }
   });
 });

@@ -11,6 +11,7 @@
  */
 
 import type { WordCluePair } from '../logic/types';
+import { normalizeWord, type WordRules } from '../logic/language';
 
 export interface ParseResult {
   entries: WordCluePair[];
@@ -20,18 +21,21 @@ export interface ParseResult {
 /**
  * Parse a file into word-clue pairs based on its extension.
  * Reads the file locally using FileReader — no network calls.
+ *
+ * `rules` carries the puzzle language and the two-word answers option;
+ * words are normalized against them (see normalizeWordInput).
  */
-export async function parseFile(file: File): Promise<ParseResult> {
+export async function parseFile(file: File, rules: WordRules = {}): Promise<ParseResult> {
   const text = await readFileAsText(file);
   const extension = getFileExtension(file.name);
 
   switch (extension) {
     case 'txt':
-      return parseTxt(text);
+      return parseTxt(text, rules);
     case 'csv':
-      return parseCsv(text);
+      return parseCsv(text, rules);
     case 'json':
-      return parseJson(text);
+      return parseJson(text, rules);
     default:
       return {
         entries: [],
@@ -48,8 +52,8 @@ export async function parseFile(file: File): Promise<ParseResult> {
  *   word, clue
  *   word | clue
  */
-export function parseTextInput(text: string): ParseResult {
-  return parseTxt(text);
+export function parseTextInput(text: string, rules: WordRules = {}): ParseResult {
+  return parseTxt(text, rules);
 }
 
 // --- Internal parsing functions ---
@@ -87,13 +91,17 @@ function normalizeLineEndings(text: string): string {
 }
 
 /**
- * Normalize user-entered words to the generator's expected format.
+ * Normalize user-entered words to the app's internal display form.
+ *
+ * Thin wrapper over the language module so existing call sites keep
+ * their import: lowercase, language charset + digits, and (only when
+ * two-word answers are enabled) a single internal space.
  */
-export function normalizeWordInput(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[^a-z]/g, '');
+export function normalizeWordInput(raw: string, rules: WordRules = {}): string {
+  return normalizeWord(raw, rules);
 }
 
-function parseTxt(text: string): ParseResult {
+function parseTxt(text: string, rules: WordRules): ParseResult {
   const cleaned = normalizeLineEndings(stripBom(text));
   const lines = cleaned.split('\n');
   const entries: WordCluePair[] = [];
@@ -153,7 +161,7 @@ function parseTxt(text: string): ParseResult {
       continue;
     }
 
-    const cleanedWord = normalizeWordInput(word);
+    const cleanedWord = normalizeWordInput(word, rules);
     const trimmedClue = clue.trim();
 
     if (cleanedWord.length === 0) {
@@ -172,7 +180,7 @@ function parseTxt(text: string): ParseResult {
   return { entries, errors };
 }
 
-function parseCsv(text: string): ParseResult {
+function parseCsv(text: string, rules: WordRules): ParseResult {
   const cleaned = normalizeLineEndings(stripBom(text));
   const lines = cleaned.split('\n');
   const entries: WordCluePair[] = [];
@@ -194,7 +202,7 @@ function parseCsv(text: string): ParseResult {
       continue;
     }
 
-    const cleanedWord = normalizeWordInput(fields[0]);
+    const cleanedWord = normalizeWordInput(fields[0], rules);
     const trimmedClue = fields[1].trim();
 
     if (cleanedWord.length === 0) {
@@ -252,7 +260,7 @@ function parseCSVLine(line: string): string[] {
   return fields;
 }
 
-function parseJson(text: string): ParseResult {
+function parseJson(text: string, rules: WordRules): ParseResult {
   const entries: WordCluePair[] = [];
   const errors: string[] = [];
 
@@ -275,7 +283,7 @@ function parseJson(text: string): ParseResult {
     const word = (item.word || item.term || item.answer || '') as string;
     const clue = (item.clue || item.hint || item.definition || item.description || '') as string;
 
-    const cleanedWord = normalizeWordInput(String(word));
+    const cleanedWord = normalizeWordInput(String(word), rules);
     const trimmedClue = String(clue).trim();
 
     if (cleanedWord.length === 0) {

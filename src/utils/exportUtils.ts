@@ -32,7 +32,7 @@ export function exportAsJson(
       height: puzzle.height,
       grid: puzzle.grid,
       words: puzzle.wordLocations.map(wl => ({
-        word: wl.word,
+        word: wl.displayWord ?? wl.word,
         clue: wl.clue,
         x: wl.x,
         y: wl.y,
@@ -57,12 +57,12 @@ export function exportAsJson(
       across: acrossClues.map(c => ({
         number: c.number,
         clue: c.clue,
-        answer: c.word,
+        answer: c.displayWord ?? c.word,
       })),
       down: downClues.map(c => ({
         number: c.number,
         clue: c.clue,
-        answer: c.word,
+        answer: c.displayWord ?? c.word,
       })),
     },
     wordLocations: puzzle.wordLocations,

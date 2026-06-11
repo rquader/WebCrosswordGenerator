@@ -19,19 +19,28 @@ export function PrintClues({ puzzle }: PrintCluesProps) {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   }, [puzzle]);
 
+  const hasTwoWordAnswers = puzzle.wordLocations.some(w => w.displayWord);
+
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px',
-        fontSize: '10px',
-        lineHeight: 1.5,
-        color: '#000',
-      }}
-    >
-      <ClueColumn title="Across" clues={acrossClues} />
-      <ClueColumn title="Down" clues={downClues} />
+    <div>
+      {hasTwoWordAnswers && (
+        <p style={{ fontSize: '9px', fontStyle: 'italic', color: '#000', margin: '0 0 6px' }}>
+          Answers marked (2 words) are written in the grid without the space.
+        </p>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '24px',
+          fontSize: '10px',
+          lineHeight: 1.5,
+          color: '#000',
+        }}
+      >
+        <ClueColumn title="Across" clues={acrossClues} />
+        <ClueColumn title="Down" clues={downClues} />
+      </div>
     </div>
   );
 }
@@ -74,7 +83,10 @@ function ClueColumn({ title, clues }: ClueColumnProps) {
             <span style={{ fontWeight: 600, minWidth: '18px', textAlign: 'right', flexShrink: 0 }}>
               {clue.number}.
             </span>
-            <span>{clue.clue}</span>
+            <span>
+              {clue.clue}
+              {clue.displayWord && <span style={{ fontStyle: 'italic' }}> (2 words)</span>}
+            </span>
           </li>
         ))}
       </ol>

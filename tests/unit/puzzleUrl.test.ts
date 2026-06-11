@@ -347,6 +347,37 @@ describe('puzzleUrl', () => {
       expect(shared!.puzzle.grid).toEqual(smallPuzzle.grid);
     });
 
+    it('round-trips two-word display forms without leaving v1', () => {
+      const puzzle: CrosswordResult = {
+        width: 9,
+        height: 1,
+        grid: [['e', 'x', 't', 'r', 'a', 't', 'i', 'm', 'e']],
+        wordLocations: [
+          {
+            word: 'extratime',
+            displayWord: 'extra time',
+            clue: 'Added minutes',
+            x: 0,
+            y: 0,
+            isHorizontal: true,
+            isReversed: false,
+          },
+        ],
+      };
+
+      const url = encodePuzzleToUrl(puzzle);
+      setHashFromUrl(url);
+      const shared = decodePuzzleFromUrl();
+
+      expect(shared!.puzzle.wordLocations[0].word).toBe('extratime');
+      expect(shared!.puzzle.wordLocations[0].displayWord).toBe('extra time');
+
+      // The dw key is additive — crosswords still encode as v1 for old clients.
+      const encoded = url.split('#puzzle=')[1];
+      const json = new TextDecoder().decode(inflate(base64UrlDecode(encoded)));
+      expect(JSON.parse(json).v).toBe(1);
+    });
+
     it('rejects unknown future versions cleanly', () => {
       const compact = { v: 3, w: 2, h: 2, g: 'abcd', words: [] };
       const compressed = deflate(new TextEncoder().encode(JSON.stringify(compact)));

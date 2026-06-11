@@ -9,9 +9,20 @@
  * demands a fenced code block of "WORD | Clue" lines, and the parser
  * targets exactly that, while tolerating the most common AI deviations
  * (numbering, bullets, bold words, missing fences).
+ *
+ * Both halves honor the puzzle's language (charset, clue language) and
+ * the two-word answers option (phrases written WORD_WORD in responses,
+ * stored with a space). See src/logic/language.ts.
  */
 
 import type { WordCluePair, PuzzleMode } from '../logic/types';
+import {
+  DEFAULT_LANGUAGE,
+  getLanguageInfo,
+  toGridWord,
+  wordCharsetRegex,
+  type PuzzleLanguage,
+} from '../logic/language';
 
 export interface WordListPromptOptions {
   /** Freeform topic context — anything the teacher pastes in. */
@@ -24,6 +35,27 @@ export interface WordListPromptOptions {
   gridWidth: number;
   gridHeight: number;
   puzzleMode: PuzzleMode;
+  /** Puzzle language — words AND clues. Default English. */
+  language?: PuzzleLanguage;
+  /** Permit two-word phrases (written WORD_WORD in the response). */
+  allowTwoWords?: boolean;
+}
+
+/** The charset rule, phrased for the prompt, per language. */
+function charsetLines(language: PuzzleLanguage): string[] {
+  if (language === 'spanish') {
+    return [
+      '- Use the letters A-Z, the Spanish letters Á É Í Ó Ú Ü Ñ where the correct spelling needs them, and digits 0-9. No punctuation, no abbreviations, no other symbols.',
+    ];
+  }
+  if (language === 'german') {
+    return [
+      '- Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write umlauts as plain vowels and ß as SS ("GRUSSE", not "GRÜSSE").',
+    ];
+  }
+  return [
+    '- Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").',
+  ];
 }
 
 /**
@@ -35,6 +67,9 @@ export interface WordListPromptOptions {
  */
 export function buildWordListPrompt(options: WordListPromptOptions): string {
   const { context, wordCount, existingWords, gridWidth, gridHeight, puzzleMode } = options;
+  const language = options.language ?? DEFAULT_LANGUAGE;
+  const allowTwoWords = options.allowTwoWords ?? false;
+  const languageLabel = getLanguageInfo(language).label;
   const isCrossword = puzzleMode === 'crossword';
   const maxLen = Math.max(gridWidth, gridHeight);
   const puzzleName = isCrossword ? 'crossword puzzle' : 'word search puzzle';
@@ -45,18 +80,29 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   lines.push(`Generate a word list with clues for a ${puzzleName} on the topic described below.`);
   lines.push('');
   lines.push('REQUIREMENTS');
+  lines.push(`- Language: ${languageLabel}. Every word and every clue must be written in ${languageLabel}.`);
   lines.push(`- Number of words: exactly ${wordCount}.`);
   lines.push(`- Grid size: ${gridWidth}x${gridHeight} — no word may be longer than ${maxLen} letters.`);
   if (isCrossword) {
     lines.push('- Word length: 4 to 12 letters preferred.');
-    lines.push('- Favor words with good letter variety and common letters (A, E, R, S, T, N) — they must interlock with other words in a crossword grid.');
+    lines.push('- Favor words with good letter variety and common letters — they must interlock with other words in a crossword grid.');
   } else {
     lines.push('- Word length: 4 letters or more. Longer words are fine — they do not need to interlock.');
   }
-  lines.push('- Each entry must be a single word — no spaces, no hyphens, no multi-word phrases. "goalkeeper" is correct; "goal keeper" is not.');
-  lines.push('- Letters A-Z only: no numerals or abbreviations.');
+  lines.push(...charsetLines(language));
+  if (allowTwoWords) {
+    lines.push('- Prefer single words. A two-word phrase is allowed when it is the natural term — for at most a third of the entries.');
+    lines.push('- Write a two-word phrase with one underscore joining the words: "EXTRA_TIME". No spaces, no hyphens, no other join symbols. The underscore is not a letter — EXTRA_TIME must fit the grid as EXTRATIME (9 letters).');
+  } else {
+    lines.push('- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.');
+    lines.push('- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.');
+  }
   lines.push('- No proper nouns unless they are directly relevant to the topic.');
-  lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word.');
+  if (isCrossword) {
+    lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.');
+  } else {
+    lines.push('- Words only — no clues or definitions. A word search needs just the words.');
+  }
   lines.push('');
 
   // 2 — Topic context block (verbatim, fenced)
@@ -79,19 +125,41 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   }
 
   // 4 — Output format instruction (the parser targets this exactly)
+  const caps = language === 'spanish'
+    ? 'ALL CAPS using only the letters A-Z, Á É Í Ó Ú Ü Ñ, and digits'
+    : 'ALL CAPS using only the letters A-Z and digits';
   lines.push('OUTPUT FORMAT');
-  lines.push('Respond with ONLY a fenced code block. Inside it, one entry per line:');
-  lines.push('');
-  lines.push('WORD | Clue text');
-  lines.push('');
-  lines.push('Rules: WORD in ALL CAPS, a single pipe (|) as the separator, clue in sentence case.');
-  lines.push(`Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
-  lines.push('');
-  lines.push('Example format (do not copy these words):');
-  lines.push('```');
-  lines.push('EXAMPLE | A thing that shows what the format looks like.');
-  lines.push('SAMPLE | A small part that represents the whole.');
-  lines.push('```');
+  if (isCrossword) {
+    lines.push('Respond with ONLY a fenced code block. Inside it, one entry per line:');
+    lines.push('');
+    lines.push('WORD | Clue text');
+    lines.push('');
+    lines.push(`Rules: WORD in ${caps}, a single pipe (|) as the separator, clue in sentence case.`);
+    lines.push(`Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
+    lines.push('');
+    lines.push('Example format (do not copy these words):');
+    lines.push('```');
+    lines.push('EXAMPLE | A thing that shows what the format looks like.');
+    if (allowTwoWords) {
+      lines.push('TWO_WORDS | A phrase entry, two words joined by one underscore.');
+    }
+    lines.push('SAMPLE | A small part that represents the whole.');
+    lines.push('```');
+  } else {
+    lines.push('Respond with ONLY a fenced code block. Inside it, one word per line — no clues, no numbering, no other text.');
+    lines.push('');
+    lines.push(`Rules: each line is one word in ${caps}.`);
+    lines.push(`Exactly ${wordCount} lines. No blank lines, no text outside the code block.`);
+    lines.push('');
+    lines.push('Example format (do not copy these words):');
+    lines.push('```');
+    lines.push('EXAMPLE');
+    if (allowTwoWords) {
+      lines.push('TWO_WORDS');
+    }
+    lines.push('SAMPLE');
+    lines.push('```');
+  }
   lines.push('');
 
   // 5 — Closing
@@ -118,6 +186,19 @@ export interface ParsedWordList {
   duplicatesSkipped: string[];
 }
 
+/** Options the parser shares with the prompt — language charset + phrases. */
+export interface ParseWordListOptions {
+  language?: PuzzleLanguage;
+  allowTwoWords?: boolean;
+  /**
+   * Word search mode: the prompt asks for bare words (one per line, no
+   * pipes), so a pipe-less line is a word with an empty clue. Lines that
+   * don't look like words are prose — silently skipped outside a fence,
+   * reported inside one.
+   */
+  wordsOnly?: boolean;
+}
+
 /** Leading list markers AIs add despite instructions: "1.", "2)", "-", "*", "•". */
 const LIST_MARKER = /^\s*(?:[-*•]|\d{1,3}[.)])\s*/;
 
@@ -129,17 +210,35 @@ const LIST_MARKER = /^\s*(?:[-*•]|\d{1,3}[.)])\s*/;
  * instruction, falls back to scanning the whole text leniently: lines
  * without a pipe are treated as prose and skipped silently instead of
  * reported as errors.
+ *
+ * With allowTwoWords, "EXTRA_TIME" (the prompt's phrase format) and
+ * "EXTRA TIME" both parse to the spaced display form "EXTRA TIME".
  */
 export function parseWordListResponse(
   raw: string,
-  existingWords: string[] = []
+  existingWords: string[] = [],
+  options: ParseWordListOptions = {}
 ): ParsedWordList {
   const result: ParsedWordList = { entries: [], issues: [], duplicatesSkipped: [] };
   if (!raw.trim()) {
     return result;
   }
 
-  const block = findBestFencedBlock(raw);
+  const language = options.language ?? DEFAULT_LANGUAGE;
+  const allowTwoWords = options.allowTwoWords ?? false;
+  const wordsOnly = options.wordsOnly ?? false;
+  const charset = wordCharsetRegex({ language, allowTwoWords });
+
+  // A line counts toward a block's score if it looks like an entry:
+  // a pipe line always does; in words-only mode a bare valid word does too.
+  const looksLikeEntry = (line: string): boolean => {
+    if (line.includes('|')) return true;
+    if (!wordsOnly) return false;
+    const candidate = cleanWord(line.replace(LIST_MARKER, ''), allowTwoWords);
+    return candidate.length > 0 && charset.test(candidate);
+  };
+
+  const block = findBestFencedBlock(raw, looksLikeEntry);
   const lenient = block === null;
   const text = block?.content ?? raw;
   const lineOffset = block?.startLine ?? 0;
@@ -157,39 +256,65 @@ export function parseWordListResponse(
     }
 
     const pipeIndex = line.indexOf('|');
+    let wordRaw: string;
+    let clue: string;
+
     if (pipeIndex === -1) {
-      if (!lenient) {
-        result.issues.push({
-          line: lineNumber,
-          text: truncateForDisplay(rawLine),
-          message: `Line ${lineNumber} couldn't be read — expected: WORD | Clue`,
-        });
+      if (!wordsOnly) {
+        if (!lenient) {
+          result.issues.push({
+            line: lineNumber,
+            text: truncateForDisplay(rawLine),
+            message: `Line ${lineNumber} couldn't be read — expected: WORD | Clue`,
+          });
+        }
+        continue; // lenient mode: prose line, skip silently
       }
-      continue; // lenient mode: prose line, skip silently
+      // Words-only: the whole line is the word. Outside a fence, lines
+      // that don't clean up into a valid word are prose — skip silently.
+      wordRaw = line;
+      clue = '';
+      if (lenient) {
+        const candidate = cleanWord(wordRaw, allowTwoWords);
+        if (!charset.test(candidate) || toGridWord(candidate).length < 2) {
+          continue;
+        }
+      }
+    } else {
+      wordRaw = line.slice(0, pipeIndex);
+      clue = cleanClue(line.slice(pipeIndex + 1));
     }
 
-    const word = cleanWord(line.slice(0, pipeIndex));
-    const clue = cleanClue(line.slice(pipeIndex + 1));
+    const word = cleanWord(wordRaw, allowTwoWords);
 
-    if (/\s/.test(word)) {
+    if (!allowTwoWords && /\s/.test(word)) {
       result.issues.push({
         line: lineNumber,
         text: truncateForDisplay(rawLine),
-        message: `Line ${lineNumber} skipped — "${truncateForDisplay(line.slice(0, pipeIndex).trim())}" has a space; puzzle entries must be single words`,
+        message: `Line ${lineNumber} skipped — "${truncateForDisplay(wordRaw.trim())}" has a space; puzzle entries must be single words`,
       });
       continue;
     }
 
-    if (!/^[A-Z]+$/.test(word) || word.length < 2) {
+    if (allowTwoWords && word.split(' ').length > 2) {
       result.issues.push({
         line: lineNumber,
         text: truncateForDisplay(rawLine),
-        message: `Line ${lineNumber}: "${truncateForDisplay(line.slice(0, pipeIndex).trim()) || '(empty)'}" isn't a single word — letters only, no spaces or symbols`,
+        message: `Line ${lineNumber}: "${truncateForDisplay(wordRaw.trim())}" has more than two words — phrases are limited to two`,
       });
       continue;
     }
 
-    if (clue.length === 0) {
+    if (!charset.test(word) || toGridWord(word).length < 2) {
+      result.issues.push({
+        line: lineNumber,
+        text: truncateForDisplay(rawLine),
+        message: `Line ${lineNumber}: "${truncateForDisplay(wordRaw.trim()) || '(empty)'}" isn't a usable entry — letters and digits only, no symbols`,
+      });
+      continue;
+    }
+
+    if (clue.length === 0 && !wordsOnly) {
       result.issues.push({
         line: lineNumber,
         text: truncateForDisplay(rawLine),
@@ -211,18 +336,22 @@ export function parseWordListResponse(
 }
 
 /**
- * Find the fenced code block with the most pipe-lines (the AI sometimes
- * wraps a remark in its own small block). Returns the block's content
- * and the 0-based line index where its content starts in the raw text,
- * so issue messages can reference absolute line numbers.
+ * Find the fenced code block with the most entry-looking lines (the AI
+ * sometimes wraps a remark in its own small block). What counts as an
+ * entry line is mode-dependent — the caller passes the test. Returns the
+ * block's content and the 0-based line index where its content starts in
+ * the raw text, so issue messages can reference absolute line numbers.
  */
-function findBestFencedBlock(raw: string): { content: string; startLine: number } | null {
+function findBestFencedBlock(
+  raw: string,
+  looksLikeEntry: (line: string) => boolean
+): { content: string; startLine: number } | null {
   const fence = /```[^\n]*\n([\s\S]*?)```/g;
   let best: { content: string; startLine: number; score: number } | null = null;
 
   for (let match = fence.exec(raw); match !== null; match = fence.exec(raw)) {
     const content = match[1];
-    const score = content.split('\n').filter(l => l.includes('|')).length;
+    const score = content.split('\n').filter(looksLikeEntry).length;
     if (best === null || score > best.score) {
       const before = raw.slice(0, match.index);
       // content starts one line after the opening fence line
@@ -234,9 +363,17 @@ function findBestFencedBlock(raw: string): { content: string; startLine: number 
   return best && best.score > 0 ? { content: best.content, startLine: best.startLine } : null;
 }
 
-/** Strip markdown bold/quotes around the word, uppercase it. */
-function cleanWord(s: string): string {
-  return s.trim().replace(/^[*_"'`]+|[*_"'`]+$/g, '').trim().toUpperCase();
+/**
+ * Strip markdown bold/quotes around the word and uppercase it.
+ * With two-word phrases allowed, interior underscores are the prompt's
+ * join character — they become spaces (and literal spaces collapse).
+ */
+function cleanWord(s: string, allowTwoWords: boolean): string {
+  let word = s.trim().replace(/^[*_"'`]+|[*_"'`]+$/g, '').trim();
+  if (allowTwoWords) {
+    word = word.replace(/_/g, ' ').replace(/ +/g, ' ').trim();
+  }
+  return word.toUpperCase();
 }
 
 /** Trim the clue and strip stray wrapping quotes. */

@@ -291,7 +291,13 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
         </div>
 
         {/* Right: Clues */}
-        <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex-1 min-w-0 space-y-3">
+        {puzzle.wordLocations.some(w => w.displayWord) && (
+          <p className="text-xs text-stone-400 dark:text-stone-500 italic">
+            Answers marked (2 words) are typed without the space.
+          </p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <PlayClueList
             title="Across"
             clues={acrossClues}
@@ -314,6 +320,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               }
             }}
           />
+        </div>
         </div>
       </div>
     </div>
@@ -357,6 +364,11 @@ function PlayClueList({ title, clues, activeNumber, onClueClick }: PlayClueListP
                 </span>
                 <span className={`text-sm leading-relaxed ${isActive ? 'text-stone-800 dark:text-stone-200' : 'text-stone-600 dark:text-stone-400'}`}>
                   {clue.clue}
+                  {clue.displayWord && (
+                    <span className="ml-1 text-xs text-stone-400 dark:text-stone-500" title="The answer is two words — type it without the space">
+                      (2 words)
+                    </span>
+                  )}
                 </span>
               </li>
             );
