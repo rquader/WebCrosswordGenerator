@@ -35,7 +35,9 @@
       "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p23)",
       "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p28)",
       "Bash(node -e ' *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(sed -n '435,470p' src/components/print/PrintPreviewModal.tsx)",
+      "Bash(sed -n '150,185p' src/components/print/PrintPreviewModal.tsx)"
     ]
   },
   "enabledPlugins": {

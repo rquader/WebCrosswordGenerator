@@ -141,7 +141,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
       >
         {/* Overlay */}
         <div
-          className="absolute inset-0 bg-stone-900/60 dark:bg-black/70 backdrop-blur-sm"
+          className="absolute inset-0 bg-ink/50 backdrop-blur-sm"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -150,22 +150,19 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
         <div
           ref={modalRef}
           className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col
-                     bg-surface-light dark:bg-surface-dark-alt
-                     rounded-2xl border border-stone-200/60 dark:border-stone-700/40
+                     bg-page rounded-card border border-line
                      shadow-[0_25px_60px_-12px_rgba(30,25,18,0.25)]
                      dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)]
                      animate-scale-in overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-4 pb-3">
-            <h2 className="text-base font-semibold text-stone-800 dark:text-stone-200 tracking-tight">
+            <h2 className="card-title">
               Print Preview
             </h2>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-stone-400 dark:text-stone-500
-                         hover:text-stone-600 dark:hover:text-stone-300
-                         hover:bg-stone-100 dark:hover:bg-stone-700/50
+              className="p-1.5 rounded-lg text-ink-3 hover:text-ink hover:bg-well
                          transition-colors"
               aria-label="Close print preview"
             >
@@ -177,7 +174,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
 
           {/* Tab toggle */}
           <div className="px-5 pb-3">
-            <div className="inline-flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-0.5">
+            <div className="inline-flex rounded-lg bg-well p-0.5">
               <TabButton
                 active={activeTab === 'student'}
                 onClick={() => setActiveTab('student')}
@@ -289,11 +286,11 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
           </div>
 
           {/* Controls footer */}
-          <div className="border-t border-stone-200/60 dark:border-stone-700/30 px-5 py-4 space-y-3">
+          <div className="border-t border-line px-5 py-4 space-y-3">
             {/* Title input + Name/Date toggle */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">
+                <label className="block text-xs font-medium text-ink-2 mb-1">
                   Puzzle title
                 </label>
                 <input
@@ -304,10 +301,8 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                   placeholder={defaultTitle}
                   className="w-full px-3 py-1.5 text-sm rounded-lg
                              bg-white dark:bg-surface-dark
-                             border border-stone-200 dark:border-stone-700
-                             text-stone-800 dark:text-stone-200
-                             placeholder-stone-400 dark:placeholder-stone-500
-                             focus:border-primary-400 dark:focus:border-primary-600
+                             border border-line-2 text-ink placeholder:text-ink-3
+                             focus:border-accent
                              transition-colors"
                 />
               </div>
@@ -318,7 +313,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                     checked={showNameDate}
                     onChange={(e) => setShowNameDate(e.target.checked)}
                   />
-                  <span className="text-sm text-stone-600 dark:text-stone-400">
+                  <span className="text-sm text-ink-2">
                     Name / Date line
                   </span>
                 </label>
@@ -333,7 +328,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                       checked={inkSaver}
                       onChange={(e) => setInkSaver(e.target.checked)}
                     />
-                    <span className="text-sm text-stone-600 dark:text-stone-400">
+                    <span className="text-sm text-ink-2">
                       Ink-Saver Mode
                     </span>
                   </label>
@@ -398,7 +393,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
             </div>
 
             {/* Privacy note */}
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 flex items-center gap-1">
+            <p className="text-[11px] text-ink-3 flex items-center gap-1">
               <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
@@ -437,8 +432,8 @@ function TabButton({ active, onClick, label }: TabButtonProps) {
       className={`
         px-3.5 py-1.5 text-xs font-medium rounded-md transition-all duration-150
         ${active
-          ? 'bg-white dark:bg-stone-700 text-stone-800 dark:text-stone-100 shadow-sm'
-          : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'
+          ? 'bg-card text-ink shadow-sm'
+          : 'text-ink-2 hover:text-ink'
         }
       `}
     >
@@ -458,9 +453,8 @@ function ActionButton({ onClick, variant, disabled, children }: ActionButtonProp
   const base = 'inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl transition-all duration-150 btn-lift';
 
   const styles = variant === 'primary'
-    ? `${base} bg-primary-600 hover:bg-primary-700 text-white shadow-sm`
-    : `${base} bg-white dark:bg-surface-dark border border-stone-200 dark:border-stone-700
-       text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/60`;
+    ? `${base} bg-accent hover:bg-accent-2 text-accent-ink shadow-sm`
+    : `${base} bg-card border border-line-2 text-ink hover:bg-well`;
 
   return (
     <button onClick={onClick} disabled={disabled} className={styles}>
