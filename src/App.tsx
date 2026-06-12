@@ -55,13 +55,13 @@ export function App() {
       {/* Shared puzzle banner */}
       {sharedPuzzleLoaded && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3">
-          <div className="px-4 py-2.5 rounded-xl bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800/40 flex items-center justify-between animate-slide-down">
-            <span className="text-sm text-primary-700 dark:text-primary-300">
+          <div className="px-4 py-2.5 rounded-md bg-well border border-line border-l-2 border-l-rubric flex items-center justify-between animate-slide-down">
+            <span className="text-sm text-ink">
               Shared puzzle loaded — solve it!
             </span>
             <button
               onClick={() => setSharedPuzzleLoaded(false)}
-              className="text-primary-400 dark:text-primary-600 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              className="text-ink-3 hover:text-ink transition-colors"
               aria-label="Dismiss"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -105,8 +105,8 @@ export function App() {
         )}
       </main>
 
-      <footer className="border-t border-stone-200/40 dark:border-stone-700/20 py-4 mt-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-stone-400 dark:text-stone-500">
+      <footer className="border-t border-line/60 py-4 mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-3">
           <span className="font-display">Crossword Generator</span>
         </div>
       </footer>
