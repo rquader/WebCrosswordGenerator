@@ -67,9 +67,11 @@ const tabs: Tab[] = [
 
 export function TabBar({ activeTab, onTabChange, hasPuzzle }: TabBarProps) {
   return (
-    <nav className="border-b border-stone-200/60 dark:border-stone-700/30 bg-white/90 dark:bg-surface-dark/90 backdrop-blur-sm transition-colors duration-300">
+    <nav className="border-b border-line bg-page/90 backdrop-blur-sm transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex gap-1" role="tablist" aria-label="Application sections">
+        {/* Newspaper section nav: tracked caps, red-ink mark under the
+            open section. Icons only stand in on phones. */}
+        <div className="flex gap-0.5 sm:gap-4" role="tablist" aria-label="Application sections">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             const isDisabled = !hasPuzzle && (tab.id === 'play' || tab.id === 'export');
@@ -87,19 +89,20 @@ export function TabBar({ activeTab, onTabChange, hasPuzzle }: TabBarProps) {
                 }}
                 disabled={isDisabled}
                 className={`
-                  relative flex items-center gap-1.5 px-3 py-3 text-sm font-medium
+                  relative flex items-center gap-1.5 px-3 sm:px-1 py-3
+                  text-xs font-semibold uppercase tracking-[0.08em]
                   transition-all duration-200 border-b-2 -mb-px
                   ${isActive
-                    ? 'text-primary-700 dark:text-primary-400 border-primary-600 dark:border-primary-400'
+                    ? 'text-ink border-rubric'
                     : isDisabled
-                      ? 'text-stone-300 dark:text-stone-600 border-transparent cursor-not-allowed'
-                      : 'text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600'
+                      ? 'text-ink-3/50 border-transparent cursor-not-allowed'
+                      : 'text-ink-3 border-transparent hover:text-ink-2 hover:border-line-2'
                   }
                   ${!isDisabled && !isActive ? 'active:scale-95' : ''}
                 `}
                 title={isDisabled ? 'Generate a puzzle first' : tab.label}
               >
-                {tab.icon}
+                <span className="sm:hidden" aria-hidden="true">{tab.icon}</span>
                 <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );
