@@ -114,9 +114,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
 
   return (
     <div className="animate-fade-in">
-      {/* Completion celebration */}
+      {/* Completion — a quiet editorial moment, not a popup */}
       {state.isComplete && !state.revealedCells.size && (
-        <div className="mb-6 p-6 warm-card text-center animate-slide-up relative overflow-hidden">
+        <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
           {/* Confetti in the house palette: ink-red, copper, found-word marker hues */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-rubric animate-confetti-1" />
@@ -127,21 +127,15 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
           </div>
 
           <div className="relative z-10">
-            <div className="animate-completion-icon inline-block mb-3">
-              <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto animate-completion-pulse">
-                <svg className="w-7 h-7 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-            <p className="font-display text-2xl font-semibold text-ink">
-              Puzzle Complete!
+            <p className="font-display text-4xl text-ink" style={{ fontVariationSettings: "'SOFT' 40" }}>
+              Solved.
             </p>
-            <p className="text-ink-2 text-sm mt-1.5">
-              Solved in {formatTime(state.elapsedSeconds).mins}:{formatTime(state.elapsedSeconds).secs}
+            <div className="mx-auto mt-3 mb-2.5 w-10 border-t-2 border-rubric" aria-hidden="true" />
+            <p className="text-ink-2 text-sm tabular-nums">
+              {formatTime(state.elapsedSeconds).mins}:{formatTime(state.elapsedSeconds).secs}
               {state.hintsUsed > 0 && (
-                <span className="text-ink-3 ml-2">
-                  ({state.hintsUsed} hint{state.hintsUsed !== 1 ? 's' : ''} used)
+                <span className="text-ink-3">
+                  {' '}&middot; {state.hintsUsed} hint{state.hintsUsed !== 1 ? 's' : ''}
                 </span>
               )}
             </p>
@@ -176,8 +170,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
                   />
                 </div>
                 <span className="text-xs text-ink-3 font-mono tabular-nums">
-                  {state.filledCount}/{state.totalCount}{' '}
-                  {Math.round((state.filledCount / state.totalCount) * 100)}%
+                  {state.filledCount}/{state.totalCount}
                 </span>
               </div>
             </div>
@@ -200,11 +193,10 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               {state.checkedCells.size > 0 && (
                 <button
                   onClick={state.clearIncorrect}
-                  className="btn-ghost btn-sm text-amber-700 dark:text-amber-400
-                             hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-400
+                  className="btn-ghost btn-sm text-warn hover:bg-warn/10 hover:text-warn
                              animate-scale-in"
                 >
-                  Clear Wrong
+                  Clear wrong
                 </button>
               )}
               <button
@@ -253,13 +245,22 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             />
           </div>
 
-          {/* Active clue display below grid */}
+          {/* Active clue — inline on desktop, pinned above the thumb zone on
+              phones so the clue stays visible while typing into the grid. */}
           {activeClueText && (
-            <div className="mt-3 px-3 py-2 rounded-md bg-well border border-line border-l-2 border-l-rubric">
-              <p className="text-sm text-ink">
-                {activeClueText}
-              </p>
-            </div>
+            <>
+              <div className="hidden lg:block mt-3 note">
+                <p className="text-sm text-ink">
+                  {activeClueText}
+                </p>
+              </div>
+              <div className="lg:hidden fixed bottom-3 inset-x-3 z-30 rounded-md border border-line
+                              border-l-2 border-l-rubric bg-card shadow-raise px-3 py-2 animate-slide-up">
+                <p className="text-sm text-ink">
+                  {activeClueText}
+                </p>
+              </div>
+            </>
           )}
 
           {/* Screen reader clue announcement */}

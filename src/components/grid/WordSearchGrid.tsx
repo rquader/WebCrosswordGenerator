@@ -182,30 +182,55 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
 
   return (
     <div className="animate-fade-in">
-      {/* Completion banner */}
+      {/* Completion — same editorial moment as the crossword */}
       {isComplete && (
-        <div className="mb-6 p-4 warm-card text-center animate-slide-up">
-          <p className="font-display text-xl font-semibold text-ink">
-            All Words Found!
-          </p>
-          <p className="text-ink-2 text-sm mt-1">
-            Completed in {formatTime(elapsedSeconds)}
-          </p>
+        <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-rubric animate-confetti-1" />
+            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-ws-teal animate-confetti-2" />
+            <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-ws-amber animate-confetti-3" />
+            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-ws-blue animate-confetti-2" style={{ animationDelay: '0.1s' }} />
+            <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-accent animate-confetti-1" style={{ animationDelay: '0.15s' }} />
+          </div>
+          <div className="relative z-10">
+            <p className="font-display text-4xl text-ink" style={{ fontVariationSettings: "'SOFT' 40" }}>
+              All found.
+            </p>
+            <div className="mx-auto mt-3 mb-2.5 w-10 border-t-2 border-rubric" aria-hidden="true" />
+            <p className="text-ink-2 text-sm tabular-nums">
+              {formatTime(elapsedSeconds)}
+            </p>
+          </div>
         </div>
       )}
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: Grid + Controls */}
         <div className="flex-shrink-0">
-          {/* Timer and controls bar */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-lg font-semibold text-ink tabular-nums">
-                {formatTime(elapsedSeconds)}
-              </span>
-              {isTimerRunning && (
-                <span className="w-2 h-2 rounded-full bg-rubric animate-pulse" />
-              )}
+          {/* Solving desk strip — same bound toolbar as the crossword */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4
+                          rounded-md border border-line bg-card shadow-paper px-3 py-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-lg font-semibold text-ink tabular-nums">
+                  {formatTime(elapsedSeconds)}
+                </span>
+                {isTimerRunning && (
+                  <span className="w-2 h-2 rounded-full bg-rubric animate-pulse" />
+                )}
+              </div>
+              {/* Progress — ink filling a rule */}
+              <div className="flex items-center gap-1.5">
+                <div className="w-16 h-1.5 bg-well rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${puzzle.wordLocations.length > 0 ? (foundWords.length / puzzle.wordLocations.length) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="text-xs text-ink-3 font-mono tabular-nums">
+                  {foundWords.length}/{puzzle.wordLocations.length}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <button
@@ -311,22 +336,9 @@ function WordList({ words, foundWords, lastFoundWord }: {
 
   return (
     <div className="warm-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="section-label">
-          Words to Find
-        </h3>
-        <span className="text-xs font-mono text-ink-3">
-          {foundWords.length} / {words.length}
-        </span>
-      </div>
-
-      {/* Progress bar */}
-      <div className="w-full h-1.5 bg-well rounded-full mb-4 overflow-hidden">
-        <div
-          className="h-full bg-accent rounded-full transition-all duration-500 ease-out"
-          style={{ width: `${words.length > 0 ? (foundWords.length / words.length) * 100 : 0}%` }}
-        />
-      </div>
+      <h3 className="section-label mb-3">
+        Words to find
+      </h3>
 
       <div className="space-y-3">
         {groupWordsByDirection(words).map(({ label, items }) => (
