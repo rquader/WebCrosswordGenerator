@@ -33,7 +33,8 @@
       "Bash(sed -n '368,380p' src/components/tabs/AiBuilderTab.tsx)",
       "Bash(sed -n '398,415p' src/components/tabs/AiBuilderTab.tsx)",
       "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p23)",
-      "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p28)"
+      "Bash(node /tmp/cw-ui-shots.mjs /tmp/cw-ui-p28)",
+      "Bash(node -e ' *)"
     ]
   },
   "enabledPlugins": {

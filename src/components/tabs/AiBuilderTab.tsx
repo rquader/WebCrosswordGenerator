@@ -179,10 +179,10 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     <div className="animate-fade-in max-w-2xl mx-auto space-y-4">
       {/* Heading */}
       <div className="pt-2 pb-1">
-        <h2 className="font-display text-2xl font-semibold text-stone-900 dark:text-stone-100">
+        <h2 className="view-title">
           Get words from any AI
         </h2>
-        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="mt-1 text-sm text-ink-2 leading-relaxed">
           Build a ready-to-paste request, drop it into ChatGPT, Gemini, Claude — any AI you
           already use — and import its answer straight into your word list. Nothing leaves
           your browser except what you copy yourself.
@@ -194,7 +194,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <StepHeader number={1} title="Set up your request" />
 
         <div>
-          <label htmlFor="ai-context" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+          <label htmlFor="ai-context" className="block text-sm font-medium text-ink-2 mb-1.5">
             What should the words be about?
           </label>
           <textarea
@@ -203,34 +203,30 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
             onChange={e => patchDraft({ context: e.target.value })}
             rows={5}
             placeholder={'Anything works here — a topic ("the water cycle"), a unit plan, a textbook excerpt, a list of subtopics. Paste as much or as little as you like.'}
-            className="w-full rounded-lg border border-stone-300 dark:border-stone-600
-                       bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                       px-3 py-2 text-sm leading-relaxed placeholder:text-stone-400 dark:placeholder:text-stone-500
-                       focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
-                       transition-shadow resize-y"
+            className="field leading-relaxed focus:outline-none resize-y"
           />
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Word count stepper */}
           <div>
-            <span className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+            <span className="block text-sm font-medium text-ink-2 mb-1.5">
               New words to ask for
             </span>
-            <div className="inline-flex items-center rounded-lg border border-stone-300 dark:border-stone-600 overflow-hidden">
+            <div className="inline-flex items-center rounded-lg border border-line-2 overflow-hidden">
               <button
                 onClick={() => patchDraft({ wordCount: Math.max(MIN_WORDS, draft.wordCount - 1) })}
-                className="px-3 py-1.5 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-colors"
+                className="px-3 py-1.5 text-ink-2 hover:bg-well transition-colors"
                 aria-label="Fewer words"
               >
                 &minus;
               </button>
-              <span className="px-3 py-1.5 text-sm font-mono font-semibold text-stone-900 dark:text-stone-100 min-w-[3ch] text-center border-x border-stone-200 dark:border-stone-700">
+              <span className="px-3 py-1.5 text-sm font-mono font-semibold text-ink min-w-[3ch] text-center border-x border-line">
                 {draft.wordCount}
               </span>
               <button
                 onClick={() => patchDraft({ wordCount: Math.min(MAX_WORDS, draft.wordCount + 1) })}
-                className="px-3 py-1.5 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-colors"
+                className="px-3 py-1.5 text-ink-2 hover:bg-well transition-colors"
                 aria-label="More words"
               >
                 +
@@ -245,13 +241,13 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               checked={draft.includeExisting && existingWords.length > 0}
               disabled={existingWords.length === 0}
               onChange={e => patchDraft({ includeExisting: e.target.checked })}
-              className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+              className="mt-0.5 w-4 h-4"
             />
             <span>
-              <span className="block text-sm text-stone-600 dark:text-stone-400">
+              <span className="block text-sm text-ink-2">
                 Include my current words ({wordCountLabel})
               </span>
-              <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+              <span className="block text-xs text-ink-3 mt-0.5">
                 Helps the AI avoid repeats and suggest words that fit together.
               </span>
             </span>
@@ -259,11 +255,11 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         </div>
 
         {/* Collapsible prompt preview */}
-        <details className="group rounded-lg border border-stone-200 dark:border-stone-700/60">
-          <summary className="px-3 py-2 text-xs font-medium text-stone-500 dark:text-stone-400 cursor-pointer select-none hover:text-stone-700 dark:hover:text-stone-300 transition-colors">
+        <details className="group rounded-lg border border-line/60">
+          <summary className="px-3 py-2 text-xs font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors">
             Preview the exact prompt
           </summary>
-          <pre className="px-3 pb-3 pt-1 text-[11px] leading-relaxed text-stone-600 dark:text-stone-400 whitespace-pre-wrap break-words max-h-72 overflow-y-auto scrollbar-thin font-mono">
+          <pre className="px-3 pb-3 pt-1 text-[11px] leading-relaxed text-ink-2 whitespace-pre-wrap break-words max-h-72 overflow-y-auto scrollbar-thin font-mono">
             {prompt}
           </pre>
         </details>
@@ -271,15 +267,12 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <div>
           <button
             onClick={handleCopyPrompt}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold
-                       bg-gradient-to-r from-primary-600 to-primary-700
-                       hover:from-primary-700 hover:to-primary-800
-                       text-white shadow-md btn-lift transition-all"
+            className="btn-primary btn-lg w-full sm:w-auto font-semibold"
           >
             {copied ? 'Copied ✓' : 'Copy Prompt'}
           </button>
           {copied && (
-            <p className="mt-2 text-sm text-primary-600 dark:text-primary-400 animate-fade-in">
+            <p className="mt-2 text-sm text-rubric animate-fade-in">
               Now paste it into ChatGPT, Gemini, Claude, or any AI &rarr;
             </p>
           )}
@@ -287,9 +280,9 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
       </section>
 
       {/* ── Step 2: The bridge ── */}
-      <section className="rounded-2xl border border-dashed border-stone-300 dark:border-stone-600/60 px-5 py-4">
+      <section className="rounded-2xl border border-dashed border-line-2/60 px-5 py-4">
         <StepHeader number={2} title="Ask the AI" muted />
-        <p className="mt-1.5 text-sm text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="mt-1.5 text-sm text-ink-2 leading-relaxed">
           Open the AI assistant you normally use, paste the prompt, and send it.
           When it answers with a list of words, copy the whole reply and come back here.
         </p>
@@ -305,21 +298,13 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
           rows={6}
           placeholder="Paste the AI's response here — the whole reply is fine."
           aria-label="AI response to import"
-          className="w-full rounded-lg border border-stone-300 dark:border-stone-600
-                     bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                     px-3 py-2 text-sm leading-relaxed font-mono placeholder:font-sans placeholder:text-stone-400 dark:placeholder:text-stone-500
-                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
-                     transition-shadow resize-y"
+          className="field leading-relaxed font-mono placeholder:font-sans focus:outline-none resize-y"
         />
 
         <button
           onClick={handleImport}
           disabled={response.trim().length === 0}
-          className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold
-                     bg-gradient-to-r from-primary-600 to-primary-700
-                     hover:from-primary-700 hover:to-primary-800
-                     text-white shadow-md btn-lift transition-all
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary btn-lg w-full sm:w-auto font-semibold"
         >
           Import Words
         </button>
@@ -328,20 +313,20 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         {outcome && (
           <div className="space-y-2 animate-fade-in">
             {outcome.added > 0 && (
-              <div className="rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2.5">
-                <p className="text-sm font-medium text-primary-700 dark:text-primary-300">
+              <div className="rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2.5">
+                <p className="text-sm font-medium text-ink">
                   {outcome.added} {outcome.added === 1 ? 'word' : 'words'} added to your list
                   {outcome.duplicatesSkipped > 0 && (
-                    <span className="font-normal text-primary-600/80 dark:text-primary-400/70">
+                    <span className="font-normal text-ink-3">
                       {' '}&middot; {outcome.duplicatesSkipped} duplicate{outcome.duplicatesSkipped !== 1 ? 's' : ''} skipped
                     </span>
                   )}
                 </p>
-                <p className="mt-1 text-xs text-primary-600/80 dark:text-primary-400/70">
+                <p className="mt-1 text-xs text-ink-2">
                   Copy the prompt again for more words, or{' '}
                   <button
                     onClick={onGoToGenerate}
-                    className="underline underline-offset-2 font-medium hover:text-primary-800 dark:hover:text-primary-200 transition-colors"
+                    className="text-rubric underline underline-offset-2 font-medium transition-colors"
                   >
                     open Generate
                   </button>{' '}

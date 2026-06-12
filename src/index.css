@@ -119,13 +119,6 @@
     }
   }
 
-  /* Primary gradient buttons flatten to the sepia ink-indigo — the
-     bg-primary-* override can't catch gradient stop classes */
-  .sepia .from-primary-600 {
-    background-image: none !important;
-    background-color: #3a30a0 !important;
-  }
-
   .sepia .bg-white {
     background-color: #f7f0dc !important;
   }

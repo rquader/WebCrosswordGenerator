@@ -320,14 +320,14 @@ export function SkeletonFillView({
     <div className="space-y-4">
       {/* Title + status bar */}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100">
+        <h2 className="font-display text-lg font-semibold text-ink">
           {totalEmpty === 0 ? 'Your puzzle is ready' : 'Fill in the blanks'}
         </h2>
         <div className="flex items-center gap-3 text-sm">
           {totalEmpty > 0 && (
             <span className={filledCount === totalEmpty
-              ? 'text-primary-600 dark:text-primary-400 font-semibold'
-              : 'text-stone-500 dark:text-stone-400'}>
+              ? 'text-rubric font-semibold'
+              : 'text-ink-2'}>
               {filledCount}/{totalEmpty} slots filled
             </span>
           )}
@@ -336,7 +336,7 @@ export function SkeletonFillView({
               {conflictCount} conflict{conflictCount !== 1 ? 's' : ''}
             </span>
           )}
-          <span className="text-xs text-stone-400 dark:text-stone-500">
+          <span className="text-xs text-ink-3">
             {skeleton.mustPlacedCount}/{skeleton.mustTotalCount} of your words placed
           </span>
         </div>
@@ -344,8 +344,8 @@ export function SkeletonFillView({
 
       {/* Auto-grow note — the grid was enlarged so every word fits */}
       {skeleton.grewFrom && (
-        <div className="rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
-          <p className="text-xs text-primary-700 dark:text-primary-300">
+        <div className="rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+          <p className="text-xs text-ink-2">
             Grid sized up to {skeleton.width}&times;{skeleton.height} so every word fits.
           </p>
         </div>
@@ -397,22 +397,18 @@ export function SkeletonFillView({
           {totalEmpty > 0 && (
             <div className="flex items-center gap-2">
               {promptToast && (
-                <span className="text-xs text-primary-600 dark:text-primary-400 animate-fade-in">
+                <span className="text-xs text-rubric animate-fade-in">
                   {promptToast}
                 </span>
               )}
               <button onClick={handleAutoFill}
                 title="Fill every remaining blank with a common word that fits — you write the clues"
-                className="px-2.5 py-1 rounded-lg border border-stone-300 dark:border-stone-600
-                           text-xs text-stone-600 dark:text-stone-300
-                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+                className="btn-secondary btn-sm">
                 Auto-fill blanks
               </button>
               <button onClick={() => void handleCopyAiPrompt()}
                 title="Copy a ready-made prompt (with each blank's letter pattern) to paste into your AI tool. Nothing is sent anywhere by this app."
-                className="px-2.5 py-1 rounded-lg border border-stone-300 dark:border-stone-600
-                           text-xs text-stone-600 dark:text-stone-300
-                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+                className="btn-secondary btn-sm">
                 Copy AI prompt
               </button>
             </div>
@@ -454,25 +450,15 @@ export function SkeletonFillView({
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-3">
-        <button onClick={onBack}
-          className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600
-                     text-sm text-stone-600 dark:text-stone-400
-                     hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+        <button onClick={onBack} className="btn-ghost">
           Back
         </button>
         <div className="flex gap-2">
-          <button onClick={onRegenerate}
-            className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600
-                       text-sm text-stone-600 dark:text-stone-400
-                       hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift">
+          <button onClick={onRegenerate} className="btn-secondary">
             Different layout
           </button>
           <button onClick={handleFinalize} disabled={!canFinalize}
-            className="px-4 py-2 rounded-xl text-sm font-semibold
-                       bg-gradient-to-r from-primary-600 to-primary-700
-                       hover:from-primary-700 hover:to-primary-800
-                       text-white shadow-md btn-lift
-                       disabled:opacity-50 disabled:cursor-not-allowed">
+            className="btn-primary font-semibold">
             Create Puzzle
           </button>
         </div>
@@ -487,14 +473,14 @@ export function SkeletonFillView({
 
 function FilledSlotRow({ slot }: { slot: SkeletonSlot }) {
   return (
-    <div className="rounded-lg border border-primary-200/60 dark:border-primary-800/30 bg-primary-50/40 dark:bg-primary-950/10 px-3 py-1.5 flex items-center gap-2">
-      <span className="text-xs font-mono text-primary-600 dark:text-primary-400 w-16 flex-shrink-0">
+    <div className="rounded-md border border-line bg-well px-3 py-1.5 flex items-center gap-2">
+      <span className="text-xs font-mono text-ink-3 w-16 flex-shrink-0">
         {slot.id}-{slot.direction === 'across' ? 'A' : 'D'}
       </span>
-      <span className="text-sm font-medium text-primary-700 dark:text-primary-300 uppercase tracking-wide">
+      <span className="text-sm font-medium text-ink uppercase tracking-wide">
         {slot.displayWord ?? slot.word}
       </span>
-      <span className="text-xs text-stone-400 dark:text-stone-500 ml-auto truncate max-w-[10rem]">
+      <span className="text-xs text-ink-3 ml-auto truncate max-w-[10rem]">
         {slot.clue}
       </span>
     </div>
@@ -523,16 +509,16 @@ function EmptySlotRow({
         ${hasConflict
           ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/10'
           : isSelected
-            ? 'border-primary-400 dark:border-primary-600/60 bg-white dark:bg-surface-dark-alt shadow-sm'
-            : 'border-stone-200 dark:border-stone-700/60 bg-white/60 dark:bg-surface-dark-alt/40'}`}>
+            ? 'border-rubric/60 bg-card shadow-sm'
+            : 'border-line/60 bg-card/60'}`}>
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-xs font-mono text-stone-500 dark:text-stone-400 w-16 flex-shrink-0">
+        <span className="text-xs font-mono text-ink-2 w-16 flex-shrink-0">
           {slot.id}-{slot.direction === 'across' ? 'A' : 'D'}
         </span>
-        <span className="text-sm font-mono tracking-widest text-stone-500 dark:text-stone-400">
+        <span className="text-sm font-mono tracking-widest text-ink-2">
           {pattern}
         </span>
-        <span className="text-xs text-stone-400 dark:text-stone-500 ml-auto">
+        <span className="text-xs text-ink-3 ml-auto">
           {slot.length} letters
         </span>
       </div>
@@ -541,16 +527,14 @@ function EmptySlotRow({
           placeholder={`${slot.length}-letter word`} maxLength={slot.length}
           onClick={(e) => e.stopPropagation()}
           className={`flex-1 rounded-md border px-2 py-1 text-sm font-mono uppercase
-                     bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                     placeholder:text-stone-400 dark:placeholder:text-stone-500
-                     focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow
-                     ${!lengthOk ? 'border-red-300 dark:border-red-700' : 'border-stone-300 dark:border-stone-600'}`} />
+                     bg-card text-ink placeholder:text-ink-3
+                     focus:outline-none focus:border-accent transition-colors
+                     ${!lengthOk ? 'border-red-300 dark:border-red-700' : 'border-line-2'}`} />
         <input type="text" value={edit.clue} onChange={(e) => onClueChange(e.target.value)}
           placeholder="Clue" onClick={(e) => e.stopPropagation()}
-          className="flex-[2] rounded-md border border-stone-300 dark:border-stone-600 px-2 py-1 text-sm
-                     bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                     placeholder:text-stone-400 dark:placeholder:text-stone-500
-                     focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow" />
+          className="flex-[2] rounded-md border border-line-2 px-2 py-1 text-sm
+                     bg-card text-ink placeholder:text-ink-3
+                     focus:outline-none focus:border-accent transition-colors" />
       </div>
       {hasConflict && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Letter conflict with a crossing word</p>}
       {suggestions.length > 0 && (
@@ -562,10 +546,9 @@ function EmptySlotRow({
             <button
               key={word}
               onClick={(e) => { e.stopPropagation(); onWordChange(word); }}
-              className="px-2 py-0.5 rounded-full text-xs font-mono uppercase
-                         bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300
-                         border border-primary-200/70 dark:border-primary-800/40
-                         hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all">
+              className="px-2 py-0.5 rounded-btn text-xs font-mono uppercase
+                         bg-rubric/10 text-rubric border border-rubric/25
+                         hover:bg-rubric/20 transition-all">
               {word}
             </button>
           ))}
