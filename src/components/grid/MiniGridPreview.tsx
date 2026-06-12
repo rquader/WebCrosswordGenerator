@@ -79,7 +79,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
 
   return (
     <div className="flex flex-col items-center gap-5 py-10 animate-fade-in">
-      <p className="text-[11px] tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500">
+      <p className="text-[11px] tracking-[0.18em] uppercase text-ink-3">
         Live preview — updates as you type
       </p>
 
@@ -127,7 +127,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
       </div>
 
       <div className="text-center space-y-1">
-        <p className="text-sm text-stone-600 dark:text-stone-300">
+        <p className="text-sm text-ink-2">
           <span className="font-semibold">{preview.width}&times;{preview.height}</span>
           {' '}&middot;{' '}
           {preview.mustPlacedCount === preview.mustTotalCount
@@ -136,7 +136,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           {blankCount > 0 && <> &middot; {blankCount} blank{blankCount !== 1 ? 's' : ''} to fill</>}
         </p>
         {preview.grewFrom && (
-          <p className="text-xs text-primary-600 dark:text-primary-400">
+          <p className="text-xs text-rubric">
             Sized up so every word fits
           </p>
         )}
@@ -145,7 +145,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
             {preview.failures.length} word{preview.failures.length !== 1 ? 's' : ''} won't fit at this size
           </p>
         )}
-        <p className="text-xs text-stone-400 dark:text-stone-500">
+        <p className="text-xs text-ink-3">
           {blankCount > 0
             ? 'Generate to fill the blanks and finish your puzzle'
             : 'Generate to create your puzzle'}

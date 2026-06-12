@@ -24,7 +24,7 @@ function randomSeed(): number {
 }
 
 function Divider() {
-  return <div className="h-px bg-stone-200 dark:bg-stone-700/50" />;
+  return <div className="h-px bg-line" />;
 }
 
 export function SettingsPanel({ value, onChange, recommendation, effectiveSize }: SettingsPanelProps) {
@@ -90,31 +90,31 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
   return (
     <div className="warm-card p-5">
       <h2 className="flex items-baseline gap-2 section-label mb-4">
-        <span className="font-display text-base leading-none text-copper-600 dark:text-copper-400" aria-hidden="true">2</span>
+        <span className="font-display text-base leading-none text-rubric" aria-hidden="true">2</span>
         Grid Setup
       </h2>
 
       <div className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">
+          <label className="block text-sm font-medium text-ink-2 mb-2">
             Grid Size
           </label>
 
           {/* Auto-size banner — grid follows the word list */}
           {autoActive && (
             <div className="mb-3 flex items-start gap-2">
-              <div className="flex-1 rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
-                <p className="text-xs font-medium text-primary-700 dark:text-primary-300">
+              <div className="flex-1 rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+                <p className="text-xs font-medium text-ink">
                   Auto: {recommendation!.width}&times;{recommendation!.height} — sized to your words
                 </p>
-                <p className="text-xs text-primary-600/80 dark:text-primary-400/70 mt-0.5">
+                <p className="text-xs text-ink-3 mt-0.5">
                   {recommendation!.reason}
                 </p>
               </div>
               <button
                 onClick={() => patchManualSize({ width: recommendation!.width, height: recommendation!.height })}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-stone-300 dark:border-stone-600
-                           text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-surface-dark-hover
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-line-2
+                           text-ink-2 hover:bg-well
                            transition-all btn-lift flex-shrink-0"
               >
                 Customize
@@ -125,17 +125,17 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
           {/* Manual mode with words present: suggestion + a way back to auto */}
           {!autoActive && recommendation && recommendation.minDimension > 0 && (
             <div className="mb-3 flex items-start gap-2">
-              <div className="flex-1 rounded-lg border border-primary-200 dark:border-primary-800/40 bg-primary-50/60 dark:bg-primary-950/20 px-3 py-2">
-                <p className="text-xs font-medium text-primary-700 dark:text-primary-300">
+              <div className="flex-1 rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+                <p className="text-xs font-medium text-ink">
                   Suggested: {recommendation.width}x{recommendation.height}
                 </p>
-                <p className="text-xs text-primary-600/80 dark:text-primary-400/70 mt-0.5">
+                <p className="text-xs text-ink-3 mt-0.5">
                   {recommendation.reason}
                 </p>
               </div>
               <button
                 onClick={() => patch({ autoGridSize: true, forceDimensions: false })}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-all btn-lift flex-shrink-0"
+                className="btn-primary btn-sm flex-shrink-0"
               >
                 Use auto
               </button>
@@ -176,10 +176,10 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
                     <button
                       key={label}
                       onClick={() => applyQuickSize(width, height)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-150
+                      className={`px-3 py-1 rounded-btn text-xs font-medium transition-all duration-150
                         ${isActive
-                          ? 'bg-primary-600 text-white shadow-sm'
-                          : 'bg-stone-100 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/60'
+                          ? 'bg-accent text-accent-ink shadow-sm'
+                          : 'bg-well text-ink-2 hover:bg-line/50 hover:text-ink'
                         }`}
                     >
                       {label}
@@ -207,11 +207,11 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               type="checkbox"
               checked={value.forceDimensions}
               onChange={() => handleToggleForceDimensions()}
-              className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+              className="mt-0.5 w-4 h-4"
             />
             <span>
-              <span className="block text-sm text-stone-600 dark:text-stone-400">Force dimensions</span>
-              <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+              <span className="block text-sm text-ink-2">Force dimensions</span>
+              <span className="block text-xs text-ink-3 mt-0.5">
                 Keep the grid exactly this size. Words that don't fit are reported instead of growing the grid.
               </span>
             </span>
@@ -223,24 +223,20 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
         {/* Language + word shape — applies to entries, the AI prompt, and
             (word search) the filler letter filter. */}
         <div>
-          <label htmlFor="settings-language" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+          <label htmlFor="settings-language" className="block text-sm font-medium text-ink-2 mb-1.5">
             Language
           </label>
           <select
             id="settings-language"
             value={value.language}
             onChange={(e) => patch({ language: e.target.value as PuzzleLanguage })}
-            className="w-full rounded-lg border border-stone-300 dark:border-stone-600
-                       bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                       px-3 py-2 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
-                       transition-shadow"
+            className="field focus:outline-none"
           >
             {LANGUAGES.map(lang => (
               <option key={lang.id} value={lang.id}>{lang.label}</option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+          <p className="mt-1 text-xs text-ink-3">
             {value.language === 'spanish'
               ? 'Spanish keeps Á É Í Ó Ú Ü Ñ in words. Clues and AI suggestions follow the language too.'
               : 'Words use plain A-Z and digits. Clues and AI suggestions follow the language too.'}
@@ -251,11 +247,11 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               type="checkbox"
               checked={value.allowTwoWords}
               onChange={() => patch({ allowTwoWords: !value.allowTwoWords })}
-              className="mt-0.5 w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+              className="mt-0.5 w-4 h-4"
             />
             <span>
-              <span className="block text-sm text-stone-600 dark:text-stone-400">Suggest two-word answers in AI builder</span>
-              <span className="block text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+              <span className="block text-sm text-ink-2">Suggest two-word answers in AI builder</span>
+              <span className="block text-xs text-ink-3 mt-0.5">
                 The AI word builder will suggest phrases like &ldquo;extra time&rdquo; alongside single words.
               </span>
             </span>
@@ -272,27 +268,27 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
                   type="checkbox"
                   checked={value.wordSearchDirections.diagonal}
                   onChange={() => toggleDirection('diagonal')}
-                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                  className="w-4 h-4"
                 />
-                <span className="text-sm text-stone-600 dark:text-stone-400">Allow diagonals</span>
+                <span className="text-sm text-ink-2">Allow diagonals</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={value.wordSearchDirections.reversed}
                   onChange={() => toggleDirection('reversed')}
-                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                  className="w-4 h-4"
                 />
-                <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed words</span>
+                <span className="text-sm text-ink-2">Allow reversed words</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={value.wordSearchDirections.reversedDiagonal}
                   onChange={() => toggleDirection('reversedDiagonal')}
-                  className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500"
+                  className="w-4 h-4"
                 />
-                <span className="text-sm text-stone-600 dark:text-stone-400">Allow reversed diagonals</span>
+                <span className="text-sm text-ink-2">Allow reversed diagonals</span>
               </label>
             </div>
           </>
@@ -301,7 +297,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
         <Divider />
 
         <div>
-          <label htmlFor="settings-seed" className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-1.5">
+          <label htmlFor="settings-seed" className="block text-sm font-medium text-ink-2 mb-1.5">
             Seed (optional)
           </label>
           <div className="flex gap-1.5">
@@ -311,23 +307,19 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               value={value.seedText}
               onChange={(e) => patch({ seedText: e.target.value })}
               placeholder="Random"
-              className="flex-1 rounded-lg border border-stone-300 dark:border-stone-600
-                         bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100
-                         px-3 py-2 text-sm font-mono placeholder:text-stone-400 dark:placeholder:text-stone-500
-                         focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
-                         transition-shadow"
+              className="field flex-1 font-mono focus:outline-none"
             />
             <button
               onClick={handleCopySeed}
               disabled={!value.seedText}
-              className="px-2.5 py-2 rounded-lg border border-stone-300 dark:border-stone-600
-                         text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover
+              className="px-2.5 py-2 rounded-lg border border-line-2
+                         text-ink-2 hover:bg-well
                          disabled:opacity-30 disabled:cursor-not-allowed
                          text-sm transition-all btn-lift"
               title="Copy seed"
             >
               {seedCopied ? (
-                <svg className="w-4 h-4 text-primary-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <svg className="w-4 h-4 text-rubric" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
               ) : (
@@ -338,8 +330,8 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
             </button>
             <button
               onClick={handleRandomize}
-              className="px-2.5 py-2 rounded-lg border border-stone-300 dark:border-stone-600
-                         text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover
+              className="px-2.5 py-2 rounded-lg border border-line-2
+                         text-ink-2 hover:bg-well
                          text-sm transition-all btn-lift"
               title="Generate random seed"
             >
@@ -348,7 +340,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               </svg>
             </button>
           </div>
-          <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+          <p className="mt-1 text-xs text-ink-3">
             Same seed + settings = same puzzle every time
           </p>
         </div>
@@ -372,10 +364,10 @@ function SliderField({ label, value, min, max, onChange }: SliderFieldProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label htmlFor={sliderId} className="text-sm font-medium text-stone-600 dark:text-stone-400">
+        <label htmlFor={sliderId} className="text-sm font-medium text-ink-2">
           {label}
         </label>
-        <span className="text-sm font-mono font-semibold text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/30 px-1.5 py-0.5 rounded">
+        <span className="text-sm font-mono font-semibold text-ink bg-well border border-line px-1.5 py-0.5 rounded">
           {value}
         </span>
       </div>
@@ -389,11 +381,9 @@ function SliderField({ label, value, min, max, onChange }: SliderFieldProps) {
         aria-valuemax={max}
         aria-valuenow={value}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer
-                   bg-stone-200 dark:bg-stone-700
-                   copper-primary-600"
+        className="w-full cursor-pointer"
       />
-      <div className="flex justify-between text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+      <div className="flex justify-between text-xs text-ink-3 mt-0.5">
         <span>{min}</span>
         <span>{max}</span>
       </div>

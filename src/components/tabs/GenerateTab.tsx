@@ -441,7 +441,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
     return (
       <div className="animate-fade-in space-y-4" key={`skeleton-${gridKey}`}>
         {generationInfo && (
-          <span className="text-xs text-stone-400 dark:text-stone-500 font-mono">{generationInfo}</span>
+          <span className="text-xs text-ink-3 font-mono">{generationInfo}</span>
         )}
         <SkeletonFillView
           skeleton={activeSkeleton}
@@ -463,31 +463,31 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
 
           {/* --- Mode toggle + header --- */}
           <div className="warm-card p-5">
-            <h2 className="font-display text-lg font-semibold text-stone-900 dark:text-stone-100 mb-1">
+            <h2 className="font-display text-lg font-semibold text-ink mb-1">
               {isCrossword ? 'Build a Crossword' : 'Build a Word Search'}
             </h2>
-            <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
+            <p className="text-sm text-ink-2 mb-4">
               {isCrossword
                 ? 'Add your words and generate — the grid sizes itself so everything fits.'
                 : 'Enter your words, pick a grid size, and generate.'}
             </p>
 
             {/* Mode toggle */}
-            <div className="flex rounded-lg bg-stone-100 dark:bg-stone-800/60 p-1" role="group">
+            <div className="flex rounded-btn bg-well p-1" role="group">
               <button
                 onClick={() => patchWizard({ settings: { ...wizard.settings, puzzleMode: 'crossword' } })}
-                className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all
+                className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all
                   ${isCrossword
-                    ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                    : 'text-stone-500 dark:text-stone-400'}`}>
+                    ? 'bg-card text-ink shadow-sm'
+                    : 'text-ink-2 hover:text-ink'}`}>
                 Crossword
               </button>
               <button
                 onClick={() => patchWizard({ settings: { ...wizard.settings, puzzleMode: 'wordsearch' } })}
-                className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all
+                className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all
                   ${!isCrossword
-                    ? 'bg-white dark:bg-surface-dark-hover text-stone-900 dark:text-stone-100 shadow-sm'
-                    : 'text-stone-500 dark:text-stone-400'}`}>
+                    ? 'bg-card text-ink shadow-sm'
+                    : 'text-ink-2 hover:text-ink'}`}>
                 Word Search
               </button>
             </div>
@@ -497,14 +497,14 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           <div className="warm-card p-5">
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3 className="flex items-baseline gap-2 section-label">
-                <span className="font-display text-base leading-none text-copper-600 dark:text-copper-400" aria-hidden="true">1</span>
+                <span className="font-display text-base leading-none text-rubric" aria-hidden="true">1</span>
                 Your Words
               </h3>
               <div className="flex items-center gap-2">
                 {!showTextImport && hasMeaningfulRows(wizard.table.rows, wordRules) && (
                   <button
                     onClick={handleClearAll}
-                    className="px-2 py-1.5 rounded-lg text-xs text-stone-500 dark:text-stone-400
+                    className="px-2 py-1.5 rounded-lg text-xs text-ink-2
                                hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30
                                transition-colors"
                   >
@@ -515,9 +515,9 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
                   value=""
                   onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
                   aria-label="Load a built-in word pack"
-                  className="rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-surface-dark-hover
-                             px-2 py-1.5 text-xs text-stone-600 dark:text-stone-300
-                             focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="rounded-field border border-line-2 bg-card
+                             px-2 py-1.5 text-xs text-ink-2
+                             focus:outline-none focus:border-accent transition-colors"
                 >
                   <option value="">Load a word pack…</option>
                   {WORD_PACKS.map(pack => (
@@ -529,21 +529,21 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
               </div>
             </div>
             {clearUndo && (
-              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-stone-200 dark:border-stone-700
-                              bg-stone-50 dark:bg-stone-800/60 px-3 py-2 animate-fade-in"
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-line
+                              bg-well px-3 py-2 animate-fade-in"
                    role="status">
-                <span className="text-xs text-stone-600 dark:text-stone-300">
+                <span className="text-xs text-ink-2">
                   Cleared {clearUndo.count === 1 ? '1 word' : `${clearUndo.count} words`}.
                 </span>
                 <button
                   onClick={handleUndoClear}
-                  className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+                  className="text-xs font-semibold text-rubric hover:underline"
                 >
                   Undo
                 </button>
               </div>
             )}
-            <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+            <p className="text-xs text-ink-2 mb-3">
               {isCrossword
                 ? 'Every word you add is guaranteed a spot in the puzzle. You can also leave this empty and fill a blank skeleton yourself.'
                 : 'All words will be hidden in your word search.'}
@@ -571,11 +571,11 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
               />
             )}
             {!showTextImport && (
-              <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+              <p className="mt-3 text-xs text-ink-3">
                 No word list yet?{' '}
                 <button
                   onClick={onGoToAiWords}
-                  className="font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                  className="font-medium text-rubric hover:underline"
                 >
                   Build one with AI &rarr;
                 </button>
@@ -627,11 +627,11 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
                     : 'Fill the grid with the answer letters'}
                 >
                   <input type="checkbox" checked={showAnswers} onChange={e => setShowAnswers(e.target.checked)}
-                    className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-primary-600 focus:ring-primary-500" />
-                  <span className="text-sm text-stone-600 dark:text-stone-400">Show answers</span>
+                    className="w-4 h-4" />
+                  <span className="text-sm text-ink-2">Show answers</span>
                 </label>
                 {generationInfo && (
-                  <span className="text-xs text-stone-400 dark:text-stone-500 font-mono">{generationInfo}</span>
+                  <span className="text-xs text-ink-3 font-mono">{generationInfo}</span>
                 )}
               </div>
               {generatedMode === 'wordsearch' ? (
@@ -677,9 +677,9 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
   payload: ImportedEntryRows; onReplace: () => void; onAppend: () => void; onCancel: () => void;
 }) {
   return (
-    <div className="warm-card p-5 border-primary-200 dark:border-primary-800/40">
-      <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">Import existing data?</h3>
-      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+    <div className="warm-card p-5 border-accent/30">
+      <h3 className="text-base font-semibold text-ink">Import existing data?</h3>
+      <p className="mt-1 text-sm text-ink-2">
         {payload.sourceSummary}. Your table already has content.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -694,30 +694,30 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
 function EmptyState({ isCrossword }: { isCrossword: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-      <div className="relative w-28 h-28 mb-8">
-        <div className="absolute inset-0 rounded-2xl bg-primary-500/10 dark:bg-primary-400/5 blur-xl" />
-        <svg viewBox="0 0 100 100" className="w-full h-full relative z-10" fill="none">
-          <rect x="6" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
-          <rect x="37" y="6" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
-          <rect x="68" y="6" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
-          <rect x="6" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
-          <rect x="37" y="37" width="26" height="26" rx="3" className="fill-primary-100 dark:fill-primary-900/30 stroke-primary-500 dark:stroke-primary-500/60" strokeWidth="1.5" />
-          <rect x="68" y="37" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
-          <rect x="6" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
-          <rect x="37" y="68" width="26" height="26" rx="3" className="fill-grid-cell dark:fill-grid-cell-dark stroke-primary-400 dark:stroke-primary-600/50" strokeWidth="1.2" />
-          <rect x="68" y="68" width="26" height="26" rx="3" className="fill-primary-50 dark:fill-primary-950/30 stroke-primary-300 dark:stroke-primary-700/60" strokeWidth="1" />
-          <text x="50" y="24" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">A</text>
-          <text x="19" y="55" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">C</text>
-          <text x="50" y="55" textAnchor="middle" className="fill-primary-700 dark:fill-primary-300" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">R</text>
-          <text x="81" y="55" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">O</text>
-          <text x="50" y="86" textAnchor="middle" className="fill-primary-600 dark:fill-primary-400" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">S</text>
+      {/* A scrap of printed puzzle, not an app icon: paper cells, ink
+          letters, one blocked square, the center letter set in red ink. */}
+      <div className="relative w-28 h-28 mb-8 -rotate-2">
+        <svg viewBox="0 0 100 100" className="w-full h-full relative z-10 drop-shadow-md" fill="none">
+          <rect x="5" y="5" width="90" height="90" rx="2" className="fill-grid-cell dark:fill-grid-cell-dark stroke-grid-ink" strokeWidth="2.5" />
+          <line x1="35" y1="5" x2="35" y2="95" className="stroke-grid-ink/35" strokeWidth="1" />
+          <line x1="65" y1="5" x2="65" y2="95" className="stroke-grid-ink/35" strokeWidth="1" />
+          <line x1="5" y1="35" x2="95" y2="35" className="stroke-grid-ink/35" strokeWidth="1" />
+          <line x1="5" y1="65" x2="95" y2="65" className="stroke-grid-ink/35" strokeWidth="1" />
+          <rect x="66" y="66" width="28" height="28" className="fill-grid-ink" />
+          <text x="8.5" y="14.5" className="fill-grid-ink/60" fontSize="7" fontWeight="600" fontFamily="Inter, sans-serif">1</text>
+          <text x="38.5" y="14.5" className="fill-grid-ink/60" fontSize="7" fontWeight="600" fontFamily="Inter, sans-serif">2</text>
+          <text x="50" y="26" textAnchor="middle" className="fill-grid-ink" fontSize="15" fontWeight="600" fontFamily="Inter, sans-serif">A</text>
+          <text x="20" y="56" textAnchor="middle" className="fill-grid-ink" fontSize="15" fontWeight="600" fontFamily="Inter, sans-serif">C</text>
+          <text x="50" y="56" textAnchor="middle" className="fill-rubric" fontSize="16" fontWeight="700" fontFamily="Inter, sans-serif">R</text>
+          <text x="80" y="56" textAnchor="middle" className="fill-grid-ink" fontSize="15" fontWeight="600" fontFamily="Inter, sans-serif">O</text>
+          <text x="50" y="86" textAnchor="middle" className="fill-grid-ink" fontSize="15" fontWeight="600" fontFamily="Inter, sans-serif">S</text>
         </svg>
       </div>
 
-      <h2 className="font-display text-2xl font-semibold text-stone-800 dark:text-stone-200 mb-2">
+      <h2 className="view-title mb-2">
         {isCrossword ? 'Start with your words' : 'Enter words and generate'}
       </h2>
-      <p className="text-sm text-stone-500 dark:text-stone-400 max-w-xs leading-relaxed">
+      <p className="text-sm text-ink-2 max-w-xs leading-relaxed">
         {isCrossword
           ? 'Add your vocabulary on the left — type it, paste it, or load a word pack. The grid sizes itself so every word fits; generate and your puzzle is ready.'
           : 'Add your words on the left, choose a grid size, and generate your word search.'}
