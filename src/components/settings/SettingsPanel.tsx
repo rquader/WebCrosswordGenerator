@@ -103,7 +103,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
           {/* Auto-size banner — grid follows the word list */}
           {autoActive && (
             <div className="mb-3 flex items-start gap-2">
-              <div className="flex-1 rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+              <div className="flex-1 note">
                 <p className="text-xs font-medium text-ink">
                   Auto: {recommendation!.width}&times;{recommendation!.height} — sized to your words
                 </p>
@@ -113,9 +113,7 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
               </div>
               <button
                 onClick={() => patchManualSize({ width: recommendation!.width, height: recommendation!.height })}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-line-2
-                           text-ink-2 hover:bg-well
-                           transition-all btn-lift flex-shrink-0"
+                className="btn-secondary btn-sm flex-shrink-0"
               >
                 Customize
               </button>
@@ -125,9 +123,9 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
           {/* Manual mode with words present: suggestion + a way back to auto */}
           {!autoActive && recommendation && recommendation.minDimension > 0 && (
             <div className="mb-3 flex items-start gap-2">
-              <div className="flex-1 rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+              <div className="flex-1 note">
                 <p className="text-xs font-medium text-ink">
-                  Suggested: {recommendation.width}x{recommendation.height}
+                  Suggested: {recommendation.width}&times;{recommendation.height}
                 </p>
                 <p className="text-xs text-ink-3 mt-0.5">
                   {recommendation.reason}
@@ -144,10 +142,10 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
 
           {/* Outlier warnings */}
           {recommendation && recommendation.outliers.length > 0 && (
-            <div className="mb-3 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2">
+            <div className="mb-3 note note-warn">
               {recommendation.outliers.map((outlier, i) => (
-                <p key={i} className="text-xs text-amber-700 dark:text-amber-300">
-                  <span className="font-medium uppercase">{outlier.word || `Word (${outlier.length} letters)`}</span>
+                <p key={i} className="text-xs text-ink-2">
+                  <span className="font-medium uppercase text-warn">{outlier.word || `Word (${outlier.length} letters)`}</span>
                   {' '}is much longer than your other words (median {outlier.medianOtherLength} letters).
                   This needs a significantly larger grid.
                 </p>
@@ -158,10 +156,11 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
           {/* Min dimension warning (manual sizing only — auto always fits) */}
           {!autoActive && recommendation && recommendation.minDimension > 0 &&
            (value.width < recommendation.minDimension && value.height < recommendation.minDimension) && (
-            <div className="mb-3 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50/60 dark:bg-red-950/20 px-3 py-2">
-              <p className="text-xs text-red-700 dark:text-red-300">
-                Your longest word ({recommendation.minDimension} letters) won't fit in a {value.width}x{value.height} grid.
-                At least one dimension must be {recommendation.minDimension} or larger.
+            <div className="mb-3 note note-danger">
+              <p className="text-xs text-ink-2">
+                <span className="font-medium text-danger">Won&rsquo;t fit:</span>{' '}
+                your longest word is {recommendation.minDimension} letters, so at least one side
+                of the grid must be {recommendation.minDimension} or larger.
               </p>
             </div>
           )}
@@ -312,11 +311,9 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
             <button
               onClick={handleCopySeed}
               disabled={!value.seedText}
-              className="px-2.5 py-2 rounded-lg border border-line-2
-                         text-ink-2 hover:bg-well
-                         disabled:opacity-30 disabled:cursor-not-allowed
-                         text-sm transition-all btn-lift"
+              className="btn-secondary px-2.5"
               title="Copy seed"
+              aria-label="Copy seed"
             >
               {seedCopied ? (
                 <svg className="w-4 h-4 text-rubric" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -330,10 +327,9 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
             </button>
             <button
               onClick={handleRandomize}
-              className="px-2.5 py-2 rounded-lg border border-line-2
-                         text-ink-2 hover:bg-well
-                         text-sm transition-all btn-lift"
-              title="Generate random seed"
+              className="btn-secondary px-2.5"
+              title="New random seed"
+              aria-label="New random seed"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
@@ -400,9 +396,9 @@ function getQuickSizePresets(
 ): { label: string; width: number; height: number }[] {
   if (!recommendation || recommendation.minDimension === 0) {
     return [
-      { label: 'Small 5x5', width: 5, height: 5 },
-      { label: 'Medium 8x8', width: 8, height: 8 },
-      { label: 'Large 12x12', width: 12, height: 12 },
+      { label: 'Small 5×5', width: 5, height: 5 },
+      { label: 'Medium 8×8', width: 8, height: 8 },
+      { label: 'Large 12×12', width: 12, height: 12 },
     ];
   }
 
@@ -411,8 +407,8 @@ function getQuickSizePresets(
   const spacious = Math.min(26, rec + 3);
 
   return [
-    { label: `Compact ${compact}x${compact}`, width: compact, height: compact },
-    { label: `Suggested ${rec}x${rec}`, width: rec, height: rec },
-    { label: `Spacious ${spacious}x${spacious}`, width: spacious, height: spacious },
+    { label: `Compact ${compact}×${compact}`, width: compact, height: compact },
+    { label: `Suggested ${rec}×${rec}`, width: rec, height: rec },
+    { label: `Spacious ${spacious}×${spacious}`, width: spacious, height: spacious },
   ];
 }

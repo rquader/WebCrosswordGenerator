@@ -53,7 +53,7 @@ export function ExportTab({ puzzle, puzzleMode }: ExportTabProps) {
             </div>
             <button
               onClick={() => setShowPrintPreview(true)}
-              className="btn-primary font-semibold flex-shrink-0"
+              className="btn-primary flex-shrink-0"
             >
               Open print preview
             </button>

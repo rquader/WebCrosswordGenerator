@@ -47,15 +47,15 @@ export function TextImportView({
           {preview.entries.length} valid
         </span>
         {preview.errors.length > 0 && (
-          <span className="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
+          <span className="px-2.5 py-1 rounded-btn bg-well border border-line text-warn font-medium">
             {preview.errors.length} warning{preview.errors.length === 1 ? '' : 's'}
           </span>
         )}
       </div>
 
       {preview.errors.length > 0 && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 p-4">
-          <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 max-h-32 overflow-y-auto scrollbar-thin">
+        <div className="note note-warn">
+          <ul className="text-meta text-ink-2 space-y-1 max-h-32 overflow-y-auto scrollbar-thin">
             {preview.errors.map((warning, index) => (
               <li key={index}>{warning}</li>
             ))}
@@ -65,14 +65,14 @@ export function TextImportView({
 
       <div className="flex items-center justify-between gap-3 pt-2">
         <button onClick={onBack} className="btn-ghost">
-          Back to Table
+          Back to table
         </button>
         <button
           onClick={onImport}
           disabled={preview.entries.length === 0}
-          className="btn-primary font-semibold"
+          className="btn-primary"
         >
-          Import into Table
+          Import into table
         </button>
       </div>
     </div>

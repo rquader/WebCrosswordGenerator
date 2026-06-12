@@ -83,19 +83,19 @@ export function WordBankPanel({ puzzle }: WordBankPanelProps) {
         <h3 className="section-label">
           Word Bank
         </h3>
-        <span className="text-xs font-mono text-stone-400 dark:text-stone-500">
+        <span className="text-xs font-mono text-ink-3">
           {words.length} {words.length === 1 ? 'word' : 'words'}
         </span>
       </div>
       <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5">
         {words.map(word => (
-          <li key={word} className="text-sm font-medium tracking-wide text-stone-700 dark:text-stone-300">
+          <li key={word} className="text-sm font-medium tracking-wide text-ink-2">
             {word}
           </li>
         ))}
       </ul>
       {hasTwoWordAnswers && (
-        <p className="mt-3 text-xs text-stone-400 dark:text-stone-500 italic">
+        <p className="mt-3 text-xs text-ink-3 italic">
           Two-word entries hide in the grid without their space.
         </p>
       )}

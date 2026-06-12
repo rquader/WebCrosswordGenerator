@@ -178,12 +178,12 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
               <TabButton
                 active={activeTab === 'student'}
                 onClick={() => setActiveTab('student')}
-                label="Student Puzzle"
+                label="Student page"
               />
               <TabButton
                 active={activeTab === 'answerKey'}
                 onClick={() => setActiveTab('answerKey')}
-                label="Answer Key"
+                label="Answer key"
               />
             </div>
           </div>
@@ -299,11 +299,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={defaultTitle}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg
-                             bg-white dark:bg-surface-dark
-                             border border-line-2 text-ink placeholder:text-ink-3
-                             focus:border-accent
-                             transition-colors"
+                  className="field py-1.5"
                 />
               </div>
               <div className="flex flex-col gap-1.5 sm:pt-5">
@@ -329,7 +325,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                       onChange={(e) => setInkSaver(e.target.checked)}
                     />
                     <span className="text-sm text-ink-2">
-                      Ink-Saver Mode
+                      Ink saver
                     </span>
                   </label>
                 )}
@@ -344,7 +340,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={isPrinting}
               >
                 <PrintIcon />
-                Print Student
+                Print student
               </ActionButton>
               <ActionButton
                 onClick={() => handlePrint('answerKey')}
@@ -352,7 +348,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={isPrinting}
               >
                 <PrintIcon />
-                Print Answer Key
+                Print answer key
               </ActionButton>
               <ActionButton
                 onClick={() => handlePrint('both')}
@@ -360,7 +356,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={isPrinting}
               >
                 <PrintIcon />
-                Print Both
+                Print both
               </ActionButton>
             </div>
 
@@ -372,7 +368,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={false}
               >
                 <PdfIcon />
-                PDF Student
+                PDF student
               </ActionButton>
               <ActionButton
                 onClick={() => exportAsPdf(puzzle, { title: title || defaultTitle, showNameDate: false, showAnswers: true, inkSaver, puzzleMode })}
@@ -380,7 +376,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={false}
               >
                 <PdfIcon />
-                PDF Answer Key
+                PDF answer key
               </ActionButton>
               <ActionButton
                 onClick={() => exportBothAsPdf(puzzle, { title: title || defaultTitle, showNameDate, inkSaver, puzzleMode })}
@@ -388,7 +384,7 @@ export function PrintPreviewModal({ puzzle, puzzleMode, isOpen, onClose }: Print
                 disabled={false}
               >
                 <PdfIcon />
-                PDF Both
+                PDF both
               </ActionButton>
             </div>
 
@@ -450,14 +446,12 @@ interface ActionButtonProps {
 }
 
 function ActionButton({ onClick, variant, disabled, children }: ActionButtonProps) {
-  const base = 'inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl transition-all duration-150 btn-lift';
-
-  const styles = variant === 'primary'
-    ? `${base} bg-accent hover:bg-accent-2 text-accent-ink shadow-sm`
-    : `${base} bg-card border border-line-2 text-ink hover:bg-well`;
-
   return (
-    <button onClick={onClick} disabled={disabled} className={styles}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={variant === 'primary' ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
+    >
       {children}
     </button>
   );

@@ -267,9 +267,9 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <div>
           <button
             onClick={handleCopyPrompt}
-            className="btn-primary btn-lg w-full sm:w-auto font-semibold"
+            className="btn-primary btn-lg w-full sm:w-auto"
           >
-            {copied ? 'Copied ✓' : 'Copy Prompt'}
+            {copied ? 'Copied' : 'Copy prompt'}
           </button>
           {copied && (
             <p className="mt-2 text-sm text-rubric animate-fade-in">
@@ -279,8 +279,8 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         </div>
       </section>
 
-      {/* ── Step 2: The bridge ── */}
-      <section className="rounded-2xl border border-dashed border-line-2/60 px-5 py-4">
+      {/* ── Step 2: The bridge — dashed because it happens outside the app ── */}
+      <section className="rounded-card border border-dashed border-line-2/60 px-5 py-4">
         <StepHeader number={2} title="Ask the AI" muted />
         <p className="mt-1.5 text-sm text-ink-2 leading-relaxed">
           Open the AI assistant you normally use, paste the prompt, and send it.
@@ -304,16 +304,16 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <button
           onClick={handleImport}
           disabled={response.trim().length === 0}
-          className="btn-primary btn-lg w-full sm:w-auto font-semibold"
+          className="btn-primary btn-lg w-full sm:w-auto"
         >
-          Import Words
+          Import words
         </button>
 
         {/* Outcome */}
         {outcome && (
           <div className="space-y-2 animate-fade-in">
             {outcome.added > 0 && (
-              <div className="rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2.5">
+              <div className="note py-2.5">
                 <p className="text-sm font-medium text-ink">
                   {outcome.added} {outcome.added === 1 ? 'word' : 'words'} added to your list
                   {outcome.duplicatesSkipped > 0 && (
@@ -336,9 +336,9 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
             )}
 
             {outcome.nothingFound && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2.5">
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  No words found in that text. Make sure you pasted the AI's reply —
+              <div className="note note-warn py-2.5">
+                <p className="text-sm text-ink-2">
+                  No words found in that text. Make sure you pasted the AI&rsquo;s reply —
                   it should contain {wizardSnapshot.settings.puzzleMode === 'wordsearch'
                     ? <>one word per line</>
                     : <>lines like <span className="font-mono">WORD | Clue</span></>}.
@@ -347,21 +347,21 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
             )}
 
             {outcome.added === 0 && outcome.duplicatesSkipped > 0 && !outcome.nothingFound && outcome.issues.length === 0 && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2.5">
-                <p className="text-sm text-amber-700 dark:text-amber-300">
+              <div className="note note-warn py-2.5">
+                <p className="text-sm text-ink-2">
                   Every word in that response is already in your list.
                 </p>
               </div>
             )}
 
             {outcome.issues.length > 0 && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2.5">
-                <p className="text-overline uppercase font-medium text-amber-700 dark:text-amber-300 mb-1.5">
-                  {outcome.issues.length} line{outcome.issues.length !== 1 ? 's' : ''} couldn't be read
+              <div className="note note-warn py-2.5">
+                <p className="text-overline uppercase font-medium text-warn mb-1.5">
+                  {outcome.issues.length} line{outcome.issues.length !== 1 ? 's' : ''} couldn&rsquo;t be read
                 </p>
                 <ul className="space-y-1">
                   {outcome.issues.map((issue, i) => (
-                    <li key={i} className="text-xs text-amber-700/90 dark:text-amber-300/90">
+                    <li key={i} className="text-xs text-ink-2">
                       {issue.message}
                     </li>
                   ))}
