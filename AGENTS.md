@@ -129,11 +129,24 @@ Key test patterns: seed reproducibility, edge cases (empty input, single word, o
 
 ## UI Rules
 - Must look polished and handcrafted — not generic AI output
-- Color palette: indigo primary, warm copper accent (see `tailwind.config.js` for full tokens)
-- Three theme modes: dark (default), light, sepia — with system preference detection
-- Fonts: Fraunces Variable (editorial serif — masthead, headings), Plus Jakarta Sans Variable, Inter
 - Design doctrine: "Sunday paper, modern desk" — the grid renders as print in every
   theme (cream cells + ink letters even in dark mode); warm white token (#fdfbf7)
+- Color system is SEMANTIC TOKENS ONLY (`page/card/well`, `ink-*`, `line-*`,
+  `accent`, `rubric`, `warn`, `danger`) — three CSS-var theme tables in
+  `index.css`, mapped in `tailwind.config.js`. No `dark:` pairs, no raw
+  palette colors (`amber-600`, `stone-300`, …) in components. Indigo survives
+  only INSIDE grids as selection washes.
+- Accent per theme: oxblood (light) / luminous ember (dark) / stamped ink
+  (sepia). Rubric red = wayfinding marks (active tab, numerals, focus, links).
+- Status messages use the margin-note classes: `.note` (info, rubric edge),
+  `.note-warn`, `.note-danger` — well background, ink body text, colored lead-in.
+  Never a colored alert box with colored body text.
+- Buttons: `.btn-primary/.btn-secondary/.btn-ghost` (+`.btn-sm/.btn-lg`),
+  sentence-case labels. Inputs: `.field`. Dimensions printed with ×, not x.
+- Three theme modes: dark (default), light, sepia — system preference detection,
+  pre-paint bootstrap in `index.html` (keep its storage key in sync with `useTheme`)
+- Fonts: Fraunces Variable (editorial serif — masthead, headings, big moments),
+  Plus Jakarta Sans Variable, Inter
 - Tabbed interface: Generate | AI Words | Play | Export | How to Use
 
 ## State Management
