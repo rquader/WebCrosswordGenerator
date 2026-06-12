@@ -4,20 +4,35 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/WebCrosswordGenerator/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Generate, play, and export crossword puzzles — fully private, runs entirely in your browser." />
+    <meta name="description" content="Generate, play, and print crossword puzzles — fully private, runs entirely in your browser." />
+    <meta name="theme-color" content="#1b1714" />
     <title>Crossword Generator</title>
     <!--
-      Privacy: No external font requests. We use system fonts only.
-      The font stack (Inter -> system-ui -> sans-serif) in tailwind.config.js
-      means users with Inter installed get it; everyone else gets their OS default.
-      Zero network calls to third parties.
+      Privacy: zero network calls. Fonts (Fraunces, Plus Jakarta Sans, Inter)
+      are self-hosted via @fontsource and bundled with the app — no font CDN,
+      no third-party requests of any kind.
     -->
-    <script type="module" crossorigin src="/WebCrosswordGenerator/assets/index-CRD1hCkg.js"></script>
-    <link rel="stylesheet" crossorigin href="/WebCrosswordGenerator/assets/index-BHkf87hb.css">
+    <script>
+      // Apply the saved theme before first paint so dark/sepia users never
+      // see a cream flash. Mirrors useTheme's storage key and fallback.
+      (function () {
+        try {
+          var theme = localStorage.getItem('crossword-theme');
+          if (theme !== 'dark' && theme !== 'light' && theme !== 'sepia') {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          if (theme === 'dark' || theme === 'sepia') {
+            document.documentElement.classList.add(theme);
+          }
+        } catch (e) { /* storage unavailable — default styles apply */ }
+      })();
+    </script>
+    <script type="module" crossorigin src="/WebCrosswordGenerator/assets/index-4JN_kSTz.js"></script>
+    <link rel="stylesheet" crossorigin href="/WebCrosswordGenerator/assets/index-tcmz02-J.css">
   </head>
   <body class="antialiased">
     <!-- Skip navigation link for keyboard/screen reader users -->
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-medium">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-accent focus:text-accent-ink focus:rounded-btn focus:text-sm focus:font-medium">
       Skip to content
     </a>
     <div id="root"></div>
