@@ -105,23 +105,14 @@ export function EntryTableEditor({
         </table>
       </div>
 
-      <button
-        onClick={onAddRow}
-        className="px-3 py-2 rounded-xl border border-primary-300 dark:border-primary-700 text-sm text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-950/20 transition-all btn-lift"
-      >
-        Add Row
+      <button onClick={onAddRow} className="btn-secondary btn-sm">
+        Add word
       </button>
 
       {/* Navigation — only shown when used inside a wizard (onContinue provided). */}
       {onContinue && (
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            onClick={onContinue}
-            className="px-4 py-2 rounded-xl text-sm font-semibold
-                       bg-gradient-to-r from-primary-600 to-primary-700
-                       hover:from-primary-700 hover:to-primary-800
-                       text-white shadow-md btn-lift"
-          >
+          <button onClick={onContinue} className="btn-primary">
             Continue to settings
           </button>
         </div>
@@ -151,7 +142,7 @@ function EntryTableRowEditor({
           value={row.word}
           onChange={(e) => onChangeRow(row.id, 'word', e.target.value)}
           placeholder="word"
-          className="w-full rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="field"
         />
         {validation.wordError && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validation.wordError}</p>
@@ -162,17 +153,14 @@ function EntryTableRowEditor({
           value={row.clue}
           onChange={(e) => onChangeRow(row.id, 'clue', e.target.value)}
           placeholder={clueOptional ? 'optional for word search' : 'definition or clue'}
-          className="w-full rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="field"
         />
         {validation.clueError && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validation.clueError}</p>
         )}
       </td>
       <td className="pb-3 text-right">
-        <button
-          onClick={() => onDeleteRow(row.id)}
-          className="px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-600 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-surface-dark-hover transition-all btn-lift"
-        >
+        <button onClick={() => onDeleteRow(row.id)} className="btn-ghost btn-sm">
           Delete
         </button>
       </td>

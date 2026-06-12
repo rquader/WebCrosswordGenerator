@@ -119,15 +119,6 @@
     }
   }
 
-  .sepia .warm-card {
-    background-color: #f7f0dc;
-    border-color: rgba(120, 95, 55, 0.25);
-    /* Warm brown shadows — neutral gray reads wrong on parchment */
-    box-shadow:
-      0 1px 3px 0 rgba(92, 70, 40, 0.1),
-      0 4px 14px -6px rgba(92, 70, 40, 0.16);
-  }
-
   /* Primary gradient buttons flatten to the sepia ink-indigo — the
      bg-primary-* override can't catch gradient stop classes */
   .sepia .from-primary-600 {
@@ -386,18 +377,10 @@
     opacity: 0.04;
   }
 
-  /* Card with warm shadow and depth */
+  /* Card — a sheet of paper on the desk. Fully token-driven: cream in
+     light, warm dark surface at night, layered old paper in sepia. */
   .warm-card {
-    @apply bg-white dark:bg-surface-dark-alt rounded-xl border border-stone-200/80 dark:border-stone-700/40 transition-colors duration-300;
-    box-shadow:
-      0 1px 3px 0 rgba(30,25,18,0.06),
-      0 4px 12px -4px rgba(30,25,18,0.08);
-  }
-
-  .dark .warm-card {
-    box-shadow:
-      0 1px 3px 0 rgba(0,0,0,0.22),
-      0 4px 12px -4px rgba(0,0,0,0.18);
+    @apply bg-card rounded-card border border-line shadow-paper transition-colors duration-300;
   }
 
   /* Button lift effect on hover */
@@ -448,19 +431,30 @@
     box-shadow: 0 0 25px -5px rgba(82,88,228,0.15);
   }
 
-  /* Custom range slider styling */
+  /* Text field — one decision for every input/select/textarea.
+     Applied per component as `field`. */
+  .field {
+    @apply w-full rounded-field border border-line-2 bg-card text-ink text-body
+           px-3 py-2 transition-colors duration-150;
+  }
+
+  .field::placeholder {
+    color: rgb(var(--ink-3));
+  }
+
+  .field:focus {
+    border-color: rgb(var(--accent));
+  }
+
+  /* Custom range slider styling — token-driven */
   input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
     height: 6px;
     border-radius: 3px;
-    background: theme('colors.stone.200');
+    background: rgb(var(--line));
     outline: none;
     transition: background 0.2s;
-  }
-
-  .dark input[type="range"] {
-    background: theme('colors.stone.700');
   }
 
   input[type="range"]::-webkit-slider-thumb {
@@ -469,59 +463,49 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: theme('colors.primary.600');
+    background: rgb(var(--accent));
     cursor: pointer;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    border: 2px solid rgb(var(--page));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
     transition: transform 0.15s, box-shadow 0.15s;
   }
 
   input[type="range"]::-webkit-slider-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 2px 8px rgba(9,148,112,0.3);
+    box-shadow: var(--shadow-raise);
   }
 
   input[type="range"]::-webkit-slider-thumb:active {
     transform: scale(0.95);
   }
 
-  .dark input[type="range"]::-webkit-slider-thumb {
-    border-color: theme('colors.surface.dark');
-    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-  }
-
   input[type="range"]::-moz-range-thumb {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: theme('colors.primary.600');
+    background: rgb(var(--accent));
     cursor: pointer;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    border: 2px solid rgb(var(--page));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   }
 
-  /* Custom checkbox styling */
+  /* Custom checkbox styling — token-driven; checking it is an ink stamp */
   input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
     width: 16px;
     height: 16px;
-    border: 1.5px solid theme('colors.stone.300');
+    border: 1.5px solid rgb(var(--line-2));
     border-radius: 4px;
-    background: white;
+    background: rgb(var(--card));
     cursor: pointer;
     transition: all 0.15s;
     position: relative;
   }
 
-  .dark input[type="checkbox"] {
-    border-color: theme('colors.stone.600');
-    background: theme('colors.surface.dark-alt');
-  }
-
   input[type="checkbox"]:checked {
-    background: theme('colors.primary.600');
-    border-color: theme('colors.primary.600');
+    background: rgb(var(--accent));
+    border-color: rgb(var(--accent));
   }
 
   input[type="checkbox"]:checked::after {
@@ -531,13 +515,13 @@
     top: 1px;
     width: 5px;
     height: 9px;
-    border: solid white;
+    border: solid rgb(var(--accent-ink));
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
 
   input[type="checkbox"]:hover {
-    border-color: theme('colors.primary.400');
+    border-color: rgb(var(--ink-3));
   }
 
   /* Cell shake animation (incorrect letter feedback) */
