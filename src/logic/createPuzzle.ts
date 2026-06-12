@@ -265,13 +265,23 @@ export function createWordSearchFromEntries(options: EntryPuzzleOptions): Crossw
   } else {
     result = wordSearchAtSize(options, entries, width, height);
 
+    // Placement is seeded-random, so a larger grid can occasionally place
+    // FEWER words than a smaller one. Track the best attempt; if the cap
+    // is reached with words still skipped, return that instead of blindly
+    // the last attempt (mirrors the skeleton generator's bestFallback).
+    let best = result;
+
     while (result.skippedWords && Math.max(width, height) < WORD_SEARCH_GROW_CAP) {
       width = Math.min(width + 1, WORD_SEARCH_GROW_CAP);
       height = Math.min(height + 1, WORD_SEARCH_GROW_CAP);
       result = wordSearchAtSize(options, entries, width, height);
+      if ((result.skippedWords?.length ?? 0) < (best.skippedWords?.length ?? 0)) {
+        best = result;
+      }
     }
 
-    if (width !== options.width || height !== options.height) {
+    result = best;
+    if (result.width !== options.width || result.height !== options.height) {
       result.grewFrom = { width: options.width, height: options.height };
     }
   }

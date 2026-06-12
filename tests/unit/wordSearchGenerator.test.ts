@@ -525,6 +525,62 @@ describe('WordSearchGenerator', () => {
       expect(a.grid).toEqual(b.grid);
       expect(a.wordLocations).toEqual(b.wordLocations);
     });
+
+    it('returns the best attempt, not the last, when the cap is hit with skips', () => {
+      // Placement is seeded-random, so a larger grid can place FEWER
+      // words than a smaller one. A 200-word paste with diagonals off
+      // oversaturates even 30x30; at this seed the final 30x30 attempt
+      // places fewer words than an intermediate size did. The API must
+      // return the best attempt seen, mirroring the skeleton generator.
+      const base = (
+        'planet comet galaxy orbit nebula asteroid eclipse gravity volcano earthquake ' +
+        'continent ocean river mountain valley desert climate weather tornado hurricane ' +
+        'blizzard drought erosion glacier magnet energy motion force friction machine ' +
+        'lever pulley circuit battery current voltage conductor insulator electron proton ' +
+        'neutron atom molecule element compound mixture solution solid liquid gas ' +
+        'plasma evaporate condense freeze melt boil cell nucleus membrane tissue ' +
+        'organ system skeleton muscle nerve brain heart lung stomach digest ' +
+        'oxygen carbon plant root stem leaf flower seed pollen fruit ' +
+        'forest jungle tundra prairie wetland habitat species predator prey food ' +
+        'chain web producer consumer decomposer fungus bacteria virus fossil dinosaur ' +
+        'reptile mammal amphibian insect spider bird fish whale dolphin shark ' +
+        'octopus jellyfish coral reef island peninsula plateau canyon delta estuary ' +
+        'latitude longitude equator hemisphere compass altitude horizon crater meteor satellite ' +
+        'telescope astronaut rocket shuttle station lunar solar stellar cosmic universe ' +
+        'lightyear supernova blackhole quasar'
+      ).split(' ');
+      const words = [...base, ...base.slice(0, 56).map(w => w + 's')];
+      const bigEntries = words.map(w => ({ word: w, clue: 'x' }));
+      const easyDirs: WordSearchDirectionSettings = {
+        horizontal: true, vertical: true, diagonal: false,
+        reversed: false, reversedDiagonal: false,
+      };
+      const seed = 148;
+
+      // Manual per-size sweep mirroring the grow loop's attempts (26..30).
+      const skipsBySize: number[] = [];
+      for (let size = 26; size <= 30; size++) {
+        const r = generateWordSearch({
+          width: size, height: size, seed,
+          words: [...words],
+          clues: words.map(() => 'x'),
+          directions: easyDirs,
+        });
+        skipsBySize.push(r.skippedWords?.length ?? 0);
+      }
+      const minSkips = Math.min(...skipsBySize);
+      const lastSkips = skipsBySize[skipsBySize.length - 1];
+
+      // The scenario must actually exercise the fallback — if a future
+      // engine change makes this seed place monotonically, pick a new one.
+      expect(minSkips).toBeLessThan(lastSkips);
+
+      const viaApi = createWordSearchFromEntries({
+        entries: bigEntries, width: 26, height: 26, seed,
+        wordSearchDirections: easyDirs,
+      });
+      expect(viaApi.skippedWords!.length).toBe(minSkips);
+    });
   });
 
   describe('integration with createPuzzle', () => {
