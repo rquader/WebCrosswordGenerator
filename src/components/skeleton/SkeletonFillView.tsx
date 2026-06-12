@@ -332,19 +332,21 @@ export function SkeletonFillView({
             </span>
           )}
           {conflictCount > 0 && (
-            <span className="text-amber-600 dark:text-amber-400 font-medium">
+            <span className="text-warn font-medium">
               {conflictCount} conflict{conflictCount !== 1 ? 's' : ''}
             </span>
           )}
-          <span className="text-xs text-ink-3">
-            {skeleton.mustPlacedCount}/{skeleton.mustTotalCount} of your words placed
-          </span>
+          {skeleton.mustPlacedCount < skeleton.mustTotalCount && (
+            <span className="text-xs text-ink-3">
+              {skeleton.mustPlacedCount} of {skeleton.mustTotalCount} of your words placed
+            </span>
+          )}
         </div>
       </div>
 
       {/* Auto-grow note — the grid was enlarged so every word fits */}
       {skeleton.grewFrom && (
-        <div className="rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2">
+        <div className="note">
           <p className="text-xs text-ink-2">
             Grid sized up to {skeleton.width}&times;{skeleton.height} so every word fits.
           </p>
@@ -353,21 +355,20 @@ export function SkeletonFillView({
 
       {/* Failure warnings */}
       {skeleton.failures.length > 0 && (
-        <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">
-            Some must-include words couldn't be placed:
+        <div className="note note-danger">
+          <p className="text-xs font-medium text-danger mb-1">
+            These words couldn&rsquo;t be placed:
           </p>
           {skeleton.failures.map((f, i) => (
-            <p key={i} className="text-xs text-amber-600 dark:text-amber-400">
+            <p key={i} className="text-xs text-ink-2">
               <span className="font-mono uppercase">{f.word}</span>
-              {' '}&mdash; {f.reason === 'too_long' ? 'too long for grid' : 'no valid intersection'}
+              {' '}&mdash; {f.reason === 'too_long' ? 'longer than the grid' : 'no letters left to cross it'}
             </p>
           ))}
           {skeleton.suggestion && onApplySuggestion && (
             <button
               onClick={() => onApplySuggestion(skeleton.suggestion!.width, skeleton.suggestion!.height)}
-              className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold
-                         bg-amber-600 hover:bg-amber-700 text-white transition-all btn-lift">
+              className="btn-primary btn-sm mt-2">
               Regenerate at {skeleton.suggestion.width}&times;{skeleton.suggestion.height} — fits all your words
             </button>
           )}
@@ -458,8 +459,8 @@ export function SkeletonFillView({
             Different layout
           </button>
           <button onClick={handleFinalize} disabled={!canFinalize}
-            className="btn-primary font-semibold">
-            Create Puzzle
+            className="btn-primary">
+            Create puzzle
           </button>
         </div>
       </div>
@@ -507,7 +508,7 @@ function EmptySlotRow({
     <div onClick={onSelect}
       className={`rounded-lg border px-3 py-2 transition-all cursor-pointer
         ${hasConflict
-          ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/10'
+          ? 'border-warn/50 bg-warn/5'
           : isSelected
             ? 'border-rubric/60 bg-card shadow-sm'
             : 'border-line/60 bg-card/60'}`}>
@@ -529,14 +530,14 @@ function EmptySlotRow({
           className={`flex-1 rounded-md border px-2 py-1 text-sm font-mono uppercase
                      bg-card text-ink placeholder:text-ink-3
                      focus:outline-none focus:border-accent transition-colors
-                     ${!lengthOk ? 'border-red-300 dark:border-red-700' : 'border-line-2'}`} />
+                     ${!lengthOk ? 'border-danger/50' : 'border-line-2'}`} />
         <input type="text" value={edit.clue} onChange={(e) => onClueChange(e.target.value)}
           placeholder="Clue" onClick={(e) => e.stopPropagation()}
           className="flex-[2] rounded-md border border-line-2 px-2 py-1 text-sm
                      bg-card text-ink placeholder:text-ink-3
                      focus:outline-none focus:border-accent transition-colors" />
       </div>
-      {hasConflict && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Letter conflict with a crossing word</p>}
+      {hasConflict && <p className="text-xs text-warn mt-1">Letter conflict with a crossing word</p>}
       {suggestions.length > 0 && (
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
           <span className="sub-label">

@@ -47,6 +47,10 @@ export default {
         },
         // Small editorial marks: step numerals, active ticks, focus rings.
         rubric: 'rgb(var(--rubric) / <alpha-value>)',
+        // Cautionary ochre + signal red — margin-note edges and status
+        // text only, never colored boxes. Themed like everything else.
+        warn:   'rgb(var(--warn) / <alpha-value>)',
+        danger: 'rgb(var(--danger) / <alpha-value>)',
 
         // Primary: warm indigo / slate-blue (legacy — components migrate
         // to the semantic tokens above; grid washes keep their own tokens)

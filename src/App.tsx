@@ -48,16 +48,18 @@ export function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-surface-light dark:bg-surface-dark transition-colors duration-300">
+    // No background here on purpose: the body paints the themed page color
+    // plus its ambient wash (warm top light / ember lamp / aged vignette).
+    <div className="min-h-screen">
       <Header theme={theme} onCycleTheme={cycleTheme} />
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} hasPuzzle={puzzle !== null} />
 
       {/* Shared puzzle banner */}
       {sharedPuzzleLoaded && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3">
-          <div className="px-4 py-2.5 rounded-md bg-well border border-line border-l-2 border-l-rubric flex items-center justify-between animate-slide-down">
+          <div className="note px-4 py-2.5 flex items-center justify-between animate-slide-down">
             <span className="text-sm text-ink">
-              Shared puzzle loaded — solve it!
+              Someone sent you a puzzle — it&rsquo;s ready to solve.
             </span>
             <button
               onClick={() => setSharedPuzzleLoaded(false)}
@@ -80,6 +82,8 @@ export function App() {
               generatedMode={puzzleMode}
               onPuzzleGenerated={handlePuzzleGenerated}
               onGoToAiWords={() => setActiveTab('ai')}
+              onGoToPlay={() => setActiveTab('play')}
+              onGoToExport={() => setActiveTab('export')}
             />
           </div>
         )}
@@ -105,9 +109,16 @@ export function App() {
         )}
       </main>
 
-      <footer className="border-t border-line/60 py-4 mt-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-3">
-          <span className="font-display">Crossword Generator</span>
+      {/* Colophon — the quiet last line of the paper */}
+      <footer className="mt-12 border-t border-line">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
+          <p className="text-meta text-ink-3">
+            <span className="font-display text-ink-2">Crossword Generator</span>
+            {' '}&mdash; set like print, made in your browser.
+          </p>
+          <p className="text-meta text-ink-3">
+            Nothing you type ever leaves this page.
+          </p>
         </div>
       </footer>
     </div>

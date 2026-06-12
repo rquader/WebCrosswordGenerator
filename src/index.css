@@ -28,6 +28,8 @@
     --accent-2: 120 36 25;    /* #782419 hover/pressed */
     --accent-ink: 255 251 245;
     --rubric: 178 84 44;      /* #b2542c copper-brick marks */
+    --warn: 146 95 22;        /* #925f16 ochre ink — cautionary margin notes */
+    --danger: 178 32 28;      /* #b2201c signal red — errors only */
     --shadow-paper: 0 1px 2px rgba(46, 36, 24, 0.05), 0 3px 10px -4px rgba(46, 36, 24, 0.08);
     --shadow-raise: 0 3px 12px -2px rgba(46, 36, 24, 0.14);
     --shadow-float: 0 1px 2px rgba(46, 36, 24, 0.08), 0 14px 44px -14px rgba(46, 36, 24, 0.28);
@@ -46,6 +48,8 @@
     --accent-2: 236 146 119;  /* lighter on hover — luminous, not darker */
     --accent-ink: 40 23 16;   /* #281710 */
     --rubric: 224 148 106;    /* #e0946a */
+    --warn: 224 176 112;      /* #e0b070 lamplit ochre */
+    --danger: 240 118 108;    /* #f0766c */
     --shadow-paper: 0 1px 2px rgba(0, 0, 0, 0.28), 0 3px 10px -4px rgba(0, 0, 0, 0.24);
     --shadow-raise: 0 4px 14px -2px rgba(0, 0, 0, 0.42);
     --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 50px -12px rgba(0, 0, 0, 0.6);
@@ -64,6 +68,8 @@
     --accent-2: 44 24 16;     /* pressing pushes to full ink */
     --accent-ink: 243 233 214;
     --rubric: 148 60 30;      /* #943c1e red-ink rubrication */
+    --warn: 130 84 22;        /* #825416 aged-ochre annotation */
+    --danger: 146 36 22;      /* #922416 deep rust ink */
     --shadow-paper: 0 1px 3px rgba(92, 70, 40, 0.12), 0 4px 14px -6px rgba(92, 70, 40, 0.18);
     --shadow-raise: 0 3px 14px -2px rgba(92, 70, 40, 0.22);
     --shadow-float: 0 1px 2px rgba(92, 70, 40, 0.14), 0 14px 44px -14px rgba(70, 50, 26, 0.34);
@@ -80,7 +86,7 @@
     background-color: rgb(var(--page));
     color: rgb(var(--ink));
     /* Faint warm wash from the top — quality paper, not flat white */
-    background-image: radial-gradient(1100px 480px at 50% -8%, rgba(148, 47, 33, 0.04), transparent);
+    background-image: radial-gradient(1100px 480px at 50% -8%, rgba(148, 47, 33, 0.05), transparent);
   }
 
   /* Ambient film grain over the whole page — barely there, never interactive */
@@ -303,7 +309,7 @@
   }
 
   .btn-primary {
-    @apply bg-accent text-accent-ink px-4 py-2;
+    @apply bg-accent text-accent-ink px-4 py-2 font-semibold;
     box-shadow: 0 1px 2px rgba(22, 13, 7, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
@@ -350,6 +356,24 @@
     @apply text-lede px-5 py-2.5;
   }
 
+  /* ── Margin notes ──────────────────────────────────────────────────
+   * THE way the app annotates: ink text on a well wash with a colored
+   * left edge — like an editor's note in the manuscript margin. One
+   * shape for status, caution, and errors; only the edge ink changes.
+   * Never a colored box with colored body text.
+   */
+  .note {
+    @apply rounded-md border border-line border-l-2 border-l-rubric bg-well px-3 py-2;
+  }
+
+  .note-warn {
+    border-left-color: rgb(var(--warn));
+  }
+
+  .note-danger {
+    border-left-color: rgb(var(--danger));
+  }
+
   /* Noise texture overlay — adds organic feel to surfaces */
   .noise-texture {
     position: relative;
@@ -376,52 +400,9 @@
     @apply bg-card rounded-card border border-line shadow-paper transition-colors duration-300;
   }
 
-  /* Button lift effect on hover */
-  .btn-lift {
-    @apply transition-all duration-150;
-  }
-
-  .btn-lift:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 10px -2px rgba(30,25,18,0.1);
-    filter: brightness(1.04);
-  }
-
-  .dark .btn-lift:hover {
-    box-shadow: 0 3px 10px -2px rgba(0,0,0,0.3);
-  }
-
-  .btn-lift:active {
-    transform: translateY(0);
-  }
-
   /* Grid cell stagger animation */
   .grid-stagger {
     animation: gridReveal 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
-  }
-
-  /* Gradient text utility */
-  .text-gradient {
-    background: linear-gradient(135deg, theme('colors.primary.500'), theme('colors.primary.700'));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .dark .text-gradient {
-    background: linear-gradient(135deg, theme('colors.primary.400'), theme('colors.primary.300'));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* Subtle glow behind important elements */
-  .glow-teal {
-    box-shadow: 0 0 20px -5px rgba(82,88,228,0.18);
-  }
-
-  .dark .glow-teal {
-    box-shadow: 0 0 25px -5px rgba(82,88,228,0.15);
   }
 
   /* Text field — one decision for every input/select/textarea.
@@ -532,34 +513,11 @@
     animation: cellShake 0.3s ease-out;
   }
 
-  /* Floating grid container */
-  .grid-float {
-    box-shadow: 0 8px 30px -6px rgba(30,25,18,0.12);
-  }
-
-  .dark .grid-float {
-    box-shadow: 0 8px 30px -6px rgba(0,0,0,0.35);
-  }
-
   /* Input focus inset shadow */
   input[type="text"]:focus,
   input[type="number"]:focus,
   textarea:focus {
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
-  }
-
-  /* Fillable grid cell cursor */
-  .cell-fillable {
-    cursor: text;
-  }
-
-  /* Progress bar gradient */
-  .progress-gradient {
-    background: linear-gradient(90deg, theme('colors.primary.500'), theme('colors.primary.400'));
-  }
-
-  .dark .progress-gradient {
-    background: linear-gradient(90deg, theme('colors.primary.600'), theme('colors.primary.400'));
   }
 
   /* Timer blinking colon */
@@ -573,11 +531,6 @@
     animation: timerBlink 1s step-end infinite;
   }
 
-  /* Press feedback */
-  .press-feedback:active {
-    transform: scale(0.97);
-  }
-
   /* Custom select styling */
   select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
@@ -589,15 +542,11 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — line tokens follow the theme automatically */
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.stone.300') transparent;
-  }
-
-  .dark .scrollbar-thin {
-    scrollbar-color: theme('colors.stone.600') transparent;
+    scrollbar-color: rgb(var(--line-2)) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -610,12 +559,8 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: theme('colors.stone.300');
+    background-color: rgb(var(--line-2));
     border-radius: 3px;
-  }
-
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: theme('colors.stone.600');
   }
 }
 

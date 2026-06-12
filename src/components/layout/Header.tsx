@@ -24,7 +24,7 @@ const THEME_NEXT: Record<Theme, string> = {
 
 export function Header({ theme, onCycleTheme }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-50 bg-page/90 backdrop-blur-md border-b-2 border-ink/80 transition-colors duration-300">
+    <header className="sticky top-0 z-50 bg-page/90 backdrop-blur-md transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Masthead — a tiny printed crossword as the mark, editorial wordmark */}
         <div className="flex items-center gap-3">
@@ -83,6 +83,13 @@ export function Header({ theme, onCycleTheme }: HeaderProps) {
           </span>
           <span className="hidden sm:inline">{THEME_LABELS[theme]}</span>
         </button>
+      </div>
+
+      {/* Oxford rule — the thick-over-thin break under a newspaper nameplate */}
+      <div aria-hidden="true">
+        <div className="h-[2px] bg-ink/80" />
+        <div className="h-[2px]" />
+        <div className="h-px bg-ink/25" />
       </div>
     </header>
   );

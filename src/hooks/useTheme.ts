@@ -28,6 +28,13 @@ function getInitialTheme(): Theme {
   return getSystemTheme();
 }
 
+/** Page color per theme — keeps mobile browser chrome matching the desk. */
+const THEME_COLORS: Record<Theme, string> = {
+  light: '#fdfbf7',
+  dark: '#1b1714',
+  sepia: '#f2e8d5',
+};
+
 function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   root.classList.remove('dark', 'sepia');
@@ -36,6 +43,7 @@ function applyTheme(theme: Theme): void {
   } else if (theme === 'sepia') {
     root.classList.add('sepia');
   }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme]);
 }
 
 export function useTheme() {

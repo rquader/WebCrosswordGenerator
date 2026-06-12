@@ -49,27 +49,15 @@ interface GenerateTabProps {
   onPuzzleGenerated: (result: CrosswordResult, mode: PuzzleMode) => void;
   /** Jump to the AI Words tab (bridge from the words card). */
   onGoToAiWords: () => void;
+  /** Bridges out of the ready strip — the natural next steps. */
+  onGoToPlay: () => void;
+  onGoToExport: () => void;
 }
 
 type ImportDecision = 'replace' | 'append';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
-}
-
-/** Status line shown above a generated skeleton. */
-function skeletonInfo(skeleton: SkeletonResult, seed: number): string {
-  return `${skeleton.width}x${skeleton.height} | ${skeleton.slots.length} slots | `
-    + `${skeleton.mustPlacedCount}/${skeleton.mustTotalCount} must-include | seed: ${seed}`;
-}
-
-/** Status line for a directly finished puzzle (default words-to-puzzle path). */
-function puzzleInfo(skeleton: SkeletonResult, seed: number): string {
-  const grewNote = skeleton.grewFrom
-    ? ` (sized up from ${skeleton.grewFrom.width}x${skeleton.grewFrom.height} so every word fits)`
-    : '';
-  return `${skeleton.width}x${skeleton.height}${grewNote} | `
-    + `${skeleton.mustPlacedCount} ${skeleton.mustPlacedCount === 1 ? 'word' : 'words'} | seed: ${seed}`;
 }
 
 /**
@@ -121,13 +109,16 @@ function skeletonToPuzzle(skeleton: SkeletonResult, filledSlots: FilledSlotData[
     wordLocations: allWordLocations,
     width: skeleton.width,
     height: skeleton.height,
+    // Carried through so the ready strip can mention the size-up honestly.
+    ...(skeleton.grewFrom ? { grewFrom: skeleton.grewFrom } : {}),
   };
 }
 
-export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAiWords }: GenerateTabProps) {
+export function GenerateTab({
+  puzzle, generatedMode, onPuzzleGenerated, onGoToAiWords, onGoToPlay, onGoToExport,
+}: GenerateTabProps) {
   // --- State ---
   const [showAnswers, setShowAnswers] = useState(true);
-  const [generationInfo, setGenerationInfo] = useState<string | null>(null);
   const [gridKey, setGridKey] = useState(0);
   const [wizard, setWizard] = useState(() => loadWizardState());
   const [pendingImport, setPendingImport] = useState<ImportedEntryRows | null>(null);
@@ -318,11 +309,9 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
         // Default path: every word placed, nothing to fill — straight to
         // the finished puzzle, no decisions needed.
         onPuzzleGenerated(skeletonToPuzzle(skeleton, []), 'crossword');
-        setGenerationInfo(puzzleInfo(skeleton, seed));
         setActiveSkeleton(null);
       } else {
         setActiveSkeleton(skeleton);
-        setGenerationInfo(skeletonInfo(skeleton, seed));
       }
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
@@ -347,13 +336,6 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
       });
 
       onPuzzleGenerated(result, 'wordsearch');
-      const skippedNote = result.skippedWords && result.skippedWords.length > 0
-        ? ` | couldn't fit: ${result.skippedWords.join(', ')}`
-        : '';
-      const grewNote = result.grewFrom
-        ? ` (sized up from ${result.grewFrom.width}x${result.grewFrom.height} so every word fits)`
-        : '';
-      setGenerationInfo(`${result.wordLocations.length} words placed${skippedNote} | ${result.width}x${result.height}${grewNote} | seed: ${seed}`);
       setActiveSkeleton(null);
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
@@ -385,7 +367,6 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
       });
 
       setActiveSkeleton(skeleton);
-      setGenerationInfo(skeletonInfo(skeleton, newSeed));
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 150);
@@ -421,7 +402,6 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
       });
 
       setActiveSkeleton(skeleton);
-      setGenerationInfo(skeletonInfo(skeleton, seed));
       setGridKey(prev => prev + 1);
       setIsGenerating(false);
     }, 150);
@@ -440,9 +420,6 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
   if (activeSkeleton) {
     return (
       <div className="animate-fade-in space-y-4" key={`skeleton-${gridKey}`}>
-        {generationInfo && (
-          <span className="text-xs text-ink-3 font-mono">{generationInfo}</span>
-        )}
         <SkeletonFillView
           skeleton={activeSkeleton}
           onComplete={handleSkeletonComplete}
@@ -464,7 +441,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           {/* --- Mode toggle + header --- */}
           <div className="warm-card p-5">
             <h2 className="font-display text-lg font-semibold text-ink mb-1">
-              {isCrossword ? 'Build a Crossword' : 'Build a Word Search'}
+              {isCrossword ? 'Build a crossword' : 'Build a word search'}
             </h2>
             <p className="text-sm text-ink-2 mb-4">
               {isCrossword
@@ -504,9 +481,8 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
                 {!showTextImport && hasMeaningfulRows(wizard.table.rows, wordRules) && (
                   <button
                     onClick={handleClearAll}
-                    className="px-2 py-1.5 rounded-lg text-xs text-ink-2
-                               hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30
-                               transition-colors"
+                    className="px-2 py-1.5 rounded-btn text-xs text-ink-2
+                               hover:text-danger hover:bg-danger/10 transition-colors"
                   >
                     Clear all
                   </button>
@@ -529,8 +505,7 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
               </div>
             </div>
             {clearUndo && (
-              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-line
-                              bg-well px-3 py-2 animate-fade-in"
+              <div className="mb-3 note flex items-center justify-between gap-2 animate-fade-in"
                    role="status">
                 <span className="text-xs text-ink-2">
                   Cleared {clearUndo.count === 1 ? '1 word' : `${clearUndo.count} words`}.
@@ -595,13 +570,13 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
           <button
             onClick={isCrossword ? handleGenerateSkeleton : handleGenerateWordSearch}
             disabled={isGenerating || (!isCrossword && wordEntries.length === 0)}
-            className="btn-primary btn-lg w-full font-semibold"
+            className="btn-primary btn-lg w-full"
           >
             {isGenerating
-              ? 'Generating...'
+              ? 'Setting the grid…'
               : isCrossword
-                ? (wordEntries.length > 0 ? 'Generate Puzzle' : 'Generate Blank Skeleton')
-                : 'Generate Word Search'}
+                ? (wordEntries.length > 0 ? 'Generate puzzle' : 'Generate blank skeleton')
+                : 'Generate word search'}
           </button>
 
           {/* Import decision dialog */}
@@ -618,8 +593,41 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
         {/* ============ RIGHT PANEL — Result or live preview ============ */}
         <div className="flex-1 min-w-0">
           {puzzle ? (
-            <div className="space-y-6 animate-fade-in" key={gridKey}>
-              <div className="flex items-center justify-between">
+            <div className="space-y-4 animate-fade-in" key={gridKey}>
+              {/* Ready strip — names the result and offers the natural next steps */}
+              <div className="warm-card px-5 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                <div>
+                  <h2 className="card-title">
+                    Your {generatedMode === 'wordsearch' ? 'word search' : 'crossword'} is ready.
+                  </h2>
+                  <p className="text-meta text-ink-3 mt-0.5">
+                    {puzzle.width}&times;{puzzle.height}
+                    {' '}&middot; {puzzle.wordLocations.length} {puzzle.wordLocations.length === 1 ? 'word' : 'words'}
+                    {puzzle.grewFrom && <> &middot; sized up from {puzzle.grewFrom.width}&times;{puzzle.grewFrom.height} so everything fits</>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={onGoToPlay} className="btn-primary btn-sm">
+                    Solve it
+                  </button>
+                  <button onClick={onGoToExport} className="btn-secondary btn-sm">
+                    Print &amp; share
+                  </button>
+                </div>
+              </div>
+
+              {/* Words the engine had to leave out (forced sizes only) */}
+              {puzzle.skippedWords && puzzle.skippedWords.length > 0 && (
+                <div className="note note-warn">
+                  <p className="text-xs text-ink-2">
+                    <span className="font-medium text-warn">Couldn&rsquo;t fit:</span>{' '}
+                    <span className="uppercase">{puzzle.skippedWords.join(', ')}</span>
+                    {' '}&mdash; try a larger grid, or uncheck Force dimensions.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end">
                 <label
                   className="flex items-center gap-2 cursor-pointer"
                   title={generatedMode === 'wordsearch'
@@ -630,9 +638,6 @@ export function GenerateTab({ puzzle, generatedMode, onPuzzleGenerated, onGoToAi
                     className="w-4 h-4" />
                   <span className="text-sm text-ink-2">Show answers</span>
                 </label>
-                {generationInfo && (
-                  <span className="text-xs text-ink-3 font-mono">{generationInfo}</span>
-                )}
               </div>
               {generatedMode === 'wordsearch' ? (
                 // A word search always shows its letters — "answers" means
@@ -677,14 +682,14 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
   payload: ImportedEntryRows; onReplace: () => void; onAppend: () => void; onCancel: () => void;
 }) {
   return (
-    <div className="warm-card p-5 border-accent/30">
-      <h3 className="text-base font-semibold text-ink">Import existing data?</h3>
+    <div className="warm-card p-5 border-accent/40 animate-slide-down" role="alertdialog" aria-label="Choose how to import">
+      <h3 className="text-base font-semibold text-ink">You already have words in your list</h3>
       <p className="mt-1 text-sm text-ink-2">
-        {payload.sourceSummary}. Your table already has content.
+        {payload.sourceSummary} — keep your current words alongside the new ones, or start over?
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onReplace} className="btn-primary">Replace</button>
-        <button onClick={onAppend} className="btn-secondary">Append</button>
+        <button onClick={onAppend} className="btn-primary">Add to my list</button>
+        <button onClick={onReplace} className="btn-secondary">Replace my list</button>
         <button onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
     </div>

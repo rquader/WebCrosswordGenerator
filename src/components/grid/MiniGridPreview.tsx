@@ -141,8 +141,8 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           </p>
         )}
         {preview.failures.length > 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            {preview.failures.length} word{preview.failures.length !== 1 ? 's' : ''} won't fit at this size
+          <p className="text-xs text-warn">
+            {preview.failures.length} word{preview.failures.length !== 1 ? 's' : ''} won&rsquo;t fit at this size
           </p>
         )}
         <p className="text-xs text-ink-3">
