@@ -11,6 +11,7 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import type { CrosswordResult, DirectionalWord } from '../../logic/types';
 import { getWordCellCoords, getWordVector } from '../../logic/wordSearchGenerator';
+import { CompletionConfetti } from '../CompletionConfetti';
 import { WordCircleOverlay } from './WordCircleOverlay';
 import { WORD_CIRCLE_COLORS } from '../../utils/wordCircleColors';
 import {
@@ -185,13 +186,7 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
       {/* Completion — same editorial moment as the crossword */}
       {isComplete && (
         <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-rubric animate-confetti-1" />
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-ws-teal animate-confetti-2" />
-            <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-ws-amber animate-confetti-3" />
-            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-ws-blue animate-confetti-2" style={{ animationDelay: '0.1s' }} />
-            <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-accent animate-confetti-1" style={{ animationDelay: '0.15s' }} />
-          </div>
+          <CompletionConfetti />
           <div className="relative z-10">
             <p className="font-display text-4xl text-ink" style={{ fontVariationSettings: "'SOFT' 40" }}>
               All found.

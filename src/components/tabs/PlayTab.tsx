@@ -10,7 +10,8 @@ import { useMemo, useEffect, useState, useCallback } from 'react';
 import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { PlayableGrid } from '../grid/PlayableGrid';
 import { WordSearchGrid } from '../grid/WordSearchGrid';
-import { usePuzzleState } from '../../hooks/usePuzzleState';
+import { usePuzzleState, HINT_BUDGET, canUseHint } from '../../hooks/usePuzzleState';
+import { CompletionConfetti } from '../CompletionConfetti';
 import { assignNumbers } from '../../logic/numbering';
 import type { NumberedClue } from '../../logic/numbering';
 
@@ -36,6 +37,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   const state = usePuzzleState(puzzle);
   const highlighted = state.highlightedCells();
   const [shakingCells, setShakingCells] = useState<Set<string>>(new Set());
+  const [hasCheckErrors, setHasCheckErrors] = useState(false);
 
   const handleCheck = useCallback(() => {
     state.checkPuzzle();
@@ -55,8 +57,14 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     if (incorrect.size > 0) {
       setShakingCells(incorrect);
       setTimeout(() => setShakingCells(new Set()), 300);
+      // Echo the error beyond the grid: the progress strip shudders too
+      setHasCheckErrors(true);
+      setTimeout(() => setHasCheckErrors(false), 600);
     }
   }, [state.checkPuzzle, state.userGrid, puzzle]);
+
+  const hintsLeft = HINT_BUDGET - state.hintsUsed;
+  const hintsAvailable = canUseHint(state.hintsUsed);
 
   const { acrossClues, downClues } = useMemo(() => {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
@@ -117,14 +125,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
       {/* Completion — a quiet editorial moment, not a popup */}
       {state.isComplete && !state.revealedCells.size && (
         <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
-          {/* Confetti in the house palette: ink-red, copper, found-word marker hues */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-rubric animate-confetti-1" />
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-ws-teal animate-confetti-2" />
-            <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-ws-amber animate-confetti-3" />
-            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-ws-blue animate-confetti-2" style={{ animationDelay: '0.1s' }} />
-            <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-accent animate-confetti-1" style={{ animationDelay: '0.15s' }} />
-          </div>
+          <CompletionConfetti />
 
           <div className="relative z-10">
             <p className="font-display text-4xl text-ink" style={{ fontVariationSettings: "'SOFT' 40" }}>
@@ -161,16 +162,21 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
                   <span className="w-2 h-2 rounded-full bg-rubric animate-pulse" />
                 )}
               </div>
-              {/* Progress — ink filling a rule */}
-              <div className="flex items-center gap-1.5">
+              {/* Progress — the bar fills as you type, the count is letters
+                  that are actually RIGHT, so guessing can't inflate it. */}
+              <div className={`flex items-center gap-1.5 ${hasCheckErrors ? 'cell-shake' : ''}`}>
                 <div className="w-16 h-1.5 bg-well rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-accent rounded-full transition-all duration-300 ease-out"
+                    className={`h-full bg-accent rounded-full transition-all duration-300 ease-out
+                      ${state.correctCount === state.totalCount && state.totalCount > 0 ? 'animate-completion-pulse' : ''}`}
                     style={{ width: `${state.totalCount > 0 ? (state.filledCount / state.totalCount) * 100 : 0}%` }}
                   />
                 </div>
-                <span className="text-xs text-ink-3 font-mono tabular-nums">
-                  {state.filledCount}/{state.totalCount}
+                <span
+                  className="text-xs text-ink-3 font-mono tabular-nums"
+                  title="Letters correct so far"
+                >
+                  {state.correctCount}/{state.totalCount}
                 </span>
               </div>
             </div>
@@ -178,15 +184,30 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={state.hintCell}
-                disabled={!state.selectedCell}
+                disabled={!state.selectedCell || !hintsAvailable}
                 className="btn-ghost btn-sm text-rubric hover:bg-rubric/10 hover:text-rubric"
-                title="Reveal this cell (+15s penalty)"
+                title={hintsAvailable ? 'Reveal this letter (+15s)' : 'No hints left'}
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                 </svg>
                 Hint
               </button>
+              <button
+                onClick={state.hintWord}
+                disabled={!state.selectedCell || !hintsAvailable}
+                className="btn-ghost btn-sm text-rubric hover:bg-rubric/10 hover:text-rubric"
+                title={hintsAvailable ? 'Reveal the whole word (+45s)' : 'No hints left'}
+              >
+                Hint word
+              </button>
+              <span
+                className="text-[11px] text-ink-3 font-mono tabular-nums -ml-0.5 mr-1"
+                title={`${hintsLeft} of ${HINT_BUDGET} hints left`}
+                aria-label={`${hintsLeft} of ${HINT_BUDGET} hints left`}
+              >
+                {hintsLeft}/{HINT_BUDGET}
+              </span>
               <button onClick={handleCheck} className="btn-secondary btn-sm">
                 Check
               </button>

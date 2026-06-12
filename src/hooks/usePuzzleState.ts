@@ -18,7 +18,14 @@ import { assignNumbers } from '../logic/numbering';
 
 const EMPTY_CELL = '-';
 const AUTO_SAVE_KEY = 'crossword-autosave';
-const HINT_TIME_PENALTY = 15; // seconds added per hint
+export const HINT_TIME_PENALTY = 15; // seconds added per cell hint
+export const HINT_WORD_TIME_PENALTY = HINT_TIME_PENALTY * 3; // a whole word costs more time
+export const HINT_BUDGET = 3; // hints per puzzle, cell or word alike
+
+/** True while the solver still has hints to spend. */
+export function canUseHint(hintsUsed: number): boolean {
+  return hintsUsed < HINT_BUDGET;
+}
 
 export interface CellPosition {
   x: number;
@@ -82,8 +89,9 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
   const undoStack = useRef<UndoEntry[]>([]);
   const redoStack = useRef<UndoEntry[]>([]);
 
-  // Progress tracking
+  // Progress tracking — correctCount keeps wrong letters from inflating progress
   const filledCount = puzzle ? countFilledCells(userGrid, puzzle) : 0;
+  const correctCount = puzzle ? countCorrectCells(userGrid, puzzle) : 0;
   const totalCount = puzzle ? countTotalCells(puzzle) : 0;
 
   // Reset state when a new puzzle is loaded, try to restore auto-save
@@ -137,6 +145,25 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
       }
     };
   }, [isTimerRunning, isComplete]);
+
+  // Pause the clock while the tab is hidden — walking away shouldn't cost
+  // solve time. Resumes only if the timer was running when the tab hid.
+  const pausedByHideRef = useRef(false);
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) {
+        if (isTimerRunning) {
+          pausedByHideRef.current = true;
+          setIsTimerRunning(false);
+        }
+      } else if (pausedByHideRef.current) {
+        pausedByHideRef.current = false;
+        setIsTimerRunning(true);
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isTimerRunning]);
 
   // Check for puzzle completion whenever userGrid changes
   useEffect(() => {
@@ -245,9 +272,10 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     });
   }, []);
 
-  // Reveal a single cell (hint)
+  // Reveal a single cell (hint) — no-op once the budget is spent
   const hintCell = useCallback(() => {
     if (!puzzle || !selectedCell) return;
+    if (!canUseHint(hintsUsed)) return;
     const { x, y } = selectedCell;
     if (puzzle.grid[y][x] === EMPTY_CELL) return;
 
@@ -270,7 +298,46 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     if (!isTimerRunning && !isComplete) {
       setIsTimerRunning(true);
     }
-  }, [puzzle, selectedCell, userGrid, isTimerRunning, isComplete]);
+  }, [puzzle, selectedCell, userGrid, isTimerRunning, isComplete, hintsUsed]);
+
+  // Reveal the whole word under the cursor — one hint, triple time penalty
+  const hintWord = useCallback(() => {
+    if (!puzzle || !selectedCell) return;
+    if (!canUseHint(hintsUsed)) return;
+
+    // The word under the cursor — falling back to the crossing direction
+    // when the cell only belongs to one word (e.g. across-only cells).
+    let cells = getWordCellsAt(puzzle, selectedCell.x, selectedCell.y, isAcross);
+    if (cells.length === 0) {
+      cells = getWordCellsAt(puzzle, selectedCell.x, selectedCell.y, !isAcross);
+    }
+    if (cells.length === 0) return;
+
+    // Skip if the word is already fully correct — don't waste the hint
+    const alreadySolved = cells.every(
+      ({ x, y }) => (userGrid[y]?.[x] ?? '') === puzzle.grid[y][x].toUpperCase()
+    );
+    if (alreadySolved) return;
+
+    setUserGrid(prev => {
+      const newGrid = prev.map(row => [...row]);
+      for (const { x, y } of cells) {
+        newGrid[y][x] = puzzle.grid[y][x].toUpperCase();
+      }
+      return newGrid;
+    });
+    setRevealedCells(prev => {
+      const next = new Set(prev);
+      for (const { x, y } of cells) next.add(cellKey(x, y));
+      return next;
+    });
+    setHintsUsed(prev => prev + 1);
+    setElapsedSeconds(prev => prev + HINT_WORD_TIME_PENALTY);
+
+    if (!isTimerRunning && !isComplete) {
+      setIsTimerRunning(true);
+    }
+  }, [puzzle, selectedCell, isAcross, userGrid, isTimerRunning, isComplete, hintsUsed]);
 
   function advanceCell(fromX: number, fromY: number) {
     if (!puzzle) return;
@@ -481,6 +548,7 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     revealedCells,
     hintsUsed,
     filledCount,
+    correctCount,
     totalCount,
     enterLetter,
     deleteLetter,
@@ -494,6 +562,7 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     resetPuzzle,
     highlightedCells,
     hintCell,
+    hintWord,
     undo,
     redo,
   };
@@ -554,6 +623,47 @@ function countFilledCells(userGrid: string[][], puzzle: CrosswordResult): number
     }
   }
   return count;
+}
+
+/** Cells where the user's letter matches the answer (case-insensitive). */
+export function countCorrectCells(userGrid: string[][], puzzle: CrosswordResult): number {
+  let count = 0;
+  for (let y = 0; y < puzzle.height; y++) {
+    for (let x = 0; x < puzzle.width; x++) {
+      if (puzzle.grid[y][x] === EMPTY_CELL) continue;
+      const userLetter = userGrid[y]?.[x] ?? '';
+      if (userLetter !== '' && userLetter.toLowerCase() === puzzle.grid[y][x].toLowerCase()) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * Cells of the across/down word containing (x, y) — same word the grid
+ * highlights. Empty when no word in that direction runs through the cell.
+ */
+export function getWordCellsAt(
+  puzzle: CrosswordResult,
+  x: number,
+  y: number,
+  isAcross: boolean,
+): CellPosition[] {
+  const numbering = assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
+  const clues = isAcross ? numbering.acrossClues : numbering.downClues;
+
+  for (const clue of clues) {
+    const wordLen = clue.word.length;
+    if (clue.isHorizontal) {
+      if (y !== clue.y || x < clue.x || x >= clue.x + wordLen) continue;
+      return Array.from({ length: wordLen }, (_, i) => ({ x: clue.x + i, y: clue.y }));
+    } else {
+      if (x !== clue.x || y < clue.y || y >= clue.y + wordLen) continue;
+      return Array.from({ length: wordLen }, (_, i) => ({ x: clue.x, y: clue.y + i }));
+    }
+  }
+  return [];
 }
 
 function countTotalCells(puzzle: CrosswordResult): number {

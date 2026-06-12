@@ -185,6 +185,8 @@ export default {
         'confetti-1': 'confetti1 1s ease-out forwards',
         'confetti-2': 'confetti2 1.1s ease-out forwards',
         'confetti-3': 'confetti3 0.9s ease-out forwards',
+        'confetti-4': 'confetti4 1.15s ease-out forwards',
+        'confetti-5': 'confetti5 1s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -276,6 +278,14 @@ export default {
         confetti3: {
           '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
           '100%': { transform: 'translateY(-45px) translateX(-10px) rotate(120deg)', opacity: '0' },
+        },
+        confetti4: {
+          '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(-70px) translateX(35px) rotate(220deg)', opacity: '0' },
+        },
+        confetti5: {
+          '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(-55px) translateX(-30px) rotate(-200deg)', opacity: '0' },
         },
       },
       transitionTimingFunction: {
