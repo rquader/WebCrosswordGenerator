@@ -24,7 +24,7 @@ export function CluePanel({ puzzle }: CluePanelProps) {
   return (
     <div className="space-y-3">
       {hasTwoWordAnswers && (
-        <p className="text-xs text-stone-400 dark:text-stone-500 italic">
+        <p className="text-xs text-ink-3 italic">
           Answers marked (2 words) are written in the grid without the space.
         </p>
       )}
@@ -48,25 +48,25 @@ function ClueList({ title, clues }: ClueListProps) {
         {title}
       </h3>
       {clues.length === 0 ? (
-        <p className="text-sm text-stone-400 dark:text-stone-500 italic">
+        <p className="text-sm text-ink-3 italic">
           No {title.toLowerCase()} clues
         </p>
       ) : (
         <ol className="space-y-2">
           {clues.map((clue) => (
             <li key={clue.number + '-' + (clue.isHorizontal ? 'h' : 'v')} className="flex gap-2">
-              <span className="flex-shrink-0 text-sm font-semibold text-primary-700 dark:text-primary-400 w-6 text-right">
+              <span className="flex-shrink-0 text-sm font-semibold text-ink w-6 text-right">
                 {clue.number}.
               </span>
-              <span className="text-sm text-stone-700 dark:text-stone-300">
+              <span className="text-sm text-ink">
                 {clue.clue}
                 {clue.displayWord && (
-                  <span className="ml-1 text-xs text-stone-400 dark:text-stone-500" title="The answer is two words, written without the space">
+                  <span className="ml-1 text-xs text-ink-3" title="The answer is two words, written without the space">
                     (2 words)
                   </span>
                 )}
                 {clue.isReversed && (
-                  <span className="ml-1 text-xs text-copper-600 dark:text-copper-400" title="This word is placed in reverse">
+                  <span className="ml-1 text-xs text-rubric" title="This word is placed in reverse">
                     (reversed)
                   </span>
                 )}

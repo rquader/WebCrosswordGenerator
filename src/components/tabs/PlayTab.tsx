@@ -116,31 +116,31 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     <div className="animate-fade-in">
       {/* Completion celebration */}
       {state.isComplete && !state.revealedCells.size && (
-        <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-primary-50 via-primary-50 to-copper-50 dark:from-primary-d/40 dark:via-primary-d/30 dark:to-copper-d/20 border border-primary-200/60 dark:border-primary-800/40 text-center animate-slide-up relative overflow-hidden">
-          {/* Confetti particles */}
+        <div className="mb-6 p-6 warm-card text-center animate-slide-up relative overflow-hidden">
+          {/* Confetti in the house palette: ink-red, copper, found-word marker hues */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-primary-400 animate-confetti-1" />
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-copper-400 animate-confetti-2" />
-            <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-primary-300 animate-confetti-3" />
-            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-copper-300 animate-confetti-2" style={{ animationDelay: '0.1s' }} />
-            <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-primary-500 animate-confetti-1" style={{ animationDelay: '0.15s' }} />
+            <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-sm bg-rubric animate-confetti-1" />
+            <div className="absolute top-1/2 left-1/2 w-2 h-2 rounded-full bg-ws-teal animate-confetti-2" />
+            <div className="absolute top-1/2 left-2/3 w-1.5 h-1.5 rounded-sm bg-ws-amber animate-confetti-3" />
+            <div className="absolute top-1/2 left-1/4 w-1.5 h-1.5 rounded-full bg-ws-blue animate-confetti-2" style={{ animationDelay: '0.1s' }} />
+            <div className="absolute top-1/2 left-3/4 w-2 h-2 rounded-sm bg-accent animate-confetti-1" style={{ animationDelay: '0.15s' }} />
           </div>
 
           <div className="relative z-10">
             <div className="animate-completion-icon inline-block mb-3">
-              <div className="w-14 h-14 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center mx-auto animate-completion-pulse">
-                <svg className="w-7 h-7 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto animate-completion-pulse">
+                <svg className="w-7 h-7 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <p className="text-primary-800 dark:text-primary-200 font-bold text-xl">
+            <p className="font-display text-2xl font-semibold text-ink">
               Puzzle Complete!
             </p>
-            <p className="text-primary-600 dark:text-primary-400 text-sm mt-1.5">
+            <p className="text-ink-2 text-sm mt-1.5">
               Solved in {formatTime(state.elapsedSeconds).mins}:{formatTime(state.elapsedSeconds).secs}
               {state.hintsUsed > 0 && (
-                <span className="text-stone-400 dark:text-stone-500 ml-2">
+                <span className="text-ink-3 ml-2">
                   ({state.hintsUsed} hint{state.hintsUsed !== 1 ? 's' : ''} used)
                 </span>
               )}
@@ -152,28 +152,30 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: Grid + Controls */}
         <div className="flex-shrink-0">
-          {/* Timer and controls bar */}
-          <div className="flex items-center justify-between mb-4">
+          {/* Solving desk strip: time and progress on the left, the
+              solver's tools on the right — one bound toolbar object. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4
+                          rounded-md border border-line bg-card shadow-paper px-3 py-2">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-lg font-semibold text-stone-700 dark:text-stone-300 tabular-nums">
+                <span className="font-mono text-lg font-semibold text-ink tabular-nums">
                   <span>{formatTime(state.elapsedSeconds).mins}</span>
                   <span className={state.isTimerRunning ? 'animate-timer-blink' : ''}>:</span>
                   <span>{formatTime(state.elapsedSeconds).secs}</span>
                 </span>
                 {state.isTimerRunning && (
-                  <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-rubric animate-pulse" />
                 )}
               </div>
-              {/* Progress */}
+              {/* Progress — ink filling a rule */}
               <div className="flex items-center gap-1.5">
-                <div className="w-16 h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                <div className="w-16 h-1.5 bg-well rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary-500 rounded-full transition-all duration-300 ease-out"
+                    className="h-full bg-accent rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${state.totalCount > 0 ? (state.filledCount / state.totalCount) * 100 : 0}%` }}
                   />
                 </div>
-                <span className="text-xs text-stone-400 dark:text-stone-500 font-mono tabular-nums">
+                <span className="text-xs text-ink-3 font-mono tabular-nums">
                   {state.filledCount}/{state.totalCount}{' '}
                   {Math.round((state.filledCount / state.totalCount) * 100)}%
                 </span>
@@ -184,59 +186,34 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               <button
                 onClick={state.hintCell}
                 disabled={!state.selectedCell}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                           border border-primary-300 dark:border-primary-700
-                           text-primary-700 dark:text-primary-400
-                           hover:bg-primary-50 dark:hover:bg-primary-d/30
-                           disabled:opacity-30 disabled:cursor-not-allowed
-                           transition-colors btn-lift"
+                className="btn-ghost btn-sm text-rubric hover:bg-rubric/10 hover:text-rubric"
                 title="Reveal this cell (+15s penalty)"
               >
-                <svg className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                 </svg>
                 Hint
               </button>
-              <button
-                onClick={handleCheck}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                           border border-stone-300 dark:border-stone-600
-                           text-stone-600 dark:text-stone-400
-                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover
-                           transition-colors btn-lift"
-              >
+              <button onClick={handleCheck} className="btn-secondary btn-sm">
                 Check
               </button>
               {state.checkedCells.size > 0 && (
                 <button
                   onClick={state.clearIncorrect}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                             border border-orange-300 dark:border-orange-700
-                             text-orange-700 dark:text-orange-400
-                             hover:bg-orange-50 dark:hover:bg-orange-950/20
-                             transition-colors btn-lift animate-scale-in"
+                  className="btn-ghost btn-sm text-amber-700 dark:text-amber-400
+                             hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-400
+                             animate-scale-in"
                 >
                   Clear Wrong
                 </button>
               )}
               <button
                 onClick={state.revealPuzzle}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                           border border-copper-300 dark:border-copper-700
-                           text-copper-700 dark:text-copper-400
-                           hover:bg-copper-50 dark:hover:bg-copper-950/30
-                           transition-colors btn-lift"
+                className="btn-ghost btn-sm text-accent hover:bg-accent/10 hover:text-accent"
               >
                 Reveal
               </button>
-              <button
-                onClick={state.resetPuzzle}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium
-                           border border-stone-300 dark:border-stone-600
-                           text-stone-600 dark:text-stone-400
-                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover
-                           transition-colors btn-lift"
-              >
+              <button onClick={state.resetPuzzle} className="btn-ghost btn-sm">
                 Reset
               </button>
             </div>
@@ -244,16 +221,16 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
 
           {/* Direction + keyboard hints */}
           {state.selectedCell && (
-            <div className="mb-3 flex items-center gap-3 text-xs text-stone-400 dark:text-stone-500">
+            <div className="mb-3 flex items-center gap-3 text-xs text-ink-3">
               <span>
-                Typing: <span className="font-medium text-primary-600 dark:text-primary-400">{state.isAcross ? 'Across' : 'Down'}</span>
+                Typing: <span className="font-medium text-rubric">{state.isAcross ? 'Across' : 'Down'}</span>
               </span>
-              <span className="text-stone-300 dark:text-stone-600">|</span>
+              <span className="text-ink-3/60">|</span>
               <span>
-                <kbd className="px-1 py-0.5 bg-stone-100 dark:bg-stone-800 rounded text-[10px] font-mono border border-stone-200 dark:border-stone-700">Space</kbd> switch
+                <kbd className="px-1 py-0.5 bg-well rounded text-[10px] font-mono border border-line">Space</kbd> switch
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-stone-100 dark:bg-stone-800 rounded text-[10px] font-mono border border-stone-200 dark:border-stone-700">Ctrl+Z</kbd> undo
+                <kbd className="px-1 py-0.5 bg-well rounded text-[10px] font-mono border border-line">Ctrl+Z</kbd> undo
               </span>
             </div>
           )}
@@ -278,8 +255,8 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
 
           {/* Active clue display below grid */}
           {activeClueText && (
-            <div className="mt-3 px-3 py-2 rounded-lg bg-primary-50/50 dark:bg-primary-d/20 border border-primary-100 dark:border-primary-800/30">
-              <p className="text-sm text-primary-800 dark:text-primary-300">
+            <div className="mt-3 px-3 py-2 rounded-md bg-well border border-line border-l-2 border-l-rubric">
+              <p className="text-sm text-ink">
                 {activeClueText}
               </p>
             </div>
@@ -294,7 +271,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
         {/* Right: Clues */}
         <div className="flex-1 min-w-0 space-y-3">
         {puzzle.wordLocations.some(w => w.displayWord) && (
-          <p className="text-xs text-stone-400 dark:text-stone-500 italic">
+          <p className="text-xs text-ink-3 italic">
             Answers marked (2 words) are typed without the space.
           </p>
         )}
@@ -342,7 +319,7 @@ function PlayClueList({ title, clues, activeNumber, onClueClick }: PlayClueListP
         {title}
       </h3>
       {clues.length === 0 ? (
-        <p className="text-sm text-stone-400 italic">No {title.toLowerCase()} clues</p>
+        <p className="text-sm text-ink-3 italic">No {title.toLowerCase()} clues</p>
       ) : (
         <ol className="space-y-1">
           {clues.map((clue) => {
@@ -354,19 +331,19 @@ function PlayClueList({ title, clues, activeNumber, onClueClick }: PlayClueListP
                 className={`
                   flex gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-150
                   ${isActive
-                    ? 'bg-primary-50 dark:bg-primary-d/40 border-l-[3px] border-l-primary-500 border-y border-r border-y-primary-200 border-r-primary-200 dark:border-y-primary-800/40 dark:border-r-primary-800/40'
-                    : 'hover:bg-stone-50 dark:hover:bg-surface-dark-hover border border-transparent'
+                    ? 'bg-well border-l-[3px] border-l-rubric border-y border-r border-y-line border-r-line'
+                    : 'hover:bg-well border border-transparent'
                   }
                 `}
               >
                 <span className={`flex-shrink-0 text-sm font-semibold w-6 text-right tabular-nums
-                  ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-stone-400 dark:text-stone-500'}`}>
+                  ${isActive ? 'text-rubric' : 'text-ink-3'}`}>
                   {clue.number}.
                 </span>
-                <span className={`text-sm leading-relaxed ${isActive ? 'text-stone-800 dark:text-stone-200' : 'text-stone-600 dark:text-stone-400'}`}>
+                <span className={`text-sm leading-relaxed ${isActive ? 'text-ink' : 'text-ink-2'}`}>
                   {clue.clue}
                   {clue.displayWord && (
-                    <span className="ml-1 text-xs text-stone-400 dark:text-stone-500" title="The answer is two words — type it without the space">
+                    <span className="ml-1 text-xs text-ink-3" title="The answer is two words — type it without the space">
                       (2 words)
                     </span>
                   )}

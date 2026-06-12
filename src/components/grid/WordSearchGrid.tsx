@@ -184,11 +184,11 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
     <div className="animate-fade-in">
       {/* Completion banner */}
       {isComplete && (
-        <div className="mb-6 p-4 rounded-xl bg-primary-50 dark:bg-primary-d/40 border border-primary-200 dark:border-primary-800/50 text-center animate-slide-up">
-          <p className="text-primary-800 dark:text-primary-300 font-semibold text-lg">
+        <div className="mb-6 p-4 warm-card text-center animate-slide-up">
+          <p className="font-display text-xl font-semibold text-ink">
             All Words Found!
           </p>
-          <p className="text-primary-600 dark:text-primary-400 text-sm mt-1">
+          <p className="text-ink-2 text-sm mt-1">
             Completed in {formatTime(elapsedSeconds)}
           </p>
         </div>
@@ -200,42 +200,31 @@ export function WordSearchGrid({ puzzle }: WordSearchGridProps) {
           {/* Timer and controls bar */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-lg font-semibold text-stone-700 dark:text-stone-300 tabular-nums">
+              <span className="font-mono text-lg font-semibold text-ink tabular-nums">
                 {formatTime(elapsedSeconds)}
               </span>
               {isTimerRunning && (
-                <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-rubric animate-pulse" />
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={handleReveal}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium
-                           border border-copper-300 dark:border-copper-700
-                           text-copper-700 dark:text-copper-400
-                           hover:bg-copper-50 dark:hover:bg-copper-950/30
-                           transition-colors btn-lift"
+                className="btn-ghost btn-sm text-accent hover:bg-accent/10 hover:text-accent"
               >
                 Reveal
               </button>
-              <button
-                onClick={handleReset}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium
-                           border border-stone-300 dark:border-stone-600
-                           text-stone-600 dark:text-stone-400
-                           hover:bg-stone-50 dark:hover:bg-surface-dark-hover
-                           transition-colors btn-lift"
-              >
+              <button onClick={handleReset} className="btn-ghost btn-sm">
                 Reset
               </button>
             </div>
           </div>
 
           {/* Selection hint */}
-          <div className="mb-3 text-xs text-stone-400 dark:text-stone-500">
+          <div className="mb-3 text-xs text-ink-3">
             {startCell
-              ? <span>Click the <span className="font-medium text-primary-600 dark:text-primary-400">end cell</span> to complete selection</span>
-              : <span>Click a cell to <span className="font-medium text-primary-600 dark:text-primary-400">start selecting</span> a word</span>
+              ? <span>Click the <span className="font-medium text-rubric">end cell</span> to complete selection</span>
+              : <span>Click a cell to <span className="font-medium text-rubric">start selecting</span> a word</span>
             }
           </div>
 
@@ -326,15 +315,15 @@ function WordList({ words, foundWords, lastFoundWord }: {
         <h3 className="section-label">
           Words to Find
         </h3>
-        <span className="text-xs font-mono text-stone-400 dark:text-stone-500">
+        <span className="text-xs font-mono text-ink-3">
           {foundWords.length} / {words.length}
         </span>
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full mb-4 overflow-hidden">
+      <div className="w-full h-1.5 bg-well rounded-full mb-4 overflow-hidden">
         <div
-          className="h-full bg-primary-500 rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-accent rounded-full transition-all duration-500 ease-out"
           style={{ width: `${words.length > 0 ? (foundWords.length / words.length) * 100 : 0}%` }}
         />
       </div>
@@ -361,19 +350,19 @@ function WordList({ words, foundWords, lastFoundWord }: {
                   >
                     <div
                       className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200 ${
-                        isFound ? '' : 'bg-stone-300 dark:bg-stone-600'
+                        isFound ? '' : 'bg-line-2'
                       }`}
                       style={isFound && color ? { backgroundColor: color } : undefined}
                     />
                     <span className={`text-sm font-medium uppercase tracking-wide ${
                       isFound
-                        ? 'line-through text-stone-400 dark:text-stone-500'
-                        : 'text-stone-700 dark:text-stone-300'
+                        ? 'line-through text-ink-3'
+                        : 'text-ink'
                     }`}>
                       {wl.displayWord ?? wl.word}
                     </span>
                     <span className={`text-xs truncate ${
-                      isFound ? 'text-stone-300 dark:text-stone-600' : 'text-stone-400 dark:text-stone-500'
+                      isFound ? 'text-ink-3/60' : 'text-ink-3'
                     }`}>
                       {wl.clue}
                     </span>
