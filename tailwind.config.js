@@ -5,6 +5,13 @@ export default {
     './src/**/*.{js,ts,jsx,tsx}',
   ],
   darkMode: 'class',
+  // The sepia THEME class lives on <html>. Without this, Tailwind's JIT
+  // also generates its `sepia` FILTER utility (filter: sepia(100%)) from
+  // the same string — which silently yellow-filtered the entire app in
+  // sepia mode. The filter utility is unused; the theme class wins.
+  corePlugins: {
+    sepia: false,
+  },
   theme: {
     extend: {
       colors: {
