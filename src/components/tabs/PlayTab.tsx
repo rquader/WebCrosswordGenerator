@@ -208,6 +208,26 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               >
                 {hintsLeft}/{HINT_BUDGET}
               </span>
+              <button
+                onClick={state.undo}
+                className="btn-ghost btn-sm px-1.5"
+                title="Undo (Ctrl+Z)"
+                aria-label="Undo"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+              </button>
+              <button
+                onClick={state.redo}
+                className="btn-ghost btn-sm px-1.5"
+                title="Redo (Ctrl+Shift+Z)"
+                aria-label="Redo"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
+                </svg>
+              </button>
               <button onClick={handleCheck} className="btn-secondary btn-sm">
                 Check
               </button>
