@@ -1,7 +1,7 @@
 # CrosswordGen — Puzzle Studio
 
 Fully client-side crossword/word-search generator + player. Ported from a Java Swing app.
-TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~13,000 LOC, 242 tests.
+TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~13,500 LOC, 288 tests.
 
 Target audience: teachers creating puzzles from their own word lists.
 Everything runs in the browser — zero server, zero tracking.
@@ -10,7 +10,7 @@ Everything runs in the browser — zero server, zero tracking.
 ```bash
 npm run dev          # Dev server at http://localhost:5173
 npm run build        # Type-check (tsc) + production build to dist/
-npm run test         # Run all Vitest unit tests (242 currently)
+npm run test         # Run all Vitest unit tests (288 currently)
 npm run test:watch   # Tests in watch mode
 npm run deploy       # Build + push to gh-pages branch (GitHub Pages)
 ```
@@ -32,7 +32,7 @@ src/hooks/         useTheme (dark/light/sepia), usePuzzleState (play state)
 src/utils/         fileParser, exportUtils, pdfExport, printLayout, puzzleUrl, wordListPrompt
 src/data/          blocklist.ts — word search filler profanity filter (standalone)
 src/presets/       4 word packs (Biology, US History, Spanish, SAT), ~130 entries
-tests/unit/        Vitest tests (19 test files)
+tests/unit/        Vitest tests (21 test files)
 ```
 
 ### Generation Pipeline (read this — it's the novel part)
@@ -161,7 +161,7 @@ react, react-dom, jspdf (PDF export), pako (zlib compression for URL sharing),
 
 ## Deployment
 GitHub Pages via `gh-pages` package. Base path: `/WebCrosswordGenerator/` (set in `vite.config.ts`).
-Manual deploy with `npm run deploy`. No CI/CD — tests run locally before deploy.
+Auto-deploys on push to master (GitHub Actions); `npm run deploy` still works manually. Tests run locally before push.
 
 ## Deep Dives (Obsidian — optional, this file is self-contained)
 Extended docs live in a separate private repo ([WebCrosswordGeneratorNotes](https://github.com/rquader/WebCrosswordGeneratorNotes)).
