@@ -32,6 +32,12 @@ interface SkeletonFillViewProps {
   onBack: () => void;
   /** Regenerate at the suggested larger grid size (shown on placement failures). */
   onApplySuggestion?: (width: number, height: number) => void;
+  /**
+   * Present when this skeleton exists because Force Dimensions pinned the
+   * grid. Regenerates without the pin — the escape hatch back to the
+   * default words-to-puzzle flow.
+   */
+  onReleaseDimensions?: () => void;
 }
 
 /** Internal state for each slot being edited. */
@@ -46,6 +52,7 @@ export function SkeletonFillView({
   onRegenerate,
   onBack,
   onApplySuggestion,
+  onReleaseDimensions,
 }: SkeletonFillViewProps) {
   const [slotEdits, setSlotEdits] = useState<Map<number, SlotEditState>>(() => {
     const initial = new Map<number, SlotEditState>();
@@ -349,6 +356,23 @@ export function SkeletonFillView({
         <div className="note">
           <p className="text-xs text-ink-2">
             Grid sized up to {skeleton.width}&times;{skeleton.height} so every word fits.
+          </p>
+        </div>
+      )}
+
+      {/* Pinned-size note — say WHY there are blanks, and offer the way out */}
+      {onReleaseDimensions && totalEmpty > 0 && (
+        <div className="note">
+          <p className="text-xs text-ink-2">
+            The grid is pinned at {skeleton.width}&times;{skeleton.height} (Force
+            dimensions), so blank slots were added around your words.{' '}
+            <button
+              onClick={onReleaseDimensions}
+              className="font-medium text-rubric hover:underline"
+            >
+              Generate without the pinned size
+            </button>
+            {' '}for a finished puzzle.
           </p>
         </div>
       )}

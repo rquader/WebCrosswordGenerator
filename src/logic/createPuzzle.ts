@@ -151,6 +151,12 @@ export interface PriorityPuzzleOptions {
    * Generate path passes false: words in, finished puzzle out.
    */
   bankFill?: boolean;
+  /**
+   * Skeleton only: trim empty border rows/columns from the result
+   * (default false — see SkeletonConfig.cropToFit). Pass true only when
+   * the engine owns the grid size (auto-size path).
+   */
+  cropToFit?: boolean;
 }
 
 /**
@@ -216,6 +222,7 @@ export function createSkeletonFromEntries(
     candidateCount: options.candidateCount,
     growToFit: options.growToFit,
     bankFill: options.bankFill,
+    cropToFit: options.cropToFit,
   });
 
   if (displayByGridWord.size > 0) {

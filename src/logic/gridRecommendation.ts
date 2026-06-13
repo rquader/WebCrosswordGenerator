@@ -17,22 +17,29 @@ const MIN_GRID_SIZE = 8;
 const MAX_GRID_SIZE = 26;
 
 /**
- * Letters-to-cells ratio the engine packs reliably. Calibrated empirically
- * (Phase 15) against hard 30+ word lists across 20 seeds: the placement
- * engine fits everything at ~42% density; the recommendation sizes for
- * exactly that, and skeleton auto-grow covers the rare unlucky seed.
+ * Letters-to-cells ratio the recommendation aims for. Deliberately
+ * optimistic (Phase 16 recalibration): a too-small recommendation
+ * self-corrects — the skeleton generator grows the grid until every word
+ * places — while a too-large one is forever sparse (nothing shrinks a
+ * grid the placer never struggled with). Measured across pack profiles,
+ * starting at 0.55 converges on the same final size as starting larger,
+ * with visibly fewer empty cells.
  */
-const PACKING_DENSITY = 0.42;
+const PACKING_DENSITY = 0.55;
 
 /**
  * Recommend a grid size based on must-include words.
  *
  * Algorithm:
  *   1. Area term: total letters / PACKING_DENSITY → side = ceil(sqrt(area))
- *   2. Structural floor: short lists fail on geometry, not space — crossing
- *      words need room to extend past each other. min(2*longest, longest+5)
- *      gives that slack without ballooning lists with one long word.
+ *   2. Floor: the longest word plus one cell of slack.
  *   3. Clamp to [MIN_GRID_SIZE, MAX_GRID_SIZE].
+ *
+ * The result is a *starting point* biased small on purpose: generation
+ * auto-grows from here to the smallest grid that fits every word, which
+ * is exactly the densest grid the engine can produce for the list.
+ * (The old min(2*longest, longest+5) structural floor oversized grids —
+ * one 14-letter word forced 19×19 and an 18%-full puzzle.)
  *
  * @param wordLengths - Array of word lengths (one per must-include word)
  * @returns Recommendation with dimensions, reason, and outlier warnings
@@ -53,8 +60,7 @@ export function recommendGridSize(wordLengths: number[]): GridRecommendation {
   const totalLetters = wordLengths.reduce((sum, len) => sum + len, 0);
 
   const fromArea = Math.ceil(Math.sqrt(totalLetters / PACKING_DENSITY));
-  const structuralFloor = Math.min(longestWord * 2, longestWord + 5);
-  let recommended = Math.max(fromArea, structuralFloor, longestWord + 1);
+  let recommended = Math.max(fromArea, longestWord + 1);
 
   // Clamp to valid range
   recommended = clamp(recommended, MIN_GRID_SIZE, MAX_GRID_SIZE);
@@ -72,6 +78,36 @@ export function recommendGridSize(wordLengths: number[]): GridRecommendation {
     minDimension: longestWord,
     outliers,
   };
+}
+
+/**
+ * Word counts that fill a crossword grid well, calibrated against the
+ * Phase 16 engine (12 seeds × pinned sizes 9–21, classroom-style word
+ * pools): the placer reliably lands 34–50% letter density on a
+ * right-sized grid — beyond that, words start failing to place; below
+ * it, the grid reads sparse. A typical classroom vocabulary word runs
+ * ~6.5 letters, so the count band is density × area / 6.5.
+ */
+const TYPICAL_WORD_LENGTH = 6.5;
+const COMFORTABLE_DENSITY_LO = 0.34;
+const COMFORTABLE_DENSITY_HI = 0.50;
+
+export interface WordCountRange {
+  lo: number;
+  hi: number;
+}
+
+/**
+ * The word-count range that gives the placer the best shot at a dense
+ * grid of the given size. Below `lo` the puzzle looks sparse; above `hi`
+ * words start needing a bigger grid (auto-size grows, forced sizes
+ * report failures).
+ */
+export function recommendedWordCountRange(width: number, height: number): WordCountRange {
+  const area = width * height;
+  const lo = Math.max(2, Math.round(COMFORTABLE_DENSITY_LO * area / TYPICAL_WORD_LENGTH));
+  const hi = Math.max(lo, Math.round(COMFORTABLE_DENSITY_HI * area / TYPICAL_WORD_LENGTH));
+  return { lo, hi };
 }
 
 /**

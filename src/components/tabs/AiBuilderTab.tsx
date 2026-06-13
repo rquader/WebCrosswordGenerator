@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import { buildWordListPrompt, parseWordListResponse, type ParseIssue } from '../../utils/wordListPrompt';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { getGenerationEntriesFromRows, createEntryRowsFromEntries, hasMeaningfulRows } from '../entries/entryTable';
-import { recommendGridSize, recommendWordSearchGridSize } from '../../logic/gridRecommendation';
+import { recommendGridSize, recommendWordSearchGridSize, recommendedWordCountRange } from '../../logic/gridRecommendation';
 import { toGridWord } from '../../logic/language';
 import type { EntryValidationOptions } from '../entries/entryTable';
 import type { GenerationSettings } from '../settings/generationSettings';
@@ -232,6 +232,16 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
                 +
               </button>
             </div>
+            {wizardSnapshot.settings.puzzleMode === 'crossword' && (() => {
+              const range = recommendedWordCountRange(gridWidth, gridHeight);
+              return (
+                <p className="mt-1.5 text-xs text-ink-3">
+                  A {gridWidth}&times;{gridHeight} grid plays best with{' '}
+                  {range.lo}&ndash;{range.hi} words total
+                  {existingWords.length > 0 && <> &mdash; you have {existingWords.length}</>}.
+                </p>
+              );
+            })()}
           </div>
 
           {/* Include current words */}

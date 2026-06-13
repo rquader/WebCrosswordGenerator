@@ -116,13 +116,10 @@ export function generateCrosswordWithPriority(
     if (best === null || isBetterCandidate(candidate, best)) {
       best = candidate;
     }
-
-    // Everything placed — no later candidate can beat this on coverage,
-    // and stopping early keeps generation snappy.
-    if (best.placedMust.length === mustWords.length &&
-        best.placedTotal === mustWords.length + canWords.length) {
-      break;
-    }
+    // No early exit on full coverage: candidates that place every word
+    // still differ meaningfully in compactness and interlock, and the
+    // score picks the densest layout. Generation is milliseconds per
+    // candidate, so running all of them stays well under a click's budget.
   }
 
   const winner = best!;

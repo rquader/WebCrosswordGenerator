@@ -22,13 +22,15 @@ interface MiniGridPreviewProps {
   seedText: string;
   /** Mirror of settings.forceDimensions — preview must match generation. */
   forceDimensions?: boolean;
+  /** Mirror of the auto-size path's crop-to-fit — preview must match generation. */
+  cropToFit?: boolean;
 }
 
 const DEBOUNCE_MS = 400;
 const FALLBACK_SEED = 1234;
 const EMPTY_CELL = '-';
 
-export function MiniGridPreview({ entries, width, height, seedText, forceDimensions }: MiniGridPreviewProps) {
+export function MiniGridPreview({ entries, width, height, seedText, forceDimensions, cropToFit }: MiniGridPreviewProps) {
   const [preview, setPreview] = useState<SkeletonResult | null>(null);
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           growToFit: !forceDimensions,
           // Mirror Generate: blanks only exist behind Force Dimensions
           bankFill: !!forceDimensions,
+          cropToFit: !!cropToFit,
         }));
       } catch {
         setPreview(null); // e.g. no entry fits the grid yet
@@ -56,7 +59,7 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(handle);
-  }, [entries, width, height, seedText, forceDimensions]);
+  }, [entries, width, height, seedText, forceDimensions, cropToFit]);
 
   if (!preview) {
     return null;

@@ -37,7 +37,11 @@
       "Bash(node -e ' *)",
       "Bash(node *)",
       "Bash(sed -n '435,470p' src/components/print/PrintPreviewModal.tsx)",
-      "Bash(sed -n '150,185p' src/components/print/PrintPreviewModal.tsx)"
+      "Bash(sed -n '150,185p' src/components/print/PrintPreviewModal.tsx)",
+      "Bash(npx vite-node *)",
+      "Bash(sed -n 25-40p /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/EntryTableEditor.tsx)",
+      "Bash(sed -n '25,40p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/EntryTableEditor.tsx)",
+      "Bash(sed -n '60,80p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/TextImportView.tsx)"
     ]
   },
   "enabledPlugins": {

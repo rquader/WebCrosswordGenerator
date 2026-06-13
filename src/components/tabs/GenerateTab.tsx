@@ -279,6 +279,34 @@ export function GenerateTab({
 
   // --- Generation ---
 
+  /** Every word the teacher added is must-include — that's why they added it. */
+  function prioritizedEntries(): PrioritizedEntry[] {
+    return wordEntries.map(e => ({
+      word: e.word, clue: e.clue, priority: 'must' as const,
+    }));
+  }
+
+  /**
+   * Route a fresh generation result: a complete puzzle (no blanks, no
+   * failures) goes straight to the finished view — including under Force
+   * Dimensions — and only results that genuinely need the user (blank
+   * slots to fill, or failures to resolve) open the skeleton workspace.
+   * Every generation path funnels through here so the outcome is always
+   * a pure function of the current words + settings, never of how the
+   * previous attempt went.
+   */
+  function applyGenerationOutcome(skeleton: SkeletonResult) {
+    const hasBlanks = skeleton.slots.some(s => !s.isUserWord);
+    if (!hasBlanks && skeleton.failures.length === 0 && skeleton.slots.length > 0) {
+      onPuzzleGenerated(skeletonToPuzzle(skeleton, []), 'crossword');
+      setActiveSkeleton(null);
+    } else {
+      setActiveSkeleton(skeleton);
+    }
+    setGridKey(prev => prev + 1);
+    setIsGenerating(false);
+  }
+
   function handleGenerateSkeleton() {
     setIsGenerating(true);
     setTimeout(() => {
@@ -286,35 +314,21 @@ export function GenerateTab({
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
       patchWizard({ settings: { ...wizard.settings, seedText: String(seed) } });
 
-      // Every word the teacher added is must-include — that's why they added it
-      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
-        word: e.word, clue: e.clue, priority: 'must' as const,
-      }));
-
       // Blank-slot skeletons only exist behind Force Dimensions or the
       // explicit blank-skeleton flow; the default path is words → puzzle.
       const useBankFill = wizard.settings.forceDimensions || wordEntries.length === 0;
 
       const skeleton = createSkeletonFromEntries({
-        entries: prioritized,
+        entries: prioritizedEntries(),
         width: effectiveWidth,
         height: effectiveHeight,
         seed,
         growToFit: !wizard.settings.forceDimensions,
         bankFill: useBankFill,
+        cropToFit: autoActive,
       });
 
-      const hasBlanks = skeleton.slots.some(s => !s.isUserWord);
-      if (!useBankFill && !hasBlanks && skeleton.failures.length === 0) {
-        // Default path: every word placed, nothing to fill — straight to
-        // the finished puzzle, no decisions needed.
-        onPuzzleGenerated(skeletonToPuzzle(skeleton, []), 'crossword');
-        setActiveSkeleton(null);
-      } else {
-        setActiveSkeleton(skeleton);
-      }
-      setGridKey(prev => prev + 1);
-      setIsGenerating(false);
+      applyGenerationOutcome(skeleton);
     }, 10);
   }
 
@@ -353,22 +367,47 @@ export function GenerateTab({
     setTimeout(() => {
       patchWizard({ settings: { ...wizard.settings, seedText: String(newSeed) } });
 
-      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
-        word: e.word, clue: e.clue, priority: 'must' as const,
-      }));
-
       const skeleton = createSkeletonFromEntries({
-        entries: prioritized,
+        entries: prioritizedEntries(),
         width: effectiveWidth,
         height: effectiveHeight,
         seed: newSeed,
         growToFit: !wizard.settings.forceDimensions,
         bankFill: wizard.settings.forceDimensions || wordEntries.length === 0,
+        cropToFit: autoActive,
       });
 
-      setActiveSkeleton(skeleton);
-      setGridKey(prev => prev + 1);
-      setIsGenerating(false);
+      applyGenerationOutcome(skeleton);
+    }, 150);
+  }
+
+  /**
+   * Escape hatch from a pinned-size skeleton: drop Force Dimensions and
+   * regenerate on the default words-to-puzzle path. Offered inside the
+   * fill view so a stale checkbox can't silently keep producing blanks.
+   */
+  function handleReleaseDimensions() {
+    setIsGenerating(true);
+    setActiveSkeleton(null);
+
+    setTimeout(() => {
+      const parsedSeed = parseInt(wizard.settings.seedText, 10);
+      const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
+      patchWizard({
+        settings: { ...wizard.settings, forceDimensions: false, seedText: String(seed) },
+      });
+
+      const skeleton = createSkeletonFromEntries({
+        entries: prioritizedEntries(),
+        width: effectiveWidth,
+        height: effectiveHeight,
+        seed,
+        growToFit: true,
+        bankFill: wordEntries.length === 0,
+        cropToFit: false,
+      });
+
+      applyGenerationOutcome(skeleton);
     }, 150);
   }
 
@@ -388,22 +427,17 @@ export function GenerateTab({
       // recommendation would immediately override the suggested dimensions.
       patchWizard({ settings: { ...wizard.settings, width, height, autoGridSize: false, seedText: String(seed) } });
 
-      const prioritized: PrioritizedEntry[] = wordEntries.map(e => ({
-        word: e.word, clue: e.clue, priority: 'must' as const,
-      }));
-
       const skeleton = createSkeletonFromEntries({
-        entries: prioritized,
+        entries: prioritizedEntries(),
         width,
         height,
         seed,
         growToFit: !wizard.settings.forceDimensions,
         bankFill: wizard.settings.forceDimensions || wordEntries.length === 0,
+        cropToFit: false,
       });
 
-      setActiveSkeleton(skeleton);
-      setGridKey(prev => prev + 1);
-      setIsGenerating(false);
+      applyGenerationOutcome(skeleton);
     }, 150);
   }
 
@@ -426,6 +460,11 @@ export function GenerateTab({
           onRegenerate={handleSkeletonRegenerate}
           onBack={() => setActiveSkeleton(null)}
           onApplySuggestion={handleApplySuggestion}
+          onReleaseDimensions={
+            wizard.settings.forceDimensions && wordEntries.length > 0
+              ? handleReleaseDimensions
+              : undefined
+          }
         />
       </div>
     );
@@ -564,6 +603,7 @@ export function GenerateTab({
             onChange={settings => patchWizard({ settings })}
             recommendation={gridRecommendation}
             effectiveSize={{ width: effectiveWidth, height: effectiveHeight }}
+            wordCount={wordEntries.length}
           />
 
           {/* --- Generate button --- */}
@@ -664,6 +704,7 @@ export function GenerateTab({
               height={effectiveHeight}
               seedText={wizard.settings.seedText}
               forceDimensions={wizard.settings.forceDimensions}
+              cropToFit={autoActive}
             />
           ) : (
             <EmptyState isCrossword={isCrossword} />

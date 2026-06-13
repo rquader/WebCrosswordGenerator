@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import type { GenerationSettings } from './generationSettings';
 import type { GridRecommendation } from '../../logic/types';
+import { recommendedWordCountRange } from '../../logic/gridRecommendation';
 import { LANGUAGES, type PuzzleLanguage } from '../../logic/language';
 
 interface SettingsPanelProps {
@@ -17,6 +18,8 @@ interface SettingsPanelProps {
   recommendation?: GridRecommendation | null;
   /** Effective grid size in use (recommendation when auto, else manual). */
   effectiveSize?: { width: number; height: number };
+  /** How many valid words the list currently holds (for count guidance). */
+  wordCount?: number;
 }
 
 function randomSeed(): number {
@@ -27,7 +30,7 @@ function Divider() {
   return <div className="h-px bg-line" />;
 }
 
-export function SettingsPanel({ value, onChange, recommendation, effectiveSize }: SettingsPanelProps) {
+export function SettingsPanel({ value, onChange, recommendation, effectiveSize, wordCount }: SettingsPanelProps) {
   const [seedCopied, setSeedCopied] = useState(false);
   const autoActive = value.autoGridSize && recommendation != null && recommendation.minDimension > 0;
 
@@ -191,6 +194,19 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize }
                 <SliderField label="Width" value={value.width} min={2} max={26} onChange={(next) => patchManualSize({ width: next })} />
                 <SliderField label="Height" value={value.height} min={2} max={26} onChange={(next) => patchManualSize({ height: next })} />
               </div>
+
+              {/* Word-count guidance — only when the user controls the size.
+                  (Auto mode sizes the grid to the words, so it self-balances.) */}
+              {value.puzzleMode === 'crossword' && (() => {
+                const range = recommendedWordCountRange(value.width, value.height);
+                return (
+                  <p className="mt-2 text-xs text-ink-3">
+                    A {value.width}&times;{value.height} grid fills best with{' '}
+                    <span className="font-medium text-ink-2">{range.lo}&ndash;{range.hi} words</span>
+                    {typeof wordCount === 'number' && wordCount > 0 && <> &mdash; you have {wordCount}</>}.
+                  </p>
+                );
+              })()}
             </>
           )}
 

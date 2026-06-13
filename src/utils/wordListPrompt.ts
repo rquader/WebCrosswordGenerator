@@ -23,6 +23,7 @@ import {
   wordCharsetRegex,
   type PuzzleLanguage,
 } from '../logic/language';
+import { recommendedWordCountRange } from '../logic/gridRecommendation';
 
 export interface WordListPromptOptions {
   /** Freeform topic context — anything the teacher pastes in. */
@@ -76,12 +77,28 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
 
   const lines: string[] = [];
 
+  // Crossword counts are calibrated to the grid: when the requested count
+  // sits inside the size's happy band, the prompt asks for the band (with
+  // the request as the aim) instead of a hard integer — an AI told
+  // "exactly N" with one weak candidate left pads with junk; a range lets
+  // it stop at quality. A request outside the band is deliberate, so it
+  // stays exact. Word searches keep exact counts (density isn't a
+  // constraint there — filler letters surround the words regardless).
+  const range = recommendedWordCountRange(gridWidth, gridHeight);
+  const rangeLo = Math.max(2, range.lo - existingWords.length);
+  const rangeHi = Math.max(rangeLo, range.hi - existingWords.length);
+  const useCountRange = isCrossword && wordCount >= rangeLo && wordCount <= rangeHi;
+
   // 1 — Parameters block
   lines.push(`Generate a word list with clues for a ${puzzleName} on the topic described below.`);
   lines.push('');
   lines.push('REQUIREMENTS');
   lines.push(`- Language: ${languageLabel}. Every word and every clue must be written in ${languageLabel}.`);
-  lines.push(`- Number of words: exactly ${wordCount}.`);
+  if (useCountRange) {
+    lines.push(`- Number of words: ${rangeLo} to ${rangeHi} — the right range for this grid size — aiming for about ${wordCount}. Return fewer rather than padding with weak or off-topic words.`);
+  } else {
+    lines.push(`- Number of words: exactly ${wordCount}.`);
+  }
   lines.push(`- Grid size: ${gridWidth}x${gridHeight} — no word may be longer than ${maxLen} letters.`);
   if (isCrossword) {
     lines.push('- Word length: 4 to 12 letters preferred.');
@@ -135,7 +152,9 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     lines.push('WORD | Clue text');
     lines.push('');
     lines.push(`Rules: WORD in ${caps}, a single pipe (|) as the separator, clue in sentence case.`);
-    lines.push(`Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
+    lines.push(useCountRange
+      ? `Between ${rangeLo} and ${rangeHi} lines. No blank lines, no numbering, no text outside the code block.`
+      : `Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
     lines.push('');
     lines.push('Example format (do not copy these words):');
     lines.push('```');

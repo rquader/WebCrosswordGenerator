@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   recommendGridSize,
   recommendWordSearchGridSize,
+  recommendedWordCountRange,
   detectOutliers,
   detectOutlierWords,
 } from '@logic/gridRecommendation';
@@ -234,5 +235,36 @@ describe('detectOutlierWords', () => {
   it('returns empty for too few words', () => {
     const outliers = detectOutlierWords(['hi', 'supercalifragilistic']);
     expect(outliers.length).toBe(0); // Only 2 words
+  });
+});
+
+// ============================================================================
+// Word count calibration
+// ============================================================================
+
+describe('recommendedWordCountRange', () => {
+  // Calibrated against the Phase 16 engine (see gridRecommendation.ts).
+  // These pins are the published guidance — change them only with fresh
+  // measurement, since the UI and the AI prompt both surface them.
+  it('matches the calibrated bands for standard sizes', () => {
+    expect(recommendedWordCountRange(9, 9)).toEqual({ lo: 4, hi: 6 });
+    expect(recommendedWordCountRange(11, 11)).toEqual({ lo: 6, hi: 9 });
+    expect(recommendedWordCountRange(13, 13)).toEqual({ lo: 9, hi: 13 });
+    expect(recommendedWordCountRange(15, 15)).toEqual({ lo: 12, hi: 17 });
+    expect(recommendedWordCountRange(17, 17)).toEqual({ lo: 15, hi: 22 });
+    expect(recommendedWordCountRange(21, 21)).toEqual({ lo: 23, hi: 34 });
+  });
+
+  it('uses the full area for non-square grids', () => {
+    const range = recommendedWordCountRange(10, 20);
+    const square = recommendedWordCountRange(14, 14); // similar area (200 vs 196)
+    expect(Math.abs(range.lo - square.lo)).toBeLessThanOrEqual(1);
+    expect(Math.abs(range.hi - square.hi)).toBeLessThanOrEqual(1);
+  });
+
+  it('never goes below 2, and hi is always >= lo', () => {
+    const tiny = recommendedWordCountRange(2, 2);
+    expect(tiny.lo).toBeGreaterThanOrEqual(2);
+    expect(tiny.hi).toBeGreaterThanOrEqual(tiny.lo);
   });
 });

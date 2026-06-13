@@ -42,9 +42,35 @@ describe('buildWordListPrompt', () => {
 
     expect(prompt).toContain('Unit 3: photosynthesis and plant biology for 7th grade.');
     expect(prompt).toContain('LEAF, STEM');
-    expect(prompt).toContain('exactly 10');
     expect(prompt).toContain('15x15');
     expect(prompt).toContain('no word may be longer than 15 letters');
+  });
+
+  it('asks for a grid-calibrated count range when the request fits the band', () => {
+    // 15x15 plays best with 12-17 words; 2 existing → 10-15 remaining.
+    // The default request of 10 sits inside, so the prompt offers a range.
+    const prompt = buildWordListPrompt(baseOptions);
+
+    expect(prompt).toContain('Number of words: 10 to 15');
+    expect(prompt).toContain('aiming for about 10');
+    expect(prompt).toContain('Between 10 and 15 lines.');
+    expect(prompt).not.toContain('exactly 10');
+  });
+
+  it('keeps an exact count when the request is outside the grid band', () => {
+    // 30 words on a 15x15 is a deliberate overshoot — honor it literally.
+    const prompt = buildWordListPrompt({ ...baseOptions, wordCount: 30 });
+
+    expect(prompt).toContain('Number of words: exactly 30.');
+    expect(prompt).toContain('Exactly 30 lines.');
+    expect(prompt).not.toContain('aiming for about');
+  });
+
+  it('keeps exact counts in word search mode (no crossword calibration)', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
+
+    expect(prompt).toContain('Number of words: exactly 10.');
+    expect(prompt).not.toContain('aiming for about');
   });
 
   it('omits the existing-words block when there are none', () => {

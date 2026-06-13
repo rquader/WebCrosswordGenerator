@@ -24,13 +24,18 @@ export interface PuzzleScore {
   centering: number;
   /** 1 = equal across/down counts, 0 = all words in one direction. */
   directionBalance: number;
+  /**
+   * Occupied cells / bounding-box area (0 to 1). Higher = the words nest
+   * tighter, which means fewer empty cells in the finished puzzle.
+   */
+  compactness: number;
 }
 
 export function scoreCrossword(result: CrosswordResult): PuzzleScore {
   const { wordLocations, width, height } = result;
 
   if (wordLocations.length === 0) {
-    return { total: 0, wordCount: 0, intersectionRatio: 0, centering: 0, directionBalance: 0 };
+    return { total: 0, wordCount: 0, intersectionRatio: 0, centering: 0, directionBalance: 0, compactness: 0 };
   }
 
   // Count how many words cover each cell; cells covered twice are intersections.
@@ -76,10 +81,16 @@ export function scoreCrossword(result: CrosswordResult): PuzzleScore {
 
   const directionBalance = 1 - Math.abs(acrossCount - downCount) / wordLocations.length;
 
+  const boxArea = (maxX - minX + 1) * (maxY - minY + 1);
+  const compactness = occupiedCells / boxArea;
+
   // Word count dominates: a layout that places more words always beats one
-  // that places fewer. The remaining terms break ties between equal coverage.
+  // that places fewer. The remaining terms break ties between equal
+  // coverage — compactness weighs heaviest among them because a tighter
+  // layout directly means fewer empty cells in the finished puzzle.
   const total =
     wordLocations.length * 10 +
+    compactness * 6 +
     intersectionRatio * 5 +
     centering * 2 +
     directionBalance;
@@ -90,5 +101,6 @@ export function scoreCrossword(result: CrosswordResult): PuzzleScore {
     intersectionRatio,
     centering,
     directionBalance,
+    compactness,
   };
 }

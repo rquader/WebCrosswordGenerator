@@ -421,3 +421,93 @@ describe('seed reproducibility', () => {
     expect(grid1).not.toBe(grid2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Crop to fit (Phase 16 — density)
+// ---------------------------------------------------------------------------
+
+describe('cropToFit', () => {
+  const entries = [
+    mustEntry('photosynthesis', 'c'),
+    mustEntry('mitochondria', 'c'),
+    mustEntry('osmosis', 'c'),
+    mustEntry('enzyme', 'c'),
+    mustEntry('nucleus', 'c'),
+    mustEntry('membrane', 'c'),
+    mustEntry('protein', 'c'),
+    mustEntry('glucose', 'c'),
+  ];
+
+  function rowHasContent(grid: string[][], y: number): boolean {
+    return grid[y].some(c => c !== '-');
+  }
+  function colHasContent(grid: string[][], x: number): boolean {
+    return grid.some(row => row[x] !== '-');
+  }
+
+  it('leaves no empty border rows or columns', () => {
+    for (const seed of [11, 222, 3333, 44444]) {
+      const result = generateSkeleton({
+        width: 18, height: 18, seed, entries,
+        growToFit: true, bankFill: false, cropToFit: true,
+      });
+
+      expect(result.failures.length).toBe(0);
+      expect(rowHasContent(result.grid, 0)).toBe(true);
+      expect(rowHasContent(result.grid, result.height - 1)).toBe(true);
+      expect(colHasContent(result.grid, 0)).toBe(true);
+      expect(colHasContent(result.grid, result.width - 1)).toBe(true);
+    }
+  });
+
+  it('keeps slot coordinates aligned with the cropped grid', () => {
+    const result = generateSkeleton({
+      width: 18, height: 18, seed: 77, entries,
+      growToFit: true, bankFill: false, cropToFit: true,
+    });
+
+    for (const slot of result.slots) {
+      expect(slot.word).toBeDefined();
+      for (let i = 0; i < slot.length; i++) {
+        const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+        const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThan(result.width);
+        expect(y).toBeLessThan(result.height);
+        expect(result.grid[y][x]).toBe(slot.word![i]);
+      }
+    }
+  });
+
+  it('is off by default — the requested size is preserved', () => {
+    const result = generateSkeleton({
+      width: 18, height: 18, seed: 77, entries,
+      growToFit: true, bankFill: false,
+    });
+
+    expect(result.width).toBe(18);
+    expect(result.height).toBe(18);
+  });
+
+  it('drops grewFrom when the cropped grid fits inside the requested size', () => {
+    // Tight request forces growth; the crop usually lands back at or under
+    // the request in at least one run — when it does, no "sized up" report.
+    let sawDropped = false;
+    for (const seed of [5, 50, 500, 5000, 50000]) {
+      const result = generateSkeleton({
+        width: 14, height: 14, seed, entries,
+        growToFit: true, bankFill: false, cropToFit: true,
+      });
+      if (result.grewFrom === undefined
+          && (result.width <= 14 && result.height <= 14)) {
+        sawDropped = true;
+      }
+      if (result.grewFrom !== undefined) {
+        // When reported, the grid really is bigger than the request.
+        expect(result.width > 14 || result.height > 14).toBe(true);
+      }
+    }
+    expect(sawDropped).toBe(true);
+  });
+});

@@ -63,6 +63,13 @@ export interface SkeletonConfig {
    * blank-skeleton flow (empty word list).
    */
   bankFill?: boolean;
+  /**
+   * Trim empty border rows/columns from the finished result, so the grid
+   * is exactly the words' bounding box. Pass true only when the engine
+   * owns the size (the auto-size path) — a user-chosen size should render
+   * at the size the user chose. Default: false.
+   */
+  cropToFit?: boolean;
   /** Emit debug logs. */
   debug?: boolean;
 }
@@ -84,7 +91,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
 
   const baseline = generateSkeletonAtSize(config, config.width, config.height);
   if (baseline.failures.length === 0) {
-    return baseline;
+    return finalizeSkeleton(baseline, config);
   }
 
   if (!growToFit) {
@@ -105,7 +112,7 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
 
     if (attempt.failures.length === 0) {
       attempt.grewFrom = { width: config.width, height: config.height };
-      return attempt;
+      return finalizeSkeleton(attempt, config);
     }
 
     if (attempt.failures.length < bestFallback.failures.length) {
@@ -116,9 +123,79 @@ export function generateSkeleton(config: SkeletonConfig): SkeletonResult {
     if (width === GROWTH_HARD_CAP && height === GROWTH_HARD_CAP) {
       // Physically unreasonable input (e.g. dozens of very long words).
       // Return the best attempt; remaining failures are reported honestly.
-      return bestFallback;
+      return finalizeSkeleton(bestFallback, config);
     }
   }
+}
+
+/**
+ * Final shaping of a generation result: when the caller asked for
+ * crop-to-fit, trim the empty border so the grid is exactly the words'
+ * bounding box. Whatever margin the placer left around the layout is
+ * pure empty cells in the rendered puzzle — trimming it is the single
+ * cheapest density win, and it never changes the layout itself.
+ */
+function finalizeSkeleton(result: SkeletonResult, config: SkeletonConfig): SkeletonResult {
+  if (!config.cropToFit) {
+    return result;
+  }
+  const cropped = cropSkeletonToContent(result);
+  // The "sized up" report only makes sense if the final grid really is
+  // larger than the request; after cropping it often isn't.
+  if (cropped.grewFrom !== undefined
+      && cropped.width <= cropped.grewFrom.width
+      && cropped.height <= cropped.grewFrom.height) {
+    delete cropped.grewFrom;
+  }
+  return cropped;
+}
+
+/**
+ * Trim border rows/columns that contain no slot cells. Slot coordinates
+ * (not grid letters) define the bounding box, so blank skeleton slots
+ * survive a crop intact. Returns the result unchanged when there is
+ * nothing to trim or nothing was placed.
+ */
+export function cropSkeletonToContent(result: SkeletonResult): SkeletonResult {
+  if (result.slots.length === 0) {
+    return result;
+  }
+
+  let minX = Infinity;
+  let maxX = -1;
+  let minY = Infinity;
+  let maxY = -1;
+  for (const slot of result.slots) {
+    const endX = slot.direction === 'across' ? slot.startX + slot.length - 1 : slot.startX;
+    const endY = slot.direction === 'across' ? slot.startY : slot.startY + slot.length - 1;
+    if (slot.startX < minX) minX = slot.startX;
+    if (endX > maxX) maxX = endX;
+    if (slot.startY < minY) minY = slot.startY;
+    if (endY > maxY) maxY = endY;
+  }
+
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  if (minX === 0 && minY === 0 && width === result.width && height === result.height) {
+    return result;
+  }
+
+  const grid: string[][] = [];
+  for (let y = minY; y <= maxY; y++) {
+    grid.push(result.grid[y].slice(minX, maxX + 1));
+  }
+
+  return {
+    ...result,
+    grid,
+    width,
+    height,
+    slots: result.slots.map(slot => ({
+      ...slot,
+      startX: slot.startX - minX,
+      startY: slot.startY - minY,
+    })),
+  };
 }
 
 /**
