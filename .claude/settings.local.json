@@ -58,7 +58,10 @@
       "Bash(mkdir -p frames)",
       "Bash(ffmpeg -y -loglevel error -i spinner-demo.webm -vf fps=4 frames/f_%03d.png)",
       "Bash(git commit -q -m 'feat: generating spinner + keep the live preview cheap *)",
-      "Bash(git commit -q -m 'feat: engine-grounded, mode-specific AI prompt guidance *)"
+      "Bash(git commit -q -m 'feat: engine-grounded, mode-specific AI prompt guidance *)",
+      "Bash(pkill -f \"node_modules/.bin/vite\")",
+      "Bash(pkill -f \"npm run dev\")",
+      "Bash(git commit -q -m 'fix: paint desk color on first frame \\(graceful pre-CSS paint\\) + AI prompt advanced options scaffolding *)"
     ]
   },
   "enabledPlugins": {

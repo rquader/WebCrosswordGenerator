@@ -25,6 +25,32 @@ import {
 } from '../logic/language';
 import { recommendedWordCountRange } from '../logic/gridRecommendation';
 
+/**
+ * Power-user overrides for the prompt. All optional; when omitted, the
+ * prompt stays in its default "optimized for this grid" form (the settings
+ * that the factor study showed produce the densest, most reliable puzzles).
+ * These loosen the engine-tuned constraints so the AI has MORE freedom in
+ * its word choice — at some cost to grid density. Surfaced behind an
+ * "Advanced options" disclosure in the AI Words tab (off by default).
+ */
+export interface AdvancedPromptOptions {
+  /**
+   * How the word count is requested:
+   *  - 'optimized' (default): the grid-calibrated band (densest + fits).
+   *  - 'exact': exactly `wordCount`.
+   *  - 'unlimited': let the AI choose how many, sized to fill the grid.
+   */
+  countMode?: 'optimized' | 'exact' | 'unlimited';
+  /** Crossword: drop the 5-8 letters / avoid-short / no-outlier guidance. */
+  anyLength?: boolean;
+  /** Crossword: drop the vowel/common-letter crossing guidance. */
+  anyLetters?: boolean;
+  /** Drop the "no proper nouns" restriction. */
+  allowProperNouns?: boolean;
+  /** Verbatim extra instructions appended to the prompt (limitless control). */
+  extraInstructions?: string;
+}
+
 export interface WordListPromptOptions {
   /** Freeform topic context — anything the teacher pastes in. */
   context: string;
@@ -40,6 +66,8 @@ export interface WordListPromptOptions {
   language?: PuzzleLanguage;
   /** Permit two-word phrases (written WORD_WORD in the response). */
   allowTwoWords?: boolean;
+  /** Power-user overrides (default: optimized prompt). */
+  advanced?: AdvancedPromptOptions;
 }
 
 /** The charset rule, phrased for the prompt, per language. */
@@ -84,17 +112,23 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   // it stop at quality. A request outside the band is deliberate, so it
   // stays exact. Word searches keep exact counts (density isn't a
   // constraint there — filler letters surround the words regardless).
+  const adv = options.advanced ?? {};
+  const countMode = adv.countMode ?? 'optimized';
   const range = recommendedWordCountRange(gridWidth, gridHeight);
   const rangeLo = Math.max(2, range.lo - existingWords.length);
   const rangeHi = Math.max(rangeLo, range.hi - existingWords.length);
-  const useCountRange = isCrossword && wordCount >= rangeLo && wordCount <= rangeHi;
+  // The grid-calibrated band only applies in the default 'optimized' mode.
+  const useCountRange = countMode === 'optimized' && isCrossword
+    && wordCount >= rangeLo && wordCount <= rangeHi;
 
   // 1 — Parameters block
   lines.push(`Generate a word list with clues for a ${puzzleName} on the topic described below.`);
   lines.push('');
   lines.push('REQUIREMENTS');
   lines.push(`- Language: ${languageLabel}. Every word and every clue must be written in ${languageLabel}.`);
-  if (useCountRange) {
+  if (countMode === 'unlimited') {
+    lines.push(`- Number of words: choose as many strong, on-topic words as the topic naturally supports — aim for a rich list that comfortably fills a ${gridWidth}x${gridHeight} grid (roughly ${rangeLo} or more). Quality over quantity; don't pad with weak words.`);
+  } else if (useCountRange) {
     lines.push(`- Number of words: ${rangeLo} to ${rangeHi} — the right range for this grid size — aiming for about ${wordCount}. Return fewer rather than padding with weak or off-topic words.`);
   } else {
     lines.push(`- Number of words: exactly ${wordCount}.`);
@@ -107,8 +141,12 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     // often can't be placed; one outlier word forces an oversized, mostly
     // empty grid; and vowel/common-letter-rich words interlock far better
     // than rare-letter or vowel-poor ones (English letter frequency).
-    lines.push('- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).');
-    lines.push('- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.');
+    if (!adv.anyLength) {
+      lines.push('- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).');
+    }
+    if (!adv.anyLetters) {
+      lines.push('- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.');
+    }
   } else {
     // Word search places each word independently (overlap optional, filler
     // fills the rest), so none of the crossword interlock constraints apply:
@@ -124,7 +162,9 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     lines.push('- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.');
     lines.push('- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.');
   }
-  lines.push('- No proper nouns unless they are directly relevant to the topic.');
+  if (!adv.allowProperNouns) {
+    lines.push('- No proper nouns unless they are directly relevant to the topic.');
+  }
   if (isCrossword) {
     lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.');
   } else {
@@ -148,6 +188,15 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     if (isCrossword) {
       lines.push('- Prefer new words that share letters with the existing words, so they can cross in the grid.');
     }
+    lines.push('');
+  }
+
+  // 3.5 — Extra instructions (advanced, verbatim). Placed last among the
+  // guidance so the user's own words can refine or override anything above.
+  const extra = adv.extraInstructions?.trim();
+  if (extra) {
+    lines.push('ADDITIONAL INSTRUCTIONS (apply these as well)');
+    lines.push(extra);
     lines.push('');
   }
 

@@ -73,6 +73,52 @@ describe('buildWordListPrompt', () => {
     expect(prompt).not.toContain('aiming for about');
   });
 
+  // --- Advanced options (default off; loosen the optimized constraints) ---
+  it('is unchanged when no advanced options are passed', () => {
+    const withUndefined = buildWordListPrompt(baseOptions);
+    const withEmpty = buildWordListPrompt({ ...baseOptions, advanced: {} });
+    expect(withEmpty).toBe(withUndefined);
+    // sanity: still the optimized prompt
+    expect(withUndefined).toContain('most words 5 to 8 letters');
+  });
+
+  it('advanced countMode "exact" overrides the calibrated band', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { countMode: 'exact' } });
+    expect(prompt).toContain('Number of words: exactly 10.');
+    expect(prompt).not.toContain('the right range for this grid size');
+  });
+
+  it('advanced countMode "unlimited" lets the AI choose the count', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { countMode: 'unlimited' } });
+    expect(prompt).toContain('as many strong, on-topic words');
+    expect(prompt).not.toContain('Number of words: exactly');
+    expect(prompt).not.toContain('aiming for about');
+  });
+
+  it('advanced anyLength drops the length guidance, anyLetters drops the crossing guidance', () => {
+    const both = buildWordListPrompt({ ...baseOptions, advanced: { anyLength: true, anyLetters: true } });
+    expect(both).not.toContain('most words 5 to 8 letters');
+    expect(both).not.toContain('Crossing-friendly');
+    // each independently
+    const lenOnly = buildWordListPrompt({ ...baseOptions, advanced: { anyLength: true } });
+    expect(lenOnly).not.toContain('most words 5 to 8 letters');
+    expect(lenOnly).toContain('Crossing-friendly');
+  });
+
+  it('advanced allowProperNouns drops the proper-noun restriction', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { allowProperNouns: true } });
+    expect(prompt).not.toContain('No proper nouns');
+  });
+
+  it('advanced extraInstructions are appended verbatim', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { extraInstructions: 'Focus on Chapter 4 vocabulary.' } });
+    expect(prompt).toContain('ADDITIONAL INSTRUCTIONS (apply these as well)');
+    expect(prompt).toContain('Focus on Chapter 4 vocabulary.');
+    // blank/whitespace-only extra instructions add nothing
+    const blank = buildWordListPrompt({ ...baseOptions, advanced: { extraInstructions: '   ' } });
+    expect(blank).not.toContain('ADDITIONAL INSTRUCTIONS');
+  });
+
   it('omits the existing-words block when there are none', () => {
     const prompt = buildWordListPrompt({ ...baseOptions, existingWords: [] });
 
