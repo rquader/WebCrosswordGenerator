@@ -27,22 +27,36 @@ import { SeededRandom } from './seedRandom';
 /**
  * How many candidate layouts to try when the caller doesn't specify one.
  *
- * More candidates produce denser finished grids: the best-of-N winner
- * places every word at a SMALLER grid more often, which crop-to-fit then
- * tightens — measured +2 to +4pp letter fill on typical teacher lists vs.
- * the old flat 5. The count scales inversely with list size so wall-clock
- * stays bounded (each candidate costs roughly one grid's worth of work,
- * and large lists need bigger grids): ~24 candidates for a 12-word pack
- * (~15ms), ~11 for 30 words (~75ms), floored at 6 for the word-bank-flooded
- * skeleton path. It is a pure function of the word count — NOT a wall-clock
- * budget — so the winner stays reproducible for a given seed.
+ * The candidate loop is a best-of-N scheme: more candidates => denser
+ * finished grids, because the winner places every word at a SMALLER grid
+ * more often and crop-to-fit then tightens it. Best-of-N is MONOTONIC
+ * (the winner can only improve or tie with more candidates), so raising
+ * this never regresses quality — the only cost is time.
  *
- * Tuned against the starter packs + synthetic 24/30-word stress lists
- * (see /tmp/cw-candidate-sweep.ts, /tmp/cw-knee.ts in the Phase 16 work).
+ * Sizing is grounded in extreme-value theory rather than a fitted curve.
+ * If single-candidate density D ~ Normal(mu, sigma^2), then
+ *   E[best of N] ~= mu + sigma * c_N,   c_N = expected max of N standard
+ * normals, Blom (1958): c_N ~= Phi^-1((N - 0.375)/(N + 0.25)) ~ sqrt(2 ln N).
+ * The marginal gain of the Nth candidate is sigma * (c_N - c_{N-1}) ∝
+ * sigma / (N sqrt(ln N)) — positive but sharply diminishing. Measured
+ * (see /tmp/cw-evt.ts): the model fits 14-30 word lists well; sigma falls
+ * with list size (~8/sqrt(W)); large lists show a HEAVY right tail so they
+ * benefit from more candidates than Normal predicts; small lists hit a
+ * bounded density ceiling and saturate by ~15.
+ *
+ * So: scale candidates DOWN with list size (lower sigma + higher per-
+ * candidate cost), but keep enough for mid-to-large lists where the tail
+ * still pays. Pure function of the word count (NOT wall-clock) so the
+ * winner stays seed-reproducible. Floor protects the word-bank-flooded
+ * skeleton path (total ~300 words) from doing many expensive candidates.
+ *
+ * Effective counts: <=18 words -> 30; 24 -> 23; 30 -> 19; 40 -> 14;
+ * 70+ -> 8. Validated on the general corpus (/tmp/cw-corpus.ts): no list
+ * regresses vs the prior 420/W setting, mid-large lists gain ~0.3-1pp.
  */
-const MIN_CANDIDATES = 6;
+const MIN_CANDIDATES = 8;
 const MAX_CANDIDATES = 30;
-const CANDIDATE_BUDGET = 420; // candidates ≈ CANDIDATE_BUDGET / wordCount, clamped
+const CANDIDATE_BUDGET = 560; // candidates ≈ CANDIDATE_BUDGET / wordCount, clamped
 
 export function defaultCandidateCount(totalWords: number): number {
   if (totalWords <= 0) return MIN_CANDIDATES;
