@@ -1,18 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7078ee"/>
-      <stop offset="100%" stop-color="#3934b8"/>
-    </linearGradient>
-  </defs>
-  <rect width="36" height="36" rx="8" fill="url(#g)"/>
-  <rect x="4" y="4" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.9"/>
-  <rect x="14" y="4" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.35"/>
-  <rect x="24" y="4" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.9"/>
-  <rect x="4" y="14" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.35"/>
-  <rect x="14" y="14" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.9"/>
-  <rect x="24" y="14" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.35"/>
-  <rect x="4" y="24" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.9"/>
-  <rect x="14" y="24" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.35"/>
-  <rect x="24" y="24" width="8" height="8" rx="1.5" fill="white" fill-opacity="0.9"/>
+  <!-- The masthead glyph: a tiny printed crossword. Paper cells, ink
+       frame, one ink block, one oxblood block, a serif A — the product
+       in one stamp. Static light-theme colors (favicons can't read the
+       app's CSS variables): paper #fdfbf7, ink #201b15, oxblood #942f21. -->
+  <rect x="1.5" y="1.5" width="33" height="33" rx="3" fill="#fdfbf7" stroke="#201b15" stroke-width="2.5"/>
+  <line x1="12.5" y1="2.5" x2="12.5" y2="33.5" stroke="#201b15" stroke-opacity="0.3" stroke-width="1"/>
+  <line x1="23.5" y1="2.5" x2="23.5" y2="33.5" stroke="#201b15" stroke-opacity="0.3" stroke-width="1"/>
+  <line x1="2.5" y1="12.5" x2="33.5" y2="12.5" stroke="#201b15" stroke-opacity="0.3" stroke-width="1"/>
+  <line x1="2.5" y1="23.5" x2="33.5" y2="23.5" stroke="#201b15" stroke-opacity="0.3" stroke-width="1"/>
+  <rect x="23.5" y="2.5" width="10" height="10" fill="#201b15"/>
+  <rect x="2.5" y="23.5" width="10" height="10" fill="#942f21"/>
+  <text x="18" y="22" text-anchor="middle" fill="#201b15" font-size="14" font-weight="700" font-family="Georgia, 'Times New Roman', serif">A</text>
 </svg>

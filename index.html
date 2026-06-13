@@ -3,10 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/WebCrosswordGenerator/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/WebCrosswordGenerator/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Generate, play, and print crossword puzzles — fully private, runs entirely in your browser." />
     <meta name="theme-color" content="#1b1714" />
     <title>Crossword Generator</title>
+
+    <!-- Link unfurls (Discord, iMessage, Slack, social). These are static
+         tags read by the platforms' own crawlers — the app itself still
+         makes zero network calls. og:image must be an absolute URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Crossword Generator" />
+    <meta property="og:title" content="Crossword Generator" />
+    <meta property="og:description" content="Make, play, and print crossword puzzles from your own word list — fully private, runs entirely in your browser." />
+    <meta property="og:url" content="https://rquader.github.io/WebCrosswordGenerator/" />
+    <meta property="og:image" content="https://rquader.github.io/WebCrosswordGenerator/og-image.png" />
+    <meta property="og:image:width" content="2400" />
+    <meta property="og:image:height" content="1260" />
+    <meta property="og:image:alt" content="Crossword Generator — a printed crossword glyph and wordmark on cream paper" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Crossword Generator" />
+    <meta name="twitter:description" content="Make, play, and print crossword puzzles from your own word list — fully private, runs entirely in your browser." />
+    <meta name="twitter:image" content="https://rquader.github.io/WebCrosswordGenerator/og-image.png" />
     <!--
       Privacy: zero network calls. Fonts (Fraunces, Plus Jakarta Sans, Inter)
       are self-hosted via @fontsource and bundled with the app — no font CDN,
@@ -15,6 +33,11 @@
     <script>
       // Apply the saved theme before first paint so dark/sepia users never
       // see a cream flash. Mirrors useTheme's storage key and fallback.
+      // Also paint the page's desk color onto <html> immediately, so the
+      // first frame — before the stylesheet applies (a brief flash in dev;
+      // unnoticeable in production where CSS is a <link> in <head>) — shows
+      // the correct background instead of a stark default. Keep these hexes
+      // in sync with the --page tokens in index.css.
       (function () {
         try {
           var theme = localStorage.getItem('crossword-theme');
@@ -24,11 +47,13 @@
           if (theme === 'dark' || theme === 'sepia') {
             document.documentElement.classList.add(theme);
           }
+          var pageColor = theme === 'dark' ? '#1b1714' : theme === 'sepia' ? '#f2e8d5' : '#fdfbf7';
+          document.documentElement.style.backgroundColor = pageColor;
         } catch (e) { /* storage unavailable — default styles apply */ }
       })();
     </script>
-    <script type="module" crossorigin src="/WebCrosswordGenerator/assets/index-4JN_kSTz.js"></script>
-    <link rel="stylesheet" crossorigin href="/WebCrosswordGenerator/assets/index-tcmz02-J.css">
+    <script type="module" crossorigin src="/WebCrosswordGenerator/assets/index-FnxxCiG6.js"></script>
+    <link rel="stylesheet" crossorigin href="/WebCrosswordGenerator/assets/index-BH8f8omy.css">
   </head>
   <body class="antialiased">
     <!-- Skip navigation link for keyboard/screen reader users -->
