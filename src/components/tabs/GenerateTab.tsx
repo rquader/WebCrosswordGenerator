@@ -161,14 +161,17 @@ export function GenerateTab({
   const [clearUndo, setClearUndo] = useState<{ rows: EntryTableRow[]; count: number } | null>(null);
 
   // Scroll-to-puzzle affordance: with a long word list the controls run
-  // past the fold, so a fresh result can land off-screen. Track whether
-  // the result is in view; while it isn't, a floating pill offers the way
-  // there (and says which way it is).
+  // past the fold, so a fresh result can land off-screen. We watch a tiny
+  // sentinel at the TOP of the result (the "ready" strip) — not the whole
+  // result, whose tall clue panel can stay in view on desktop and mask
+  // that the top scrolled away. While that top is out of view, a floating
+  // pill offers the way there (and which direction it is).
   const resultRef = useRef<HTMLDivElement | null>(null);
+  const resultTopRef = useRef<HTMLDivElement | null>(null);
   const [resultOffscreen, setResultOffscreen] = useState<'above' | 'below' | null>(null);
 
   useEffect(() => {
-    const node = resultRef.current;
+    const node = resultTopRef.current;
     if (!puzzle || !node || typeof IntersectionObserver === 'undefined') {
       setResultOffscreen(null);
       return;
@@ -693,6 +696,9 @@ export function GenerateTab({
         <div className="flex-1 min-w-0">
           {puzzle ? (
             <div className="space-y-4 animate-fade-in" key={gridKey} ref={resultRef}>
+              {/* Sentinel at the very top of the result — the scroll-to-puzzle
+                  pill watches this to know when the result's top is off-screen. */}
+              <div ref={resultTopRef} aria-hidden="true" className="h-0" />
               {/* Ready strip — names the result and offers the natural next steps */}
               <div className="warm-card px-5 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                 <div>
@@ -789,21 +795,12 @@ export function GenerateTab({
         </div>
       </div>
 
-      {/* Floating way back to the result while it's off-screen */}
       {puzzle && resultOffscreen && (
-        <button
+        <ScrollToPuzzleArrow
+          direction={resultOffscreen}
+          mode={generatedMode}
           onClick={scrollToResult}
-          className="fixed bottom-5 right-5 z-40 print:hidden
-                     flex items-center gap-2 rounded-full border border-line bg-card
-                     px-3.5 py-2 shadow-raise text-sm text-ink-2
-                     hover:text-ink hover:border-line-2 transition-colors animate-fade-in"
-          aria-label="Scroll to your puzzle"
-        >
-          <span aria-hidden="true" className="inline-block animate-bounce text-rubric font-semibold leading-none">
-            {resultOffscreen === 'above' ? '↑' : '↓'}
-          </span>
-          Your puzzle
-        </button>
+        />
       )}
     </div>
   );
@@ -828,6 +825,64 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
         <button onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
     </div>
+  );
+}
+
+/**
+ * A clean, themed arrow that floats in the open space and graceful-scrolls
+ * the user to their result — so they never have to hunt for it. It only
+ * appears once a puzzle exists AND its top has scrolled out of view, and it
+ * points the way the result actually sits (up on desktop, where it renders
+ * above the controls; down when the layout stacks on mobile).
+ *
+ * The arrow is a single accent disc that emits a few drifting "embers" in
+ * its pointing direction — all on semantic tokens, so it re-themes for free
+ * (oxblood in light, luminous ember in dark, stamped ink in sepia). The
+ * particles are a desktop flourish (hidden on small screens for a lighter
+ * touch) and every animation is disabled under prefers-reduced-motion.
+ */
+function ScrollToPuzzleArrow({
+  direction, mode, onClick,
+}: { direction: 'above' | 'below'; mode: PuzzleMode; onClick: () => void }) {
+  const up = direction === 'above';
+  const particleAnim = up ? 'particleUp' : 'particleDown';
+  // Three motes at slight x-offsets and staggered delays — an ember trail.
+  const motes = [
+    { x: '-7px', delay: '0s' },
+    { x: '0px', delay: '0.7s' },
+    { x: '7px', delay: '1.4s' },
+  ];
+  return (
+    <button
+      onClick={onClick}
+      aria-label={up ? 'Scroll up to your puzzle' : 'Scroll down to your puzzle'}
+      title={`Jump to your ${mode === 'wordsearch' ? 'word search' : 'crossword'}`}
+      className="group fixed z-40 bottom-10 right-5 sm:right-8 print:hidden
+                 grid place-items-center w-12 h-12 animate-slide-up"
+    >
+      {/* Ember trail — desktop flourish, off on small screens + reduced motion */}
+      <span aria-hidden="true" className="hidden sm:block pointer-events-none absolute inset-0 motion-reduce:hidden">
+        {motes.map((m, i) => (
+          <span
+            key={i}
+            className="absolute left-1/2 top-1/2 w-1 h-1 rounded-full bg-accent"
+            style={{ marginLeft: m.x, animation: `${particleAnim} 2.1s ease-out ${m.delay} infinite` }}
+          />
+        ))}
+      </span>
+      {/* The disc — accent fill, accent glow (ember in dark), gentle float */}
+      <span
+        className="relative grid place-items-center w-12 h-12 rounded-full bg-accent text-accent-ink
+                   ring-1 ring-accent/40 animate-jump-float motion-reduce:animate-none
+                   transition-transform duration-200 group-hover:scale-105 group-active:scale-95"
+        style={{ boxShadow: '0 8px 22px -6px rgb(var(--accent) / 0.55)' }}
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor"
+             strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          {up ? <path d="M17 14l-5-5-5 5" /> : <path d="M7 10l5 5 5-5" />}
+        </svg>
+      </span>
+    </button>
   );
 }
 

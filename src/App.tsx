@@ -109,18 +109,6 @@ export function App() {
         )}
       </main>
 
-      {/* Colophon — the quiet last line of the paper */}
-      <footer className="mt-12 border-t border-line">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
-          <p className="text-meta text-ink-3">
-            <span className="font-display text-ink-2">Crossword Generator</span>
-            {' '}&mdash; set like print, made in your browser.
-          </p>
-          <p className="text-meta text-ink-3">
-            Nothing you type ever leaves this page.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

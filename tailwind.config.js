@@ -187,6 +187,9 @@ export default {
         'confetti-3': 'confetti3 0.9s ease-out forwards',
         'confetti-4': 'confetti4 1.15s ease-out forwards',
         'confetti-5': 'confetti5 1s ease-out forwards',
+        'jump-float': 'jumpFloat 2.6s ease-in-out infinite',
+        'particle-up': 'particleUp 2.1s ease-out infinite',
+        'particle-down': 'particleDown 2.1s ease-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -243,6 +246,22 @@ export default {
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-4px)' },
+        },
+        // Scroll-to-puzzle arrow: a gentle lift, with embers/ink motes
+        // drifting off it in the pointing direction (theme-tinted via tokens).
+        jumpFloat: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-5px)' },
+        },
+        particleUp: {
+          '0%': { opacity: '0', transform: 'translateY(4px) scale(0.5)' },
+          '25%': { opacity: '0.9' },
+          '100%': { opacity: '0', transform: 'translateY(-18px) scale(0.25)' },
+        },
+        particleDown: {
+          '0%': { opacity: '0', transform: 'translateY(-4px) scale(0.5)' },
+          '25%': { opacity: '0.9' },
+          '100%': { opacity: '0', transform: 'translateY(18px) scale(0.25)' },
         },
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.9)' },
