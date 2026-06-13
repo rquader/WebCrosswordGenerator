@@ -24,14 +24,39 @@ import { generateCrossword } from './generator';
 import { scoreCrossword } from './puzzleScore';
 import { SeededRandom } from './seedRandom';
 
-/** Default number of candidate layouts generated per call. */
-const DEFAULT_CANDIDATE_COUNT = 5;
+/**
+ * How many candidate layouts to try when the caller doesn't specify one.
+ *
+ * More candidates produce denser finished grids: the best-of-N winner
+ * places every word at a SMALLER grid more often, which crop-to-fit then
+ * tightens — measured +2 to +4pp letter fill on typical teacher lists vs.
+ * the old flat 5. The count scales inversely with list size so wall-clock
+ * stays bounded (each candidate costs roughly one grid's worth of work,
+ * and large lists need bigger grids): ~24 candidates for a 12-word pack
+ * (~15ms), ~11 for 30 words (~75ms), floored at 6 for the word-bank-flooded
+ * skeleton path. It is a pure function of the word count — NOT a wall-clock
+ * budget — so the winner stays reproducible for a given seed.
+ *
+ * Tuned against the starter packs + synthetic 24/30-word stress lists
+ * (see /tmp/cw-candidate-sweep.ts, /tmp/cw-knee.ts in the Phase 16 work).
+ */
+const MIN_CANDIDATES = 6;
+const MAX_CANDIDATES = 30;
+const CANDIDATE_BUDGET = 420; // candidates ≈ CANDIDATE_BUDGET / wordCount, clamped
+
+export function defaultCandidateCount(totalWords: number): number {
+  if (totalWords <= 0) return MIN_CANDIDATES;
+  return Math.max(MIN_CANDIDATES, Math.min(MAX_CANDIDATES, Math.round(CANDIDATE_BUDGET / totalWords)));
+}
 
 /**
  * First-word offsets (from grid center) used to diversify candidates.
  * Candidate i uses offset i % length, so the first candidate is centered.
+ * Derived seeds keep candidates distinct even when offsets repeat, but a
+ * longer ladder gives higher candidate counts more genuinely-different
+ * first-word anchors to branch from.
  */
-const CANDIDATE_OFFSETS = [0, -2, 2, -4, 4, -1, 1, -3, 3, -5, 5];
+const CANDIDATE_OFFSETS = [0, -2, 2, -4, 4, -1, 1, -3, 3, -5, 5, -6, 6, -7, 7, -8, 8];
 
 /**
  * Generate a crossword with priority-based word placement.
@@ -103,7 +128,10 @@ export function generateCrosswordWithPriority(
   // Generate several candidate layouts and keep the best one.
   // Each candidate uses a seed derived from the base seed and a different
   // first-word offset, so the same config always produces the same winner.
-  const candidateCount = Math.max(1, config.candidateCount ?? DEFAULT_CANDIDATE_COUNT);
+  const candidateCount = Math.max(
+    1,
+    config.candidateCount ?? defaultCandidateCount(mustWords.length + canWords.length),
+  );
   let best: RankedCandidate | null = null;
 
   for (let i = 0; i < candidateCount; i++) {

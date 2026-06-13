@@ -44,7 +44,8 @@
       "Bash(sed -n '60,80p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/TextImportView.tsx)",
       "Bash(kill %1)",
       "Bash(pkill -f \"vite\")",
-      "Bash(git commit -q -m 'docs: sync AGENTS.md — 288 tests, 21 test files, CI auto-deploy *)"
+      "Bash(git commit -q -m 'docs: sync AGENTS.md — 288 tests, 21 test files, CI auto-deploy *)",
+      "Bash(git commit -q -m 'perf: adaptive candidate count — quality-first re-seeding \\(+3-4pp density\\) note, fable last worked on the engine, I believe there was several aspects of what led to how it was built, i'm not fully sure, but the obsidian notes should help with a picture, but inspect the code to deeply understand afaik before u, fable last worked on it)"
     ]
   },
   "enabledPlugins": {
