@@ -63,7 +63,10 @@
       "Bash(pkill -f \"npm run dev\")",
       "Bash(git commit -q -m 'fix: paint desk color on first frame \\(graceful pre-CSS paint\\) + AI prompt advanced options scaffolding *)",
       "Bash(git commit -q -m 'design: themed particle scroll-to-puzzle arrow + remove footer colophon *)",
-      "Bash(git commit -q -m 'feat: Advanced options in AI Words \\(off by default; more user/AI control\\) *)"
+      "Bash(git commit -q -m 'feat: Advanced options in AI Words \\(off by default; more user/AI control\\) *)",
+      "Bash(gh auth *)",
+      "Bash(git push *)",
+      "Bash(git commit -q -m 'fix: scroll-to-puzzle arrow appears the moment generation starts *)"
     ]
   },
   "enabledPlugins": {

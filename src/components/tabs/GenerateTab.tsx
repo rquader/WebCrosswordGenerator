@@ -160,36 +160,35 @@ export function GenerateTab({
   // Cleared word list held for a short undo window
   const [clearUndo, setClearUndo] = useState<{ rows: EntryTableRow[]; count: number } | null>(null);
 
-  // Scroll-to-puzzle affordance: with a long word list the controls run
-  // past the fold, so a fresh result can land off-screen. We watch a tiny
-  // sentinel at the TOP of the result (the "ready" strip) — not the whole
-  // result, whose tall clue panel can stay in view on desktop and mask
-  // that the top scrolled away. While that top is out of view, a floating
-  // pill offers the way there (and which direction it is).
-  const resultRef = useRef<HTMLDivElement | null>(null);
+  // Scroll-to-generation affordance. You scroll DOWN to reach "Generate", so
+  // the action — the spinner first, then the finished puzzle — happens UP at
+  // the top of the result panel, out of view. The moment generation starts,
+  // a floating arrow offers a graceful ride up to it, and stays while the
+  // generation (in progress OR done) is out of view. We watch a 0-height
+  // sentinel pinned at the TOP of the result panel (present for the spinner
+  // and the result alike); the tall clue list below it could otherwise stay
+  // in view and mask that the top scrolled away.
   const resultTopRef = useRef<HTMLDivElement | null>(null);
   const [resultOffscreen, setResultOffscreen] = useState<'above' | 'below' | null>(null);
 
   useEffect(() => {
     const node = resultTopRef.current;
-    if (!puzzle || !node || typeof IntersectionObserver === 'undefined') {
+    if (!node || typeof IntersectionObserver === 'undefined') {
       setResultOffscreen(null);
       return;
     }
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setResultOffscreen(null);
-      } else {
-        setResultOffscreen(entry.boundingClientRect.top < 0 ? 'above' : 'below');
-      }
+      setResultOffscreen(
+        entry.isIntersecting ? null : (entry.boundingClientRect.top < 0 ? 'above' : 'below'),
+      );
     }, { threshold: 0 });
     observer.observe(node);
     return () => observer.disconnect();
-    // gridKey remounts the result container, so the observer must re-attach.
-  }, [puzzle, gridKey, activeSkeleton]);
+    // Re-attach when entering/leaving the skeleton view (it unmounts the panel).
+  }, [activeSkeleton]);
 
   function scrollToResult() {
-    resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    resultTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // Auto-dismiss the undo offer; cleanup keeps stale timers from killing a newer offer
@@ -694,11 +693,13 @@ export function GenerateTab({
 
         {/* ============ RIGHT PANEL — Result or live preview ============ */}
         <div className="flex-1 min-w-0">
+          {/* Sentinel at the very top of the panel — present for the spinner
+              AND the result, so the scroll-to-generation arrow can tell when
+              either has scrolled out of view. scroll-mt clears the sticky
+              masthead when we smooth-scroll here. */}
+          <div ref={resultTopRef} aria-hidden="true" className="h-0 scroll-mt-24" />
           {puzzle ? (
-            <div className="space-y-4 animate-fade-in" key={gridKey} ref={resultRef}>
-              {/* Sentinel at the very top of the result — the scroll-to-puzzle
-                  pill watches this to know when the result's top is off-screen. */}
-              <div ref={resultTopRef} aria-hidden="true" className="h-0" />
+            <div className="space-y-4 animate-fade-in" key={gridKey}>
               {/* Ready strip — names the result and offers the natural next steps */}
               <div className="warm-card px-5 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                 <div>
@@ -795,10 +796,11 @@ export function GenerateTab({
         </div>
       </div>
 
-      {puzzle && resultOffscreen && (
+      {(isGenerating || puzzle) && resultOffscreen && (
         <ScrollToPuzzleArrow
           direction={resultOffscreen}
-          mode={generatedMode}
+          mode={puzzle ? generatedMode : (isCrossword ? 'crossword' : 'wordsearch')}
+          generating={isGenerating && !puzzle}
           onClick={scrollToResult}
         />
       )}
@@ -842,10 +844,15 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
  * touch) and every animation is disabled under prefers-reduced-motion.
  */
 function ScrollToPuzzleArrow({
-  direction, mode, onClick,
-}: { direction: 'above' | 'below'; mode: PuzzleMode; onClick: () => void }) {
+  direction, mode, generating, onClick,
+}: { direction: 'above' | 'below'; mode: PuzzleMode; generating?: boolean; onClick: () => void }) {
   const up = direction === 'above';
   const particleAnim = up ? 'particleUp' : 'particleDown';
+  const noun = mode === 'wordsearch' ? 'word search' : 'crossword';
+  const label = generating
+    ? `Scroll ${up ? 'up' : 'down'} to your puzzle being made`
+    : `Scroll ${up ? 'up' : 'down'} to your puzzle`;
+  const tip = generating ? `Jump to your ${noun} being made` : `Jump to your ${noun}`;
   // Three motes at slight x-offsets and staggered delays — an ember trail.
   const motes = [
     { x: '-7px', delay: '0s' },
@@ -855,8 +862,8 @@ function ScrollToPuzzleArrow({
   return (
     <button
       onClick={onClick}
-      aria-label={up ? 'Scroll up to your puzzle' : 'Scroll down to your puzzle'}
-      title={`Jump to your ${mode === 'wordsearch' ? 'word search' : 'crossword'}`}
+      aria-label={label}
+      title={tip}
       className="group fixed z-40 bottom-10 right-5 sm:right-8 print:hidden
                  grid place-items-center w-12 h-12 animate-slide-up"
     >
