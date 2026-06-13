@@ -67,6 +67,29 @@ function cellKey(x: number, y: number): string {
 }
 
 /**
+ * Where the cursor should start: the first across entry in numbering
+ * order (row-major scan = lowest clue number, i.e. 1-Across), falling
+ * back to the first down entry for puzzles without across words.
+ */
+function firstEntryStart(
+  puzzle: CrosswordResult
+): { x: number; y: number; isAcross: boolean } | null {
+  let best: { x: number; y: number; isAcross: boolean } | null = null;
+  for (const loc of puzzle.wordLocations) {
+    const candidate = { x: loc.x, y: loc.y, isAcross: loc.isHorizontal };
+    if (
+      best === null
+      || (candidate.isAcross && !best.isAcross)
+      || (candidate.isAcross === best.isAcross
+          && (candidate.y < best.y || (candidate.y === best.y && candidate.x < best.x)))
+    ) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+/**
  * Generate a simple hash of the puzzle grid for auto-save identification.
  */
 function puzzleHash(puzzle: CrosswordResult): string {
@@ -94,31 +117,28 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
   const correctCount = puzzle ? countCorrectCells(userGrid, puzzle) : 0;
   const totalCount = puzzle ? countTotalCells(puzzle) : 0;
 
-  // Reset state when a new puzzle is loaded, try to restore auto-save
+  // Reset state when a new puzzle is loaded, try to restore auto-save.
+  // The cursor starts on the first across entry (1-Across) — the natural
+  // first move, and it makes the active-clue bar useful immediately.
   useEffect(() => {
     if (puzzle) {
+      const start = firstEntryStart(puzzle);
       const saved = tryLoadAutoSave(puzzle);
       if (saved) {
         setUserGrid(saved.userGrid);
         setElapsedSeconds(saved.elapsedSeconds);
-        setSelectedCell(null);
-        setIsAcross(true);
-        setIsTimerRunning(false);
-        setIsComplete(false);
-        setCheckedCells(new Map());
-        setRevealedCells(new Set());
         setHintsUsed(saved.hintsUsed ?? 0);
       } else {
         setUserGrid(createEmptyUserGrid(puzzle));
-        setSelectedCell(null);
-        setIsAcross(true);
         setElapsedSeconds(0);
-        setIsTimerRunning(false);
-        setIsComplete(false);
-        setCheckedCells(new Map());
-        setRevealedCells(new Set());
         setHintsUsed(0);
       }
+      setSelectedCell(start ? { x: start.x, y: start.y } : null);
+      setIsAcross(start?.isAcross ?? true);
+      setIsTimerRunning(false);
+      setIsComplete(false);
+      setCheckedCells(new Map());
+      setRevealedCells(new Set());
       undoStack.current = [];
       redoStack.current = [];
     }
@@ -248,29 +268,40 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     }
   }, [puzzle, selectedCell, userGrid, isAcross]);
 
-  // Undo last action
+  // Undo last action. Entries on cells that have since been revealed are
+  // dead history — a hint/reveal letter is final (the penalty was paid),
+  // so undoing must never hollow out a revealed cell. Dead entries are
+  // discarded until a live one is found.
   const undo = useCallback(() => {
-    const entry = undoStack.current.pop();
+    let entry = undoStack.current.pop();
+    while (entry && revealedCells.has(cellKey(entry.x, entry.y))) {
+      entry = undoStack.current.pop();
+    }
     if (!entry) return;
     redoStack.current.push(entry);
+    const { x, y, prevLetter } = entry;
     setUserGrid(prev => {
       const newGrid = prev.map(row => [...row]);
-      newGrid[entry.y][entry.x] = entry.prevLetter;
+      newGrid[y][x] = prevLetter;
       return newGrid;
     });
-  }, []);
+  }, [revealedCells]);
 
-  // Redo last undone action
+  // Redo last undone action (same revealed-cell rule as undo)
   const redo = useCallback(() => {
-    const entry = redoStack.current.pop();
+    let entry = redoStack.current.pop();
+    while (entry && revealedCells.has(cellKey(entry.x, entry.y))) {
+      entry = redoStack.current.pop();
+    }
     if (!entry) return;
     undoStack.current.push(entry);
+    const { x, y, newLetter } = entry;
     setUserGrid(prev => {
       const newGrid = prev.map(row => [...row]);
-      newGrid[entry.y][entry.x] = entry.newLetter;
+      newGrid[y][x] = newLetter;
       return newGrid;
     });
-  }, []);
+  }, [revealedCells]);
 
   // Reveal a single cell (hint) — no-op once the budget is spent
   const hintCell = useCallback(() => {

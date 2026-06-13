@@ -70,16 +70,23 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     return assignNumbers(puzzle.wordLocations, puzzle.width, puzzle.height);
   }, [puzzle]);
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts. e.key is 'Z' (uppercase) while Shift is
+  // held, so the comparison must be case-insensitive or redo never fires.
   useEffect(() => {
     function handleGlobalKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      const key = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && key === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
           state.redo();
         } else {
           state.undo();
         }
+      }
+      if ((e.metaKey || e.ctrlKey) && key === 'y') {
+        // Windows-style redo
+        e.preventDefault();
+        state.redo();
       }
       if (e.key === 'Escape') {
         state.deselectCell();
@@ -191,7 +198,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                 </svg>
-                Hint
+                Hint letter
               </button>
               <button
                 onClick={state.hintWord}
@@ -243,8 +250,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               <button
                 onClick={state.revealPuzzle}
                 className="btn-ghost btn-sm text-accent hover:bg-accent/10 hover:text-accent"
+                title="Show the full solution (ends the solve)"
               >
-                Reveal
+                Reveal all
               </button>
               <button onClick={state.resetPuzzle} className="btn-ghost btn-sm">
                 Reset

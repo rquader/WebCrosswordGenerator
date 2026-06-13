@@ -11,7 +11,7 @@
  * Word search mode uses the old entry-first flow (enter words → generate).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
@@ -58,6 +58,25 @@ type ImportDecision = 'replace' | 'append';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
+}
+
+/** One-time flag: has the user ever interacted with the answers toggle? */
+const ANSWERS_CALLOUT_KEY = 'crossword-answers-callout-seen';
+
+function hasSeenAnswersCallout(): boolean {
+  try {
+    return localStorage.getItem(ANSWERS_CALLOUT_KEY) === '1';
+  } catch {
+    return true; // no storage — don't nag on every render
+  }
+}
+
+function markAnswersCalloutSeen(): void {
+  try {
+    localStorage.setItem(ANSWERS_CALLOUT_KEY, '1');
+  } catch {
+    // best effort
+  }
 }
 
 /**
@@ -118,7 +137,10 @@ export function GenerateTab({
   puzzle, generatedMode, onPuzzleGenerated, onGoToAiWords, onGoToPlay, onGoToExport,
 }: GenerateTabProps) {
   // --- State ---
-  const [showAnswers, setShowAnswers] = useState(true);
+  // Answers start hidden so the result is playable at first sight; a
+  // one-time callout points at the toggle until the user flips it once.
+  const [showAnswers, setShowAnswers] = useState(false);
+  const [answersCallout, setAnswersCallout] = useState(() => !hasSeenAnswersCallout());
   const [gridKey, setGridKey] = useState(0);
   const [wizard, setWizard] = useState(() => loadWizardState());
   const [pendingImport, setPendingImport] = useState<ImportedEntryRows | null>(null);
@@ -131,6 +153,35 @@ export function GenerateTab({
 
   // Cleared word list held for a short undo window
   const [clearUndo, setClearUndo] = useState<{ rows: EntryTableRow[]; count: number } | null>(null);
+
+  // Scroll-to-puzzle affordance: with a long word list the controls run
+  // past the fold, so a fresh result can land off-screen. Track whether
+  // the result is in view; while it isn't, a floating pill offers the way
+  // there (and says which way it is).
+  const resultRef = useRef<HTMLDivElement | null>(null);
+  const [resultOffscreen, setResultOffscreen] = useState<'above' | 'below' | null>(null);
+
+  useEffect(() => {
+    const node = resultRef.current;
+    if (!puzzle || !node || typeof IntersectionObserver === 'undefined') {
+      setResultOffscreen(null);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setResultOffscreen(null);
+      } else {
+        setResultOffscreen(entry.boundingClientRect.top < 0 ? 'above' : 'below');
+      }
+    }, { threshold: 0 });
+    observer.observe(node);
+    return () => observer.disconnect();
+    // gridKey remounts the result container, so the observer must re-attach.
+  }, [puzzle, gridKey, activeSkeleton]);
+
+  function scrollToResult() {
+    resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // Auto-dismiss the undo offer; cleanup keeps stale timers from killing a newer offer
   useEffect(() => {
@@ -633,7 +684,7 @@ export function GenerateTab({
         {/* ============ RIGHT PANEL — Result or live preview ============ */}
         <div className="flex-1 min-w-0">
           {puzzle ? (
-            <div className="space-y-4 animate-fade-in" key={gridKey}>
+            <div className="space-y-4 animate-fade-in" key={gridKey} ref={resultRef}>
               {/* Ready strip — names the result and offers the natural next steps */}
               <div className="warm-card px-5 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                 <div>
@@ -667,15 +718,31 @@ export function GenerateTab({
                 </div>
               )}
 
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-3">
+                {answersCallout && (
+                  <span className="text-xs text-rubric animate-pulse" role="status">
+                    Answers hidden — flip to peek
+                  </span>
+                )}
                 <label
-                  className="flex items-center gap-2 cursor-pointer"
+                  className={`flex items-center gap-2 cursor-pointer rounded-btn px-2 py-1 -my-1 transition-shadow
+                    ${answersCallout ? 'ring-1 ring-rubric/40' : ''}`}
                   title={generatedMode === 'wordsearch'
                     ? 'Circle the hidden words, like the printed answer key'
                     : 'Fill the grid with the answer letters'}
                 >
-                  <input type="checkbox" checked={showAnswers} onChange={e => setShowAnswers(e.target.checked)}
-                    className="w-4 h-4" />
+                  <input
+                    type="checkbox"
+                    checked={showAnswers}
+                    onChange={e => {
+                      setShowAnswers(e.target.checked);
+                      if (answersCallout) {
+                        setAnswersCallout(false);
+                        markAnswersCalloutSeen();
+                      }
+                    }}
+                    className="w-4 h-4"
+                  />
                   <span className="text-sm text-ink-2">Show answers</span>
                 </label>
               </div>
@@ -711,6 +778,23 @@ export function GenerateTab({
           )}
         </div>
       </div>
+
+      {/* Floating way back to the result while it's off-screen */}
+      {puzzle && resultOffscreen && (
+        <button
+          onClick={scrollToResult}
+          className="fixed bottom-5 right-5 z-40 print:hidden
+                     flex items-center gap-2 rounded-full border border-line bg-card
+                     px-3.5 py-2 shadow-raise text-sm text-ink-2
+                     hover:text-ink hover:border-line-2 transition-colors animate-fade-in"
+          aria-label="Scroll to your puzzle"
+        >
+          <span aria-hidden="true" className="inline-block animate-bounce text-rubric font-semibold leading-none">
+            {resultOffscreen === 'above' ? '↑' : '↓'}
+          </span>
+          Your puzzle
+        </button>
+      )}
     </div>
   );
 }

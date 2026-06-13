@@ -68,10 +68,11 @@ export function HelpTab() {
         <HelpSection number={3} title="Solve on screen">
           <p>
             The <UiName>Play</UiName> tab is a real solving desk: a timer, progress,
-            and the tools along the top — <UiName>Hint</UiName> reveals the selected
-            cell (and costs 15 seconds), <UiName>Check</UiName> marks what&rsquo;s right
-            and wrong, <UiName>Reveal</UiName> gives up gracefully. Your progress saves
-            automatically.
+            and the tools along the top — <UiName>Hint letter</UiName> reveals the
+            selected cell (15 seconds), <UiName>Hint word</UiName> the whole word
+            (45 seconds), <UiName>Check</UiName> marks what&rsquo;s right and wrong,
+            <UiName>Reveal all</UiName> gives up gracefully. You start on 1-Across,
+            and your progress saves automatically.
           </p>
           <div className="warm-card p-4">
             <h4 className="sub-label mb-3">Keyboard</h4>

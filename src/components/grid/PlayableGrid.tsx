@@ -82,6 +82,10 @@ export function PlayableGrid({
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!selectedCell) return;
 
+    // Shortcut chords are not letter input: without this guard, Ctrl+Z
+    // both undoes (window handler) AND types a Z into the grid.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
     // Letter input — any language letter (Ñ, accented vowels) plus digits.
     if (e.key.length === 1 && e.key.match(/[\p{L}0-9]/u)) {
       e.preventDefault();
