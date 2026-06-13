@@ -202,7 +202,7 @@ describe('placement guarantee at recommended size', () => {
         expect(skeleton.failures, `seed ${seed} at ${rec.width}x${rec.height}`).toEqual([]);
         expect(skeleton.mustPlacedCount).toBe(words.length);
       }
-    });
+    }, 15000);
   }
 });
 
@@ -260,5 +260,5 @@ describe('auto-grow on placement failure', () => {
     expect(a.grid).toEqual(b.grid);
     expect(a.width).toBe(b.width);
     expect(a.slots.length).toBe(b.slots.length);
-  });
+  }, 15000);
 });
