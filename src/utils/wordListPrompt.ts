@@ -101,10 +101,20 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   }
   lines.push(`- Grid size: ${gridWidth}x${gridHeight} — no word may be longer than ${maxLen} letters.`);
   if (isCrossword) {
-    lines.push('- Word length: 4 to 12 letters preferred.');
-    lines.push('- Favor words with good letter variety and common letters — they must interlock with other words in a crossword grid.');
+    // Length + letter guidance below is calibrated to how this crossword
+    // engine actually packs words (measured): 5-8 letter words fill the
+    // grid densely and place reliably; 3-letter words barely cross and
+    // often can't be placed; one outlier word forces an oversized, mostly
+    // empty grid; and vowel/common-letter-rich words interlock far better
+    // than rare-letter or vowel-poor ones (English letter frequency).
+    lines.push('- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).');
+    lines.push('- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.');
   } else {
-    lines.push('- Word length: 4 letters or more. Longer words are fine — they do not need to interlock.');
+    // Word search places each word independently (overlap optional, filler
+    // fills the rest), so none of the crossword interlock constraints apply:
+    // any length is fine, variety is good, and letter mix is irrelevant.
+    lines.push(`- Word length: anything from 4 letters up to ${maxLen}. A mix of short and long words makes the best word search, and longer words are fun to hunt — words do NOT need to share letters or interlock.`);
+    lines.push('- Do not list a word that is contained inside another word on the list (for example, not both SUN and SUNFLOWER), so every word can be circled cleanly.');
   }
   lines.push(...charsetLines(language));
   if (allowTwoWords) {

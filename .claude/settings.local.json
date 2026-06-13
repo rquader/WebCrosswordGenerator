@@ -57,7 +57,8 @@
       "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 spinner-demo.webm)",
       "Bash(mkdir -p frames)",
       "Bash(ffmpeg -y -loglevel error -i spinner-demo.webm -vf fps=4 frames/f_%03d.png)",
-      "Bash(git commit -q -m 'feat: generating spinner + keep the live preview cheap *)"
+      "Bash(git commit -q -m 'feat: generating spinner + keep the live preview cheap *)",
+      "Bash(git commit -q -m 'feat: engine-grounded, mode-specific AI prompt guidance *)"
     ]
   },
   "enabledPlugins": {

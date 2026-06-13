@@ -84,8 +84,26 @@ describe('buildWordListPrompt', () => {
     const prompt = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
 
     expect(prompt).toContain('word search puzzle');
-    expect(prompt).toContain('Longer words are fine');
-    expect(prompt).not.toContain('interlock with other words in a crossword grid');
+    // Word search is a different regime: no interlock, any length, variety.
+    expect(prompt).toContain('do NOT need to share letters or interlock');
+    expect(prompt).toContain('mix of short and long words');
+    expect(prompt).toContain('circled cleanly'); // substring-avoidance rule
+    // Crossword-only interlock/length guidance must NOT leak into word search.
+    expect(prompt).not.toContain('Crossing-friendly');
+    expect(prompt).not.toContain('barely cross');
+  });
+
+  it('gives crossword length + crossing guidance grounded in the engine', () => {
+    const prompt = buildWordListPrompt(baseOptions);
+
+    expect(prompt).toContain('most words 5 to 8 letters');
+    expect(prompt).toContain('Avoid 3-letter words');
+    expect(prompt).toContain('oversized, mostly empty grid'); // outlier guidance
+    expect(prompt).toContain('Crossing-friendly');
+    expect(prompt).toContain('E, A, R, I, O, T, N, S, L'); // common letters
+    // Word-search-only guidance must NOT leak into the crossword prompt.
+    expect(prompt).not.toContain('circled cleanly');
+    expect(prompt).not.toContain('fun to hunt');
   });
 
   it('handles empty context with a sensible fallback', () => {
