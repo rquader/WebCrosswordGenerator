@@ -7,19 +7,29 @@
  * word-search mode. Every word is a single lowercase a-z term; clues are
  * one short classroom-appropriate sentence that never contains the answer.
  *
- * The word/clue content is AI-generated (and labelled as such in the UI —
- * the "AI-generated" tag on the starter-pack picker). It was validated for
- * length, charset, no within-pack substring pairs, no length outliers, and
- * clues that never contain their answer. To add a pack: define it, then add
- * it to WORD_PACKS. No engine knowledge required.
+ * Every current pack's word/clue content is AI-generated; each carries a
+ * `source` tag ('ai') that the picker shows next to it, so a future
+ * hand-built pack ('curated') reads as distinct without any UI change.
+ * The AI content was validated for length, charset, no within-pack
+ * substring pairs, no length outliers, and clues that never contain their
+ * answer. To add a pack: define it (set `source`), then add it to
+ * WORD_PACKS. No engine knowledge required.
  */
 
 import type { WordCluePair } from '../logic/types';
+
+/**
+ * Where a pack's words came from. Surfaced as a per-pack tag in the picker
+ * so provenance stays honest when AI-built and hand-built packs coexist.
+ */
+export type PackSource = 'ai' | 'curated';
 
 export interface WordPack {
   id: string;
   name: string;
   description: string;
+  /** Provenance tag shown next to the pack in the picker. */
+  source: PackSource;
   entries: WordCluePair[];
 }
 
@@ -27,6 +37,7 @@ const animals: WordPack = {
   id: 'animals',
   name: 'Animals',
   description: 'Common creatures kids know (grades 2-5)',
+  source: 'ai',
   entries: [
     { word: 'tiger', clue: 'Big striped cat of the jungle' },
     { word: 'horse', clue: 'Animal you can ride and saddle' },
@@ -49,6 +60,7 @@ const solarSystem: WordPack = {
   id: 'solar-system',
   name: 'Solar System',
   description: 'Planets, moons, and space basics (grades 3-6)',
+  source: 'ai',
   entries: [
     { word: 'venus', clue: 'Second world from our star' },
     { word: 'earth', clue: 'The blue world we live on' },
@@ -71,6 +83,7 @@ const weather: WordPack = {
   id: 'weather',
   name: 'Weather',
   description: 'Weather and sky phenomena (grades 2-5)',
+  source: 'ai',
   entries: [
     { word: 'rain', clue: 'Water falling from gray clouds' },
     { word: 'snow', clue: 'Soft white flakes in winter' },
@@ -93,6 +106,7 @@ const oceanLife: WordPack = {
   id: 'ocean-life',
   name: 'Ocean Life',
   description: 'Sea creatures and the deep (grades 2-5)',
+  source: 'ai',
   entries: [
     { word: 'whale', clue: 'Huge mammal that spouts water' },
     { word: 'shark', clue: 'Toothy predator of the deep' },
@@ -114,6 +128,7 @@ const instruments: WordPack = {
   id: 'instruments',
   name: 'Musical Instruments',
   description: 'Instruments across families (grades 3-6)',
+  source: 'ai',
   entries: [
     { word: 'piano', clue: 'Keyboard with black and white keys' },
     { word: 'flute', clue: 'Slim metal pipe you blow across' },
@@ -136,6 +151,7 @@ const kitchen: WordPack = {
   id: 'kitchen',
   name: 'In the Kitchen',
   description: 'Cooking tools and kitchen items (grades 2-5)',
+  source: 'ai',
   entries: [
     { word: 'spoon', clue: 'Round scoop for soup and stirring' },
     { word: 'knife', clue: 'Sharp tool for slicing food' },

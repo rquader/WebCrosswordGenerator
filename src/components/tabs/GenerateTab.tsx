@@ -22,7 +22,7 @@ import {
 } from '../../logic/createPuzzle';
 import type { CrosswordResult, PuzzleMode, SkeletonResult, PrioritizedEntry } from '../../logic/types';
 import { recommendGridSize, recommendWordSearchGridSize, detectOutlierWords } from '../../logic/gridRecommendation';
-import { WORD_PACKS, getWordPackById } from '../../presets/wordPacks';
+import { WORD_PACKS, getWordPackById, type PackSource } from '../../presets/wordPacks';
 import { parseFile } from '../../utils/fileParser';
 import { normalizeWordWhileTyping, toGridWord } from '../../logic/language';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
@@ -55,6 +55,12 @@ interface GenerateTabProps {
 }
 
 type ImportDecision = 'replace' | 'append';
+
+/** How each pack's provenance reads in the picker and import summary. */
+const PACK_SOURCE_LABEL: Record<PackSource, string> = {
+  ai: 'AI-generated',
+  curated: 'Hand-picked',
+};
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 10000);
@@ -324,7 +330,7 @@ export function GenerateTab({
       entries: pack.entries,
       warnings: [],
       sourceLabel: pack.name,
-      sourceSummary: `${pack.name} — AI-generated starter pack (${pack.entries.length} words)`,
+      sourceSummary: `${pack.name} — ${PACK_SOURCE_LABEL[pack.source]} starter pack (${pack.entries.length} words)`,
     });
   }
 
@@ -567,7 +573,7 @@ export function GenerateTab({
                 <span className="font-display text-base leading-none text-rubric" aria-hidden="true">1</span>
                 Your Words
               </h3>
-              <div className="flex items-start gap-2">
+              <div className="flex items-center gap-2">
                 {!showTextImport && hasMeaningfulRows(wizard.table.rows, wordRules) && (
                   <button
                     onClick={handleClearAll}
@@ -577,31 +583,23 @@ export function GenerateTab({
                     Clear all
                   </button>
                 )}
-                {/* Starter packs are AI-generated — tagged here (always-visible
-                    overline) and inside the menu (optgroup), so the provenance
-                    is honest at the point of use. */}
-                <div className="flex flex-col items-end gap-1">
-                  <select
-                    value=""
-                    onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
-                    aria-label="Load an AI-generated starter word pack"
-                    className="rounded-field border border-line-2 bg-card
-                               px-2 py-1.5 text-xs text-ink-2
-                               focus:outline-none focus:border-accent transition-colors"
-                  >
-                    <option value="">Try a starter pack</option>
-                    <optgroup label="AI-generated">
-                      {WORD_PACKS.map(pack => (
-                        <option key={pack.id} value={pack.id} title={pack.description}>
-                          {pack.name} ({pack.entries.length} words)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  <span className="pr-0.5 text-[10px] leading-none tracking-[0.14em] uppercase text-ink-3">
-                    AI-generated
-                  </span>
-                </div>
+                {/* Each option carries its own provenance tag (pack.source),
+                    so AI-built and future hand-built packs read as distinct. */}
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
+                  aria-label="Load a starter word pack"
+                  className="rounded-field border border-line-2 bg-card
+                             px-2 py-1.5 text-xs text-ink-2
+                             focus:outline-none focus:border-accent transition-colors"
+                >
+                  <option value="">Try a starter pack</option>
+                  {WORD_PACKS.map(pack => (
+                    <option key={pack.id} value={pack.id} title={pack.description}>
+                      {pack.name} ({pack.entries.length} words) · {PACK_SOURCE_LABEL[pack.source]}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             {clearUndo && (
