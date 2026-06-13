@@ -84,13 +84,22 @@ export function scoreCrossword(result: CrosswordResult): PuzzleScore {
   const boxArea = (maxX - minX + 1) * (maxY - minY + 1);
   const compactness = occupiedCells / boxArea;
 
-  // Word count dominates: a layout that places more words always beats one
-  // that places fewer. The remaining terms break ties between equal
-  // coverage — compactness weighs heaviest among them because a tighter
-  // layout directly means fewer empty cells in the finished puzzle.
+  // Word count strictly dominates: a layout that places more words always
+  // beats one that places fewer. Its weight exceeds the largest possible sum
+  // of the tiebreak terms below (compactness 50 + intersection 5 + centering
+  // 2 + balance 1 = 58), so one extra word can never be out-scored by a
+  // denser-but-smaller layout. (Candidate selection guards coverage
+  // explicitly too — see isBetterCandidate — so these terms act purely as a
+  // tiebreak among equal-coverage layouts.)
+  //
+  // Among equal coverage, compactness DOMINATES: the finished grid is
+  // cropped to its content, so density = letters / bounding-box-area =
+  // exactly this compactness term. Maximizing it is maximizing the headline
+  // quality metric (fewest empty cells). Intersection density, centering,
+  // and direction balance only break near-ties in compactness.
   const total =
-    wordLocations.length * 10 +
-    compactness * 6 +
+    wordLocations.length * 100 +
+    compactness * 50 +
     intersectionRatio * 5 +
     centering * 2 +
     directionBalance;
