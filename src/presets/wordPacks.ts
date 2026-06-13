@@ -7,8 +7,11 @@
  * word-search mode. Every word is a single lowercase a-z term; clues are
  * one short classroom-appropriate sentence that never contains the answer.
  *
- * Content is original to this file. To add a pack: define it, then add it
- * to WORD_PACKS. No engine knowledge required.
+ * The word/clue content is AI-generated (and labelled as such in the UI —
+ * the "AI-generated" tag on the starter-pack picker). It was validated for
+ * length, charset, no within-pack substring pairs, no length outliers, and
+ * clues that never contain their answer. To add a pack: define it, then add
+ * it to WORD_PACKS. No engine knowledge required.
  */
 
 import type { WordCluePair } from '../logic/types';
