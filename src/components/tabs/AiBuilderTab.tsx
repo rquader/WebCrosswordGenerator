@@ -34,29 +34,50 @@ const DRAFT_STORAGE_KEY = 'crossword-ai-builder-draft';
 const MIN_WORDS = 1;
 const MAX_WORDS = 40;
 
+type CountMode = 'optimized' | 'exact' | 'unlimited';
+
 interface BuilderDraft {
   context: string;
   wordCount: number;
   includeExisting: boolean;
+  // Advanced overrides (default off → the optimized, grid-tuned prompt).
+  countMode: CountMode;
+  anyLength: boolean;
+  anyLetters: boolean;
+  allowProperNouns: boolean;
+  extraInstructions: string;
 }
+
+const DEFAULT_DRAFT: BuilderDraft = {
+  context: '', wordCount: 12, includeExisting: true,
+  countMode: 'optimized', anyLength: false, anyLetters: false,
+  allowProperNouns: false, extraInstructions: '',
+};
 
 function loadDraft(): BuilderDraft {
   try {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<BuilderDraft>;
+      const countMode: CountMode =
+        parsed.countMode === 'exact' || parsed.countMode === 'unlimited' ? parsed.countMode : 'optimized';
       return {
         context: typeof parsed.context === 'string' ? parsed.context : '',
         wordCount: typeof parsed.wordCount === 'number'
           ? Math.min(MAX_WORDS, Math.max(MIN_WORDS, Math.round(parsed.wordCount)))
           : 12,
         includeExisting: typeof parsed.includeExisting === 'boolean' ? parsed.includeExisting : true,
+        countMode,
+        anyLength: parsed.anyLength === true,
+        anyLetters: parsed.anyLetters === true,
+        allowProperNouns: parsed.allowProperNouns === true,
+        extraInstructions: typeof parsed.extraInstructions === 'string' ? parsed.extraInstructions : '',
       };
     }
   } catch {
     // fall through to defaults
   }
-  return { context: '', wordCount: 12, includeExisting: true };
+  return { ...DEFAULT_DRAFT };
 }
 
 function saveDraft(draft: BuilderDraft): void {
@@ -120,7 +141,18 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     puzzleMode: wizardSnapshot.settings.puzzleMode,
     language: wizardSnapshot.settings.language,
     allowTwoWords: wizardSnapshot.settings.allowTwoWords,
+    advanced: {
+      countMode: draft.countMode,
+      anyLength: draft.anyLength,
+      anyLetters: draft.anyLetters,
+      allowProperNouns: draft.allowProperNouns,
+      extraInstructions: draft.extraInstructions,
+    },
   }), [draft, existingWords, gridWidth, gridHeight, wizardSnapshot]);
+
+  const isCrossword = wizardSnapshot.settings.puzzleMode === 'crossword';
+  const advancedActive = draft.countMode !== 'optimized' || draft.anyLength
+    || draft.anyLetters || draft.allowProperNouns || draft.extraInstructions.trim().length > 0;
 
   function patchDraft(next: Partial<BuilderDraft>) {
     setDraft(prev => {
@@ -264,6 +296,81 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
           </label>
         </div>
 
+        {/* Advanced options — off by default. The defaults are tuned to make
+            the densest, most reliable puzzle; these loosen the constraints
+            for more variety and give power users direct control. */}
+        <details className="group rounded-lg border border-line/60">
+          <summary className="px-3 py-2 text-xs font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors flex items-center justify-between">
+            <span>Advanced options</span>
+            {advancedActive
+              ? <span className="text-[10px] tracking-wide uppercase text-rubric">On</span>
+              : <span className="text-[10px] tracking-wide uppercase text-ink-3 group-open:hidden">Optimized</span>}
+          </summary>
+          <div className="px-3 pb-4 pt-1 space-y-4">
+            <p className="text-xs text-ink-3 leading-relaxed">
+              Defaults are tuned for the best puzzle on your grid. These hand more
+              control to you (and the AI) — handy for variety, at some cost to grid density.
+            </p>
+
+            {/* Word count mode */}
+            <div>
+              <label htmlFor="ai-count-mode" className="block text-xs font-medium text-ink-2 mb-1.5">
+                Word count
+              </label>
+              <select
+                id="ai-count-mode"
+                value={draft.countMode}
+                onChange={e => patchDraft({ countMode: e.target.value as CountMode })}
+                className="field text-sm focus:outline-none"
+              >
+                <option value="optimized">Optimized for this grid (recommended)</option>
+                <option value="exact">Exactly {draft.wordCount} (the number above)</option>
+                <option value="unlimited">Let the AI choose how many</option>
+              </select>
+            </div>
+
+            {/* Loosen word constraints (crossword only — word search has none) */}
+            {isCrossword && (
+              <div className="space-y-2.5">
+                <AdvToggle
+                  checked={draft.anyLength}
+                  onChange={v => patchDraft({ anyLength: v })}
+                  label="Allow any word length"
+                  hint="Off: aims for 5–8 letters and avoids length outliers, which pack denser."
+                />
+                <AdvToggle
+                  checked={draft.anyLetters}
+                  onChange={v => patchDraft({ anyLetters: v })}
+                  label="Allow uncommon letters"
+                  hint="Off: favors vowel- and common-letter-rich words that interlock more easily."
+                />
+              </div>
+            )}
+
+            <AdvToggle
+              checked={draft.allowProperNouns}
+              onChange={v => patchDraft({ allowProperNouns: v })}
+              label="Allow proper nouns"
+              hint="Names of people, places, and brands."
+            />
+
+            {/* Free-form extra instructions */}
+            <div>
+              <label htmlFor="ai-extra" className="block text-xs font-medium text-ink-2 mb-1.5">
+                Extra instructions for the AI (optional)
+              </label>
+              <textarea
+                id="ai-extra"
+                value={draft.extraInstructions}
+                onChange={e => patchDraft({ extraInstructions: e.target.value })}
+                rows={2}
+                placeholder="e.g. focus on Chapter 4 vocabulary; make the clues a bit harder"
+                className="field text-sm leading-relaxed focus:outline-none resize-y"
+              />
+            </div>
+          </div>
+        </details>
+
         {/* Collapsible prompt preview */}
         <details className="group rounded-lg border border-line/60">
           <summary className="px-3 py-2 text-xs font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors">
@@ -382,6 +489,26 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         )}
       </section>
     </div>
+  );
+}
+
+/** A compact checkbox + label + hint, used in the advanced options panel. */
+function AdvToggle({
+  checked, onChange, label, hint,
+}: { checked: boolean; onChange: (v: boolean) => void; label: string; hint: string }) {
+  return (
+    <label className="flex items-start gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        className="mt-0.5 w-4 h-4"
+      />
+      <span>
+        <span className="block text-sm text-ink-2">{label}</span>
+        <span className="block text-xs text-ink-3 mt-0.5">{hint}</span>
+      </span>
+    </label>
   );
 }
 
