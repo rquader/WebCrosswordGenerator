@@ -30,6 +30,17 @@ const DEBOUNCE_MS = 400;
 const FALLBACK_SEED = 1234;
 const EMPTY_CELL = '-';
 
+/**
+ * The live preview runs on the main thread on every (debounced) word-list
+ * edit, so it must stay cheap — it caps candidates low rather than using the
+ * generator's full adaptive count (which can take ~1s on big/long lists and
+ * would freeze typing). The preview is a rough "as you type" sketch; the
+ * real Generate click uses the full count and produces an equal-or-denser
+ * grid. Coverage on the default path is unaffected (auto-grow still fits
+ * every word), only the layout is slightly less optimized here.
+ */
+const PREVIEW_CANDIDATES = 5;
+
 export function MiniGridPreview({ entries, width, height, seedText, forceDimensions, cropToFit }: MiniGridPreviewProps) {
   const [preview, setPreview] = useState<SkeletonResult | null>(null);
 
@@ -52,6 +63,8 @@ export function MiniGridPreview({ entries, width, height, seedText, forceDimensi
           // Mirror Generate: blanks only exist behind Force Dimensions
           bankFill: !!forceDimensions,
           cropToFit: !!cropToFit,
+          // Keep the live preview snappy — see PREVIEW_CANDIDATES.
+          candidateCount: PREVIEW_CANDIDATES,
         }));
       } catch {
         setPreview(null); // e.g. no entry fits the grid yet

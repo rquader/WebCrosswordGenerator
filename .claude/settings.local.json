@@ -51,7 +51,13 @@
       "Bash(awk '{print $0}')",
       "Bash(awk '{fa=$3; fb=$7; d=fb-fa; printf \"%-26s A=%5.1f  B=%5.1f  Δ=%+.1f%s\\\\n\", $1, fa, fb, d, \\(d<-0.25?\"   <-- REGRESS\":\"\"\\)}')",
       "Bash(git commit -q -m 'perf: compactness-dominant candidate scoring \\(provably optimal density selection\\) *)",
-      "Bash(git commit -q -m 'perf: candidate count from extreme-value theory — budget 560/W \\(mid-large lists gain\\) * make sure you're reasoning is extended and thorough and deep and there is proper, extensive testing that proves betterness of changes)"
+      "Bash(git commit -q -m 'perf: candidate count from extreme-value theory — budget 560/W \\(mid-large lists gain\\) * make sure you're reasoning is extended and thorough and deep and there is proper, extensive testing that proves betterness of changes)",
+      "Read(//Users/rafanquader/Developer/cw-spinner-demo/**)",
+      "Bash(mv -f *.webm spinner-demo.webm)",
+      "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 spinner-demo.webm)",
+      "Bash(mkdir -p frames)",
+      "Bash(ffmpeg -y -loglevel error -i spinner-demo.webm -vf fps=4 frames/f_%03d.png)",
+      "Bash(git commit -q -m 'feat: generating spinner + keep the live preview cheap *)"
     ]
   },
   "enabledPlugins": {

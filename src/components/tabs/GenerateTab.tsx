@@ -772,6 +772,8 @@ export function GenerateTab({
                 </>
               )}
             </div>
+          ) : isGenerating ? (
+            <GeneratingState isCrossword={isCrossword} />
           ) : isCrossword && wordEntries.length > 0 ? (
             <MiniGridPreview
               entries={wordEntries}
@@ -825,6 +827,32 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
         <button onClick={onReplace} className="btn-secondary">Replace my list</button>
         <button onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Shown while a puzzle is being generated. Generation runs synchronously on
+ * the main thread (after a short setTimeout so this paints first), so the
+ * spinner uses a CSS transform animation — those run on the compositor
+ * thread and keep turning even while the main thread is blocked composing
+ * a dense grid. Most generations finish in well under a beat; the larger,
+ * higher-quality searches (long 30+ word lists) can take ~half a second,
+ * and this keeps the wait legible instead of a frozen panel.
+ */
+function GeneratingState({ isCrossword }: { isCrossword: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in" role="status" aria-live="polite">
+      <div
+        className="w-10 h-10 rounded-full border-2 border-line border-t-rubric animate-spin"
+        aria-hidden="true"
+      />
+      <p className="font-display text-lg text-ink mt-5">
+        {isCrossword ? 'Composing your crossword…' : 'Hiding your words…'}
+      </p>
+      <p className="text-xs text-ink-3 mt-1.5 max-w-xs leading-relaxed">
+        Trying many layouts and keeping the tightest one.
+      </p>
     </div>
   );
 }
