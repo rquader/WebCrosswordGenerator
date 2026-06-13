@@ -31,7 +31,7 @@ src/components/    React UI (layout, grid, clues, settings, tabs, skeleton, prin
 src/hooks/         useTheme (dark/light/sepia), usePuzzleState (play state)
 src/utils/         fileParser, exportUtils, pdfExport, printLayout, puzzleUrl, wordListPrompt
 src/data/          blocklist.ts — word search filler profanity filter (standalone)
-src/presets/       4 word packs (Biology, US History, Spanish, SAT), ~130 entries
+src/presets/       6 starter packs (Animals, Solar System, Weather, Ocean Life, Instruments, Kitchen), 83 entries — tuned for dense crosswords + clean word searches
 tests/unit/        Vitest tests (21 test files)
 ```
 

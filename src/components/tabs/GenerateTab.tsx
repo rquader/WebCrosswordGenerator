@@ -580,15 +580,15 @@ export function GenerateTab({
                 <select
                   value=""
                   onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
-                  aria-label="Load a built-in word pack"
+                  aria-label="Load a starter word pack"
                   className="rounded-field border border-line-2 bg-card
                              px-2 py-1.5 text-xs text-ink-2
                              focus:outline-none focus:border-accent transition-colors"
                 >
-                  <option value="">Load a word pack…</option>
+                  <option value="">Try a starter pack</option>
                   {WORD_PACKS.map(pack => (
-                    <option key={pack.id} value={pack.id}>
-                      {pack.name} ({pack.entries.length})
+                    <option key={pack.id} value={pack.id} title={pack.description}>
+                      {pack.name} ({pack.entries.length} words)
                     </option>
                   ))}
                 </select>

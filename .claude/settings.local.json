@@ -41,7 +41,10 @@
       "Bash(npx vite-node *)",
       "Bash(sed -n 25-40p /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/EntryTableEditor.tsx)",
       "Bash(sed -n '25,40p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/EntryTableEditor.tsx)",
-      "Bash(sed -n '60,80p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/TextImportView.tsx)"
+      "Bash(sed -n '60,80p' /Users/rafanquader/Developer/WebCrosswordGenerator/src/components/entries/TextImportView.tsx)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(git commit -q -m 'docs: sync AGENTS.md — 288 tests, 21 test files, CI auto-deploy *)"
     ]
   },
   "enabledPlugins": {
