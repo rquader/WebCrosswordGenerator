@@ -51,9 +51,6 @@ export function Header({ theme, onCycleTheme }: HeaderProps) {
             <h1 className="font-display text-masthead tracking-tight text-ink leading-none">
               Crossword Generator
             </h1>
-            <p className="hidden sm:block sub-label mt-1.5 leading-none">
-              Make · Play · Print — all in your browser
-            </p>
           </div>
         </div>
 
