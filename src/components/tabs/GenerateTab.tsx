@@ -170,6 +170,11 @@ export function GenerateTab({
   // in view and mask that the top scrolled away.
   const resultTopRef = useRef<HTMLDivElement | null>(null);
   const [resultOffscreen, setResultOffscreen] = useState<'above' | 'below' | null>(null);
+  // One-shot intent: armed when a generation STARTS, disarmed once the user
+  // actually reaches the result. This is what makes the arrow event-driven
+  // (only after Generate) rather than scroll-driven — scrolling back down to
+  // an existing puzzle later never re-arms it.
+  const [pendingScrollToPuzzle, setPendingScrollToPuzzle] = useState(false);
 
   useEffect(() => {
     const node = resultTopRef.current;
@@ -181,6 +186,9 @@ export function GenerateTab({
       setResultOffscreen(
         entry.isIntersecting ? null : (entry.boundingClientRect.top < 0 ? 'above' : 'below'),
       );
+      // Reaching the top of the result (however they got there — the arrow or
+      // their own scroll) fulfills the intent, so the arrow retires.
+      if (entry.isIntersecting) setPendingScrollToPuzzle(false);
     }, { threshold: 0 });
     observer.observe(node);
     return () => observer.disconnect();
@@ -189,6 +197,9 @@ export function GenerateTab({
 
   function scrollToResult() {
     resultTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // The user took the ride up; retire the arrow immediately rather than
+    // waiting for the smooth scroll to land and the observer to fire.
+    setPendingScrollToPuzzle(false);
   }
 
   // Auto-dismiss the undo offer; cleanup keeps stale timers from killing a newer offer
@@ -368,6 +379,7 @@ export function GenerateTab({
 
   function handleGenerateSkeleton() {
     setIsGenerating(true);
+    setPendingScrollToPuzzle(true);
     setTimeout(() => {
       const parsedSeed = parseInt(wizard.settings.seedText, 10);
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
@@ -394,6 +406,7 @@ export function GenerateTab({
   function handleGenerateWordSearch() {
     if (wordEntries.length === 0) return;
     setIsGenerating(true);
+    setPendingScrollToPuzzle(true);
     setTimeout(() => {
       const parsedSeed = parseInt(wizard.settings.seedText, 10);
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
@@ -421,6 +434,7 @@ export function GenerateTab({
     // it would capture the old wizard state and regenerate with the same seed.
     const newSeed = randomSeed();
     setIsGenerating(true);
+    setPendingScrollToPuzzle(true);
     setActiveSkeleton(null);
 
     setTimeout(() => {
@@ -447,6 +461,7 @@ export function GenerateTab({
    */
   function handleReleaseDimensions() {
     setIsGenerating(true);
+    setPendingScrollToPuzzle(true);
     setActiveSkeleton(null);
 
     setTimeout(() => {
@@ -479,6 +494,7 @@ export function GenerateTab({
     const parsedSeed = parseInt(wizard.settings.seedText, 10);
     const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
     setIsGenerating(true);
+    setPendingScrollToPuzzle(true);
     setActiveSkeleton(null);
 
     setTimeout(() => {
@@ -534,7 +550,7 @@ export function GenerateTab({
       <div className="flex flex-col lg:flex-row gap-6">
 
         {/* ============ LEFT PANEL — Controls ============ */}
-        <div className="lg:w-[28rem] flex-shrink-0 space-y-4">
+        <div className="lg:w-[32rem] flex-shrink-0 space-y-4">
 
           {/* --- Mode toggle + header --- */}
           <div className="warm-card p-5">
@@ -796,7 +812,7 @@ export function GenerateTab({
         </div>
       </div>
 
-      {(isGenerating || puzzle) && resultOffscreen && (
+      {pendingScrollToPuzzle && resultOffscreen !== null && (
         <ScrollToPuzzleArrow
           direction={resultOffscreen}
           mode={puzzle ? generatedMode : (isCrossword ? 'crossword' : 'wordsearch')}
@@ -832,10 +848,12 @@ function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
 
 /**
  * A clean, themed arrow that floats in the open space and graceful-scrolls
- * the user to their result — so they never have to hunt for it. It only
- * appears once a puzzle exists AND its top has scrolled out of view, and it
- * points the way the result actually sits (up on desktop, where it renders
- * above the controls; down when the layout stacks on mobile).
+ * the user to their result — so they never have to hunt for it. It appears
+ * the moment a generation starts (when the result top is off-screen) and
+ * retires once the user reaches it; it is armed by the Generate action, not
+ * by scrolling, so scrolling back down to an existing puzzle won't re-summon
+ * it. It points the way the result actually sits (up on desktop, where it
+ * renders above the controls; down when the layout stacks on mobile).
  *
  * The arrow is a single accent disc that emits a few drifting "embers" in
  * its pointing direction — all on semantic tokens, so it re-themes for free
