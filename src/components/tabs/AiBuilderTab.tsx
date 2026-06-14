@@ -12,11 +12,11 @@
  * for Generate to pick the merged list up on its next mount.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buildWordListPrompt, parseWordListResponse, type ParseIssue } from '../../utils/wordListPrompt';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { getGenerationEntriesFromRows, createEntryRowsFromEntries, hasMeaningfulRows } from '../entries/entryTable';
-import { recommendGridSize, recommendWordSearchGridSize, recommendedWordCountRange } from '../../logic/gridRecommendation';
+import { recommendGridSize, recommendWordSearchGridSize, recommendedWordCountRange, recommendedWordCountTarget } from '../../logic/gridRecommendation';
 import { toGridWord } from '../../logic/language';
 import type { EntryValidationOptions } from '../entries/entryTable';
 import type { GenerationSettings } from '../settings/generationSettings';
@@ -34,12 +34,26 @@ const DRAFT_STORAGE_KEY = 'crossword-ai-builder-draft';
 const MIN_WORDS = 1;
 const MAX_WORDS = 40;
 
+/**
+ * Target grid for the word-count recommendation when auto-size is on but
+ * there are no words yet — the grid is genuinely undetermined, so we base
+ * the suggested ask on a representative mid-size classroom puzzle (13×13,
+ * the middle of the supported 8–26 range) rather than the bare 8×8 seed.
+ */
+const DEFAULT_TARGET_GRID = { width: 13, height: 13 };
+
 type CountMode = 'optimized' | 'exact' | 'unlimited';
 
 interface BuilderDraft {
   context: string;
   wordCount: number;
   includeExisting: boolean;
+  /**
+   * True once the user has tapped the stepper. While false, `wordCount`
+   * tracks the algorithm's recommendation for the current grid; once true,
+   * the deliberate choice is frozen and never recomputed over.
+   */
+  userTouchedCount: boolean;
   // Advanced overrides (default off → the optimized, grid-tuned prompt).
   countMode: CountMode;
   anyLength: boolean;
@@ -49,7 +63,11 @@ interface BuilderDraft {
 }
 
 const DEFAULT_DRAFT: BuilderDraft = {
-  context: '', wordCount: 12, includeExisting: true,
+  context: '',
+  // Seeded with the default-grid recommendation so the first paint already
+  // shows a sensible number; the sync effect refines it once entries load.
+  wordCount: recommendedWordCountTarget(DEFAULT_TARGET_GRID.width, DEFAULT_TARGET_GRID.height),
+  includeExisting: true, userTouchedCount: false,
   countMode: 'optimized', anyLength: false, anyLetters: false,
   allowProperNouns: false, extraInstructions: '',
 };
@@ -65,8 +83,11 @@ function loadDraft(): BuilderDraft {
         context: typeof parsed.context === 'string' ? parsed.context : '',
         wordCount: typeof parsed.wordCount === 'number'
           ? Math.min(MAX_WORDS, Math.max(MIN_WORDS, Math.round(parsed.wordCount)))
-          : 12,
+          : DEFAULT_DRAFT.wordCount,
         includeExisting: typeof parsed.includeExisting === 'boolean' ? parsed.includeExisting : true,
+        // Absent in pre-recommendation drafts → false, so a stale hardcoded
+        // count (never a deliberate choice) is refreshed to the recommendation.
+        userTouchedCount: parsed.userTouchedCount === true,
         countMode,
         anyLength: parsed.anyLength === true,
         anyLetters: parsed.anyLetters === true,
@@ -131,6 +152,35 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     }
     return { gridWidth: settings.width, gridHeight: settings.height };
   }, [wizardSnapshot, existingWords]);
+
+  // The grid the count recommendation is based on. Mirrors the grid the user
+  // is actually heading toward (the manual/derived grid above), except when
+  // auto-sizing with no words yet — then the grid is undetermined, so we base
+  // the suggestion on a representative mid-size grid instead of the bare seed.
+  // Both the prefilled count and the "plays best with…" hint read from this,
+  // so they always agree.
+  const { countBasisWidth, countBasisHeight } = useMemo(() => {
+    const settings = wizardSnapshot.settings;
+    const noBasisYet = settings.autoGridSize && existingWords.length === 0;
+    return {
+      countBasisWidth: noBasisYet ? DEFAULT_TARGET_GRID.width : gridWidth,
+      countBasisHeight: noBasisYet ? DEFAULT_TARGET_GRID.height : gridHeight,
+    };
+  }, [wizardSnapshot, existingWords, gridWidth, gridHeight]);
+
+  // Centralized via recommendedWordCountTarget so a later Optimized mode can
+  // multiply this same number for its candidate pool.
+  const recommendedCount = recommendedWordCountTarget(countBasisWidth, countBasisHeight);
+
+  // Keep the prefilled count on the recommendation until the user takes the
+  // wheel. A deliberate stepper tap sets userTouchedCount and freezes it.
+  useEffect(() => {
+    if (draft.userTouchedCount) return;
+    if (draft.wordCount === recommendedCount) return;
+    patchDraft({ wordCount: recommendedCount });
+    // patchDraft is stable (only setDraft + saveDraft); deps cover the inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recommendedCount, draft.userTouchedCount, draft.wordCount]);
 
   const prompt = useMemo(() => buildWordListPrompt({
     context: draft.context,
@@ -242,12 +292,19 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Word count stepper */}
           <div>
-            <span className="block text-sm font-medium text-ink-2 mb-1.5">
-              New words to ask for
+            <span className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-medium text-ink-2">
+                New words to ask for
+              </span>
+              {!draft.userTouchedCount && (
+                <span className="text-[10px] tracking-wide uppercase text-rubric">
+                  Recommended
+                </span>
+              )}
             </span>
             <div className="inline-flex items-center rounded-lg border border-line-2 overflow-hidden">
               <button
-                onClick={() => patchDraft({ wordCount: Math.max(MIN_WORDS, draft.wordCount - 1) })}
+                onClick={() => patchDraft({ wordCount: Math.max(MIN_WORDS, draft.wordCount - 1), userTouchedCount: true })}
                 className="px-3 py-1.5 text-ink-2 hover:bg-well transition-colors"
                 aria-label="Fewer words"
               >
@@ -257,7 +314,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
                 {draft.wordCount}
               </span>
               <button
-                onClick={() => patchDraft({ wordCount: Math.min(MAX_WORDS, draft.wordCount + 1) })}
+                onClick={() => patchDraft({ wordCount: Math.min(MAX_WORDS, draft.wordCount + 1), userTouchedCount: true })}
                 className="px-3 py-1.5 text-ink-2 hover:bg-well transition-colors"
                 aria-label="More words"
               >
@@ -265,10 +322,10 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               </button>
             </div>
             {wizardSnapshot.settings.puzzleMode === 'crossword' && (() => {
-              const range = recommendedWordCountRange(gridWidth, gridHeight);
+              const range = recommendedWordCountRange(countBasisWidth, countBasisHeight);
               return (
                 <p className="mt-1.5 text-xs text-ink-3">
-                  A {gridWidth}&times;{gridHeight} grid plays best with{' '}
+                  A {countBasisWidth}&times;{countBasisHeight} grid plays best with{' '}
                   {range.lo}&ndash;{range.hi} words total
                   {existingWords.length > 0 && <> &mdash; you have {existingWords.length}</>}.
                 </p>

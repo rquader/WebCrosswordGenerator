@@ -15,6 +15,7 @@ import {
   recommendGridSize,
   recommendWordSearchGridSize,
   recommendedWordCountRange,
+  recommendedWordCountTarget,
   detectOutliers,
   detectOutlierWords,
 } from '@logic/gridRecommendation';
@@ -266,5 +267,25 @@ describe('recommendedWordCountRange', () => {
     const tiny = recommendedWordCountRange(2, 2);
     expect(tiny.lo).toBeGreaterThanOrEqual(2);
     expect(tiny.hi).toBeGreaterThanOrEqual(tiny.lo);
+  });
+});
+
+describe('recommendedWordCountTarget', () => {
+  // The single prefilled default for the AI Words stepper — the midpoint of
+  // the calibrated band. These are the user-facing default numbers.
+  it('is the midpoint of the band for standard sizes', () => {
+    expect(recommendedWordCountTarget(9, 9)).toBe(5);
+    expect(recommendedWordCountTarget(13, 13)).toBe(11);
+    expect(recommendedWordCountTarget(15, 15)).toBe(15);
+    expect(recommendedWordCountTarget(17, 17)).toBe(19);
+  });
+
+  it('always lands inside the recommended band', () => {
+    for (let side = 8; side <= 26; side++) {
+      const { lo, hi } = recommendedWordCountRange(side, side);
+      const target = recommendedWordCountTarget(side, side);
+      expect(target).toBeGreaterThanOrEqual(lo);
+      expect(target).toBeLessThanOrEqual(hi);
+    }
   });
 });

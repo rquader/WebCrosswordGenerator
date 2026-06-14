@@ -111,6 +111,23 @@ export function recommendedWordCountRange(width: number, height: number): WordCo
 }
 
 /**
+ * The single best target word count for a grid of the given size — the
+ * midpoint of {@link recommendedWordCountRange}. `lo` is the point a grid
+ * starts to read sparse and `hi` the point words start failing to place,
+ * so the midpoint is the safest target: comfortably dense without crowding
+ * the placer.
+ *
+ * This is the canonical "target puzzle word count." Prefill it in the AI
+ * Words stepper, and treat it as the base a future Optimized mode multiplies
+ * to size its larger AI candidate pool (pool = target × N), so the count
+ * math stays in one pure place rather than tangled in stepper UI.
+ */
+export function recommendedWordCountTarget(width: number, height: number): number {
+  const { lo, hi } = recommendedWordCountRange(width, height);
+  return Math.round((lo + hi) / 2);
+}
+
+/**
  * Recommend a grid size for word search puzzles.
  * Word searches need more breathing room — words are hidden among filler.
  *
