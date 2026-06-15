@@ -42,6 +42,10 @@ function sanitizeSettings(raw: Partial<GenerationSettings> | undefined): Generat
     forceDimensions: typeof raw?.forceDimensions === 'boolean' ? raw.forceDimensions : defaults.forceDimensions,
     language: isPuzzleLanguage(raw?.language) ? raw.language : defaults.language,
     allowTwoWords: typeof raw?.allowTwoWords === 'boolean' ? raw.allowTwoWords : defaults.allowTwoWords,
+    optimizedMode: typeof raw?.optimizedMode === 'boolean' ? raw.optimizedMode : defaults.optimizedMode,
+    qualityBias: raw?.qualityBias === 'words' ? 'words' : defaults.qualityBias,
+    optimizedTargetCount:
+      typeof raw?.optimizedTargetCount === 'number' ? raw.optimizedTargetCount : defaults.optimizedTargetCount,
     wordSearchDirections: {
       horizontal: raw?.wordSearchDirections?.horizontal ?? defaults.wordSearchDirections.horizontal,
       vertical: raw?.wordSearchDirections?.vertical ?? defaults.wordSearchDirections.vertical,

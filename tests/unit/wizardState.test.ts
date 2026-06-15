@@ -80,6 +80,37 @@ describe('wizardState', () => {
     expect(state.textImport.rawText).toBe('java: language');
   });
 
+  it('defaults missing Optimized-mode settings on older saved states', () => {
+    // A state saved before Optimized mode existed: none of the new fields are
+    // present. They must default rather than land undefined, so the AI/Generate
+    // handoff reads them safely.
+    const state = hydrateWizardState({
+      settings: {
+        width: 12,
+        height: 12,
+        seedText: '7',
+        puzzleMode: 'crossword',
+      },
+    });
+
+    expect(state.settings.optimizedMode).toBe(false);
+    expect(state.settings.qualityBias).toBe('grid');
+    expect(state.settings.optimizedTargetCount).toBe(13);
+  });
+
+  it('round-trips Optimized-mode settings through persistence', () => {
+    const state = createDefaultWizardState();
+    state.settings.optimizedMode = true;
+    state.settings.qualityBias = 'words';
+    state.settings.optimizedTargetCount = 17;
+    saveWizardState(state);
+
+    const reloaded = loadWizardState();
+    expect(reloaded.settings.optimizedMode).toBe(true);
+    expect(reloaded.settings.qualityBias).toBe('words');
+    expect(reloaded.settings.optimizedTargetCount).toBe(17);
+  });
+
   it('round-trips forceDimensions through persistence', () => {
     const state = createDefaultWizardState();
     expect(state.settings.forceDimensions).toBe(false);

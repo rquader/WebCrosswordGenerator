@@ -19,6 +19,7 @@ import { WordSearchPreviewGrid, WordBankPanel } from '../grid/WordSearchPreview'
 import {
   createWordSearchFromEntries,
   createSkeletonFromEntries,
+  createOptimizedPuzzleFromEntries,
 } from '../../logic/createPuzzle';
 import type { CrosswordResult, PuzzleMode, SkeletonResult, PrioritizedEntry } from '../../logic/types';
 import {
@@ -27,7 +28,9 @@ import {
   detectOutlierWords,
   gridLengthSignature,
   resolveEffectiveGridSize,
+  recommendedWordCountTarget,
 } from '../../logic/gridRecommendation';
+import { OPTIMIZED_BIAS } from '../settings/generationSettings';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { WORD_PACKS, getWordPackById, type PackSource } from '../../presets/wordPacks';
 import { parseFile } from '../../utils/fileParser';
@@ -432,6 +435,24 @@ export function GenerateTab({
       const parsedSeed = parseInt(wizard.settings.seedText, 10);
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
       patchWizard({ settings: { ...wizard.settings, seedText: String(seed) } });
+
+      // Flagship "Optimized" mode (crossword + words present): the word list is
+      // the AI's best-first candidate pool — preserve that order — and the
+      // engine builds the densest/highest-quality subset on a pinned canvas.
+      // It returns a finished SkeletonResult (zero blanks, zero failures), so
+      // the SAME applyGenerationOutcome renders it as a finished puzzle.
+      if (wizard.settings.optimizedMode && wordEntries.length > 0) {
+        const targetCount = wizard.settings.optimizedTargetCount
+          || recommendedWordCountTarget(effectiveWidth, effectiveHeight);
+        const skeleton = createOptimizedPuzzleFromEntries({
+          pool: wordEntries, // already WordCluePair[] in list order (quality rank)
+          targetCount,
+          qualityBias: OPTIMIZED_BIAS[wizard.settings.qualityBias],
+          seed,
+        });
+        applyGenerationOutcome(skeleton);
+        return;
+      }
 
       // Blank-slot skeletons only exist behind Force Dimensions or the
       // explicit blank-skeleton flow; the default path is words → puzzle.

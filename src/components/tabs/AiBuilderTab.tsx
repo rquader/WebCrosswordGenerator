@@ -21,6 +21,9 @@ import { toGridWord } from '../../logic/language';
 import type { EntryValidationOptions } from '../entries/entryTable';
 import type { GenerationSettings } from '../settings/generationSettings';
 
+/** How many of its best words the AI is asked for, per target word, in Optimized mode. */
+const OPTIMIZED_CANDIDATE_MULTIPLE = 3;
+
 /** Language, two-word option, and clue policy for a settings snapshot. */
 function rulesFromSettings(settings: GenerationSettings): EntryValidationOptions {
   return {
@@ -56,8 +59,6 @@ interface BuilderDraft {
   userTouchedCount: boolean;
   // Advanced overrides (default off → the optimized, grid-tuned prompt).
   countMode: CountMode;
-  anyLength: boolean;
-  anyLetters: boolean;
   allowProperNouns: boolean;
   extraInstructions: string;
 }
@@ -68,7 +69,7 @@ const DEFAULT_DRAFT: BuilderDraft = {
   // shows a sensible number; the sync effect refines it once entries load.
   wordCount: recommendedWordCountTarget(DEFAULT_TARGET_GRID.width, DEFAULT_TARGET_GRID.height),
   includeExisting: true, userTouchedCount: false,
-  countMode: 'optimized', anyLength: false, anyLetters: false,
+  countMode: 'optimized',
   allowProperNouns: false, extraInstructions: '',
 };
 
@@ -76,6 +77,8 @@ function loadDraft(): BuilderDraft {
   try {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
+      // Older drafts may carry anyLength/anyLetters — absent fields are simply
+      // ignored, so those drafts migrate gracefully (the bias dropdown replaces them).
       const parsed = JSON.parse(raw) as Partial<BuilderDraft>;
       const countMode: CountMode =
         parsed.countMode === 'exact' || parsed.countMode === 'unlimited' ? parsed.countMode : 'optimized';
@@ -89,8 +92,6 @@ function loadDraft(): BuilderDraft {
         // count (never a deliberate choice) is refreshed to the recommendation.
         userTouchedCount: parsed.userTouchedCount === true,
         countMode,
-        anyLength: parsed.anyLength === true,
-        anyLetters: parsed.anyLetters === true,
         allowProperNouns: parsed.allowProperNouns === true,
         extraInstructions: typeof parsed.extraInstructions === 'string' ? parsed.extraInstructions : '',
       };
@@ -129,8 +130,25 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
   // Wizard state is read fresh per mount — Generate writes it on unmount,
-  // and this tab can't be open at the same time as Generate.
-  const [wizardSnapshot] = useState(() => loadWizardState());
+  // and this tab can't be open at the same time as Generate. The table/rows
+  // are read-only here, but the generation SETTINGS the mode toggle + bias
+  // dropdown write (optimizedMode, qualityBias, optimizedTargetCount) must
+  // persist so Generate sees them on its next mount, so settings live in state
+  // and every change is written straight back through saveWizardState.
+  const [wizardSnapshot, setWizardSnapshot] = useState(() => loadWizardState());
+  const settings = wizardSnapshot.settings;
+  const isCrossword = settings.puzzleMode === 'crossword';
+  // Optimized is a crossword-only flagship; never engage it in word search.
+  const optimizedOn = isCrossword && settings.optimizedMode;
+
+  /** Patch generation settings and persist the whole wizard state at once. */
+  function patchSettings(next: Partial<GenerationSettings>) {
+    setWizardSnapshot(prev => {
+      const merged = { ...prev, settings: { ...prev.settings, ...next } };
+      saveWizardState(merged);
+      return merged;
+    });
+  }
 
   const existingWords = useMemo(
     () => getGenerationEntriesFromRows(wizardSnapshot.table.rows, rulesFromSettings(wizardSnapshot.settings)).map(e => e.word),
@@ -182,27 +200,40 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendedCount, draft.userTouchedCount, draft.wordCount]);
 
+  // The stepper count IS the Optimized target word count (the pinned canvas is
+  // sized for it). Mirror it into persisted settings while Optimized is on so
+  // Generate builds at the right canvas; skip the write when already in sync.
+  useEffect(() => {
+    if (!optimizedOn) return;
+    if (settings.optimizedTargetCount === draft.wordCount) return;
+    patchSettings({ optimizedTargetCount: draft.wordCount });
+    // patchSettings is stable; deps cover the inputs that drive the mirror.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimizedOn, draft.wordCount, settings.optimizedTargetCount]);
+
   const prompt = useMemo(() => buildWordListPrompt({
     context: draft.context,
     wordCount: draft.wordCount,
     existingWords: draft.includeExisting ? existingWords : [],
     gridWidth,
     gridHeight,
-    puzzleMode: wizardSnapshot.settings.puzzleMode,
-    language: wizardSnapshot.settings.language,
-    allowTwoWords: wizardSnapshot.settings.allowTwoWords,
+    puzzleMode: settings.puzzleMode,
+    language: settings.language,
+    allowTwoWords: settings.allowTwoWords,
     advanced: {
+      // In Optimized mode the N× pool ask supersedes the count mode.
       countMode: draft.countMode,
-      anyLength: draft.anyLength,
-      anyLetters: draft.anyLetters,
+      optimized: optimizedOn,
+      candidateMultiple: OPTIMIZED_CANDIDATE_MULTIPLE,
+      qualityBias: settings.qualityBias,
       allowProperNouns: draft.allowProperNouns,
       extraInstructions: draft.extraInstructions,
     },
-  }), [draft, existingWords, gridWidth, gridHeight, wizardSnapshot]);
+  }), [draft, existingWords, gridWidth, gridHeight, settings, optimizedOn]);
 
-  const isCrossword = wizardSnapshot.settings.puzzleMode === 'crossword';
-  const advancedActive = draft.countMode !== 'optimized' || draft.anyLength
-    || draft.anyLetters || draft.allowProperNouns || draft.extraInstructions.trim().length > 0;
+  // The bias dropdown lives in Advanced, so a non-default bias counts as "on".
+  const advancedActive = draft.countMode !== 'optimized' || settings.qualityBias !== 'grid'
+    || draft.allowProperNouns || draft.extraInstructions.trim().length > 0;
 
   function patchDraft(next: Partial<BuilderDraft>) {
     setDraft(prev => {
@@ -275,6 +306,43 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
       <section className="warm-card p-5 space-y-4">
         <StepHeader number={1} title="Set up your request" />
 
+        {/* Generation mode — prominent, crossword-only (Optimized is a
+            crossword flagship). Standard = today's behavior; Optimized asks the
+            AI for a larger best-first pool and builds a denser puzzle from the
+            best words that fit. Persisted to settings so Generate honors it. */}
+        {isCrossword && (
+          <div>
+            <span className="block text-sm font-medium text-ink-2 mb-1.5">
+              Generation mode
+            </span>
+            <div className="flex rounded-btn bg-well p-1" role="group" aria-label="Generation mode">
+              <button
+                type="button"
+                onClick={() => patchSettings({ optimizedMode: false })}
+                aria-pressed={!optimizedOn}
+                className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all
+                  ${!optimizedOn ? 'bg-card text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => patchSettings({ optimizedMode: true })}
+                aria-pressed={optimizedOn}
+                className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all
+                  ${optimizedOn ? 'bg-card text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}
+              >
+                Optimized
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-ink-3">
+              {optimizedOn
+                ? 'Asks the AI for a larger pool of its best words, then builds the densest, highest-quality puzzle from the ones that fit.'
+                : 'Builds your puzzle from exactly the words you ask for.'}
+            </p>
+          </div>
+        )}
+
         <div>
           <label htmlFor="ai-context" className="block text-sm font-medium text-ink-2 mb-1.5">
             What should the words be about?
@@ -294,7 +362,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
           <div>
             <span className="flex items-center gap-2 mb-1.5">
               <span className="text-sm font-medium text-ink-2">
-                New words to ask for
+                {optimizedOn ? 'Target words in the puzzle' : 'New words to ask for'}
               </span>
               {!draft.userTouchedCount && (
                 <span className="text-[10px] tracking-wide uppercase text-rubric">
@@ -321,7 +389,12 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
                 +
               </button>
             </div>
-            {wizardSnapshot.settings.puzzleMode === 'crossword' && (() => {
+            {optimizedOn ? (
+              <p className="mt-1.5 text-xs text-ink-3">
+                We&rsquo;ll ask the AI for about {OPTIMIZED_CANDIDATE_MULTIPLE * draft.wordCount} of its best
+                words and build a denser puzzle from the best ones that fit.
+              </p>
+            ) : isCrossword && (() => {
               const range = recommendedWordCountRange(countBasisWidth, countBasisHeight);
               return (
                 <p className="mt-1.5 text-xs text-ink-3">
@@ -369,38 +442,43 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               control to you (and the AI) — handy for variety, at some cost to grid density.
             </p>
 
-            {/* Word count mode */}
-            <div>
-              <label htmlFor="ai-count-mode" className="block text-xs font-medium text-ink-2 mb-1.5">
-                Word count
-              </label>
-              <select
-                id="ai-count-mode"
-                value={draft.countMode}
-                onChange={e => patchDraft({ countMode: e.target.value as CountMode })}
-                className="field text-sm focus:outline-none"
-              >
-                <option value="optimized">Optimized for this grid (recommended)</option>
-                <option value="exact">Exactly {draft.wordCount} (the number above)</option>
-                <option value="unlimited">Let the AI choose how many</option>
-              </select>
-            </div>
+            {/* Word count mode — in Optimized mode the N× pool ask supersedes
+                it, so it's hidden there; it stays in Standard mode. */}
+            {!optimizedOn && (
+              <div>
+                <label htmlFor="ai-count-mode" className="block text-xs font-medium text-ink-2 mb-1.5">
+                  Word count
+                </label>
+                <select
+                  id="ai-count-mode"
+                  value={draft.countMode}
+                  onChange={e => patchDraft({ countMode: e.target.value as CountMode })}
+                  className="field text-sm focus:outline-none"
+                >
+                  <option value="optimized">Optimized for this grid (recommended)</option>
+                  <option value="exact">Exactly {draft.wordCount} (the number above)</option>
+                  <option value="unlimited">Let the AI choose how many</option>
+                </select>
+              </div>
+            )}
 
-            {/* Loosen word constraints (crossword only — word search has none) */}
+            {/* Quality bias (crossword only — word search has no interlock
+                constraints to trade against). Replaces the old any-length /
+                any-letters toggles: one choice steers the AI's word pool. */}
             {isCrossword && (
-              <div className="space-y-2.5">
-                <AdvToggle
-                  checked={draft.anyLength}
-                  onChange={v => patchDraft({ anyLength: v })}
-                  label="Allow any word length"
-                  hint="Off: aims for 5–8 letters and avoids length outliers, which pack denser."
-                />
-                <AdvToggle
-                  checked={draft.anyLetters}
-                  onChange={v => patchDraft({ anyLetters: v })}
-                  label="Allow uncommon letters"
-                  hint="Off: favors vowel- and common-letter-rich words that interlock more easily."
-                />
+              <div>
+                <label htmlFor="ai-quality-bias" className="block text-xs font-medium text-ink-2 mb-1.5">
+                  Optimize for
+                </label>
+                <select
+                  id="ai-quality-bias"
+                  value={settings.qualityBias}
+                  onChange={e => patchSettings({ qualityBias: e.target.value as 'grid' | 'words' })}
+                  className="field text-sm focus:outline-none"
+                >
+                  <option value="grid">Grid fit — denser puzzle</option>
+                  <option value="words">Best words — most interesting</option>
+                </select>
               </div>
             )}
 
@@ -513,7 +591,7 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               <div className="note note-warn py-2.5">
                 <p className="text-sm text-ink-2">
                   No words found in that text. Make sure you pasted the AI&rsquo;s reply —
-                  it should contain {wizardSnapshot.settings.puzzleMode === 'wordsearch'
+                  it should contain {settings.puzzleMode === 'wordsearch'
                     ? <>one word per line</>
                     : <>lines like <span className="font-mono">WORD | Clue</span></>}.
                 </p>
