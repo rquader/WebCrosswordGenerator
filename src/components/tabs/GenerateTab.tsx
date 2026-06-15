@@ -21,7 +21,14 @@ import {
   createSkeletonFromEntries,
 } from '../../logic/createPuzzle';
 import type { CrosswordResult, PuzzleMode, SkeletonResult, PrioritizedEntry } from '../../logic/types';
-import { recommendGridSize, recommendWordSearchGridSize, detectOutlierWords } from '../../logic/gridRecommendation';
+import {
+  recommendGridSize,
+  recommendWordSearchGridSize,
+  detectOutlierWords,
+  gridLengthSignature,
+  resolveEffectiveGridSize,
+} from '../../logic/gridRecommendation';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { WORD_PACKS, getWordPackById, type PackSource } from '../../presets/wordPacks';
 import { parseFile } from '../../utils/fileParser';
 import { normalizeWordWhileTyping, toGridWord } from '../../logic/language';
@@ -235,27 +242,68 @@ export function GenerateTab({
 
   const isCrossword = wizard.settings.puzzleMode === 'crossword';
 
+  // The grid recommendation is advisory — generation auto-grows from it — so
+  // it doesn't need to track every keystroke. Recompute it only when the set
+  // of word *lengths* settles: we debounce a stable length signature (350ms),
+  // and the memo below recomputes off that. Typing "ELEPHANT" no longer
+  // ratchets the suggested size up letter-by-letter; it snaps once on pause.
+  // Clue edits and row reordering don't change the signature, so they never
+  // recompute the size at all. The mode toggle is NOT debounced (it's an
+  // immediate, deliberate click that changes the formula) — see the memo deps.
+  //
+  // We read the live `wordEntries` through a ref inside the memo so the memo
+  // sees the current words for outlier *naming* without listing wordEntries as
+  // a dependency (which would re-fire on every keystroke and defeat the debounce).
+  const lengthSignature = useMemo(
+    () => gridLengthSignature(wordEntries.map(e => toGridWord(e.word).length)),
+    [wordEntries],
+  );
+  const debouncedSignature = useDebouncedValue(lengthSignature, 350);
+
+  // Empty <-> non-empty is a meaningful boundary, not keystroke thrash, so it
+  // bypasses the debounce: clearing the list drops the recommendation (and the
+  // auto banner) at once, and the first word's recommendation isn't gated on a
+  // stale prior value. Word-count changes *between* non-empty states still
+  // ride the debounced signature.
+  const hasEntries = wordEntries.length > 0;
+
+  const wordEntriesRef = useRef(wordEntries);
+  wordEntriesRef.current = wordEntries;
+
   const gridRecommendation = useMemo(() => {
-    if (wordEntries.length === 0) return null;
+    const entries = wordEntriesRef.current;
+    if (entries.length === 0) return null;
     // Sizing cares about placed letters — two-word phrases count without their space.
-    const lengths = wordEntries.map(e => toGridWord(e.word).length);
+    const lengths = entries.map(e => toGridWord(e.word).length);
     if (isCrossword) {
       const rec = recommendGridSize(lengths);
       // Outliers are detected on grid forms (placement length), but the
       // warning should name the word the way the user typed it.
-      const gridToDisplay = new Map(wordEntries.map(e => [toGridWord(e.word), e.word]));
-      const outliers = detectOutlierWords(wordEntries.map(e => toGridWord(e.word)))
+      const gridToDisplay = new Map(entries.map(e => [toGridWord(e.word), e.word]));
+      const outliers = detectOutlierWords(entries.map(e => toGridWord(e.word)))
         .map(o => ({ ...o, word: gridToDisplay.get(o.word) ?? o.word }));
       return { ...rec, outliers };
     }
     return { ...recommendWordSearchGridSize(lengths), outliers: [] };
-  }, [wordEntries, isCrossword]);
+    // Recompute when the lengths settle (debouncedSignature), the mode flips
+    // (isCrossword, immediate), or the list crosses empty<->non-empty
+    // (hasEntries, immediate). wordEntries itself is read via ref by design.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSignature, isCrossword, hasEntries]);
 
   // Grid size actually used for generation: the recommendation while
-  // auto-sizing is on, the manual sliders otherwise.
-  const autoActive = wizard.settings.autoGridSize && gridRecommendation !== null;
-  const effectiveWidth = autoActive ? gridRecommendation!.width : wizard.settings.width;
-  const effectiveHeight = autoActive ? gridRecommendation!.height : wizard.settings.height;
+  // auto-sizing is on, the manual sliders otherwise. resolveEffectiveGridSize
+  // is the single don't-stomp rule — a manual size is never overwritten by a
+  // changing recommendation (see the helper). autoActive mirrors it for the
+  // crop-to-fit flag and the SettingsPanel banner.
+  const autoActive = wizard.settings.autoGridSize
+    && gridRecommendation !== null
+    && gridRecommendation.minDimension > 0;
+  const { width: effectiveWidth, height: effectiveHeight } = resolveEffectiveGridSize(
+    wizard.settings.autoGridSize,
+    { width: wizard.settings.width, height: wizard.settings.height },
+    gridRecommendation,
+  );
 
   // --- Updaters ---
 

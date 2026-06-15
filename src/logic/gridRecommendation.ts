@@ -81,6 +81,57 @@ export function recommendGridSize(wordLengths: number[]): GridRecommendation {
 }
 
 /**
+ * A stable key for "the set of word lengths that drives a recommendation."
+ *
+ * The grid recommendation is a pure function of the word *lengths* (via max,
+ * sum, and median) — not of clue text, row order, or row identity. The UI
+ * recomputes (and re-renders the live size) only when this key changes, so
+ * editing a clue, reordering rows, or toggling an unrelated option never
+ * thrashes the suggested size.
+ *
+ * Order-insensitive on purpose: the recommendation reads the same whether the
+ * words are [3, 8, 5] or [5, 3, 8], so reordering the list should not trigger
+ * a recompute. The outlier *naming* still maps lengths back to the words the
+ * user typed at the call site; this signature governs only the size recompute.
+ */
+export function gridLengthSignature(lengths: number[]): string {
+  return [...lengths].sort((a, b) => a - b).join(',');
+}
+
+/**
+ * Whether a recommendation needs recomputing, given the previous and next
+ * length signatures (see {@link gridLengthSignature}). A named predicate so
+ * the debounce/guard intent is explicit at the call site rather than an
+ * inline string compare.
+ */
+export function shouldRecomputeRecommendation(prevSignature: string, nextSignature: string): boolean {
+  return prevSignature !== nextSignature;
+}
+
+/**
+ * The grid size generation should actually use, given the auto-size toggle.
+ *
+ * This is the don't-stomp rule in one place: when auto-sizing is on, the
+ * recommendation drives the size; when it's off (the user has touched the
+ * size — `autoGridSize` going false is exactly that signal), the manual size
+ * is used verbatim and is *never* overwritten by a changing recommendation.
+ * The recommendation can keep updating as a *suggestion* alongside the manual
+ * sliders; this function guarantees it can't silently replace a deliberate
+ * choice. Auto only takes effect with a usable recommendation (a real word
+ * list — `minDimension > 0`); otherwise the manual size stands.
+ */
+export function resolveEffectiveGridSize(
+  autoGridSize: boolean,
+  manual: { width: number; height: number },
+  recommendation: GridRecommendation | null,
+): { width: number; height: number } {
+  const autoActive = autoGridSize && recommendation != null && recommendation.minDimension > 0;
+  return autoActive
+    ? { width: recommendation!.width, height: recommendation!.height }
+    : { width: manual.width, height: manual.height };
+}
+
+/**
  * Word counts that fill a crossword grid well, calibrated against the
  * Phase 16 engine (12 seeds × pinned sizes 9–21, classroom-style word
  * pools): the placer reliably lands 34–50% letter density on a

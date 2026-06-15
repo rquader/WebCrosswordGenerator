@@ -18,7 +18,11 @@ import {
   recommendedWordCountTarget,
   detectOutliers,
   detectOutlierWords,
+  gridLengthSignature,
+  shouldRecomputeRecommendation,
+  resolveEffectiveGridSize,
 } from '@logic/gridRecommendation';
+import type { GridRecommendation } from '@logic/types';
 
 // ============================================================================
 // Grid Size Recommendation
@@ -267,6 +271,108 @@ describe('recommendedWordCountRange', () => {
     const tiny = recommendedWordCountRange(2, 2);
     expect(tiny.lo).toBeGreaterThanOrEqual(2);
     expect(tiny.hi).toBeGreaterThanOrEqual(tiny.lo);
+  });
+});
+
+// ============================================================================
+// Re-recommendation policy (when the live size recompute should fire)
+// ============================================================================
+
+describe('gridLengthSignature', () => {
+  it('is stable for the same lengths', () => {
+    expect(gridLengthSignature([3, 8, 5])).toBe(gridLengthSignature([3, 8, 5]));
+  });
+
+  it('is order-insensitive (reordering words does not change it)', () => {
+    // The recommendation reads max + sum + median, all order-free, so
+    // reordering the word list must not trigger a recompute.
+    expect(gridLengthSignature([3, 8, 5])).toBe(gridLengthSignature([5, 3, 8]));
+  });
+
+  it('changes when a word length changes', () => {
+    expect(gridLengthSignature([3, 8, 5])).not.toBe(gridLengthSignature([3, 8, 6]));
+  });
+
+  it('changes when a word is added or removed', () => {
+    expect(gridLengthSignature([3, 8, 5])).not.toBe(gridLengthSignature([3, 8, 5, 4]));
+    expect(gridLengthSignature([3, 8, 5])).not.toBe(gridLengthSignature([3, 8]));
+  });
+
+  it('distinguishes empty from non-empty', () => {
+    expect(gridLengthSignature([])).not.toBe(gridLengthSignature([5]));
+    expect(gridLengthSignature([])).toBe(gridLengthSignature([]));
+  });
+});
+
+describe('shouldRecomputeRecommendation', () => {
+  it('does not recompute when the signature is unchanged', () => {
+    const sig = gridLengthSignature([4, 6, 8]);
+    expect(shouldRecomputeRecommendation(sig, sig)).toBe(false);
+  });
+
+  it('recomputes when the signature changes', () => {
+    const before = gridLengthSignature([4, 6, 8]);
+    const after = gridLengthSignature([4, 6, 9]);
+    expect(shouldRecomputeRecommendation(before, after)).toBe(true);
+  });
+
+  // The behavioral promise the debounce/guard rests on: editing only the
+  // CLUES (word lengths untouched) yields an identical signature, so the
+  // suggested/auto size never recomputes — and a held manual size is never
+  // silently overwritten (the don't-stomp rule). Reordering rows is likewise
+  // a no-op. Only a real change to the WORDS moves the recommendation.
+  it('treats a clue-only / reorder edit as no recompute, but a word change as a recompute', () => {
+    const wordsBefore = ['cat', 'house', 'planet'];
+    const sameWordsReordered = ['planet', 'cat', 'house'];
+    const clueEditedSameWords = ['cat', 'house', 'planet']; // clues live elsewhere
+
+    const sigBefore = gridLengthSignature(wordsBefore.map(w => w.length));
+    const sigReordered = gridLengthSignature(sameWordsReordered.map(w => w.length));
+    const sigClueEdit = gridLengthSignature(clueEditedSameWords.map(w => w.length));
+    expect(shouldRecomputeRecommendation(sigBefore, sigReordered)).toBe(false);
+    expect(shouldRecomputeRecommendation(sigBefore, sigClueEdit)).toBe(false);
+
+    const wordsAfter = ['cat', 'house', 'planets']; // one letter longer
+    const sigAfter = gridLengthSignature(wordsAfter.map(w => w.length));
+    expect(shouldRecomputeRecommendation(sigBefore, sigAfter)).toBe(true);
+  });
+});
+
+describe('resolveEffectiveGridSize (don\'t-stomp rule)', () => {
+  function rec(width: number, height: number): GridRecommendation {
+    return { width, height, reason: '', minDimension: Math.max(width, height) - 1, outliers: [] };
+  }
+
+  it('uses the recommendation when auto-sizing is on', () => {
+    const size = resolveEffectiveGridSize(true, { width: 8, height: 8 }, rec(13, 13));
+    expect(size).toEqual({ width: 13, height: 13 });
+  });
+
+  it('uses the manual size when auto-sizing is off — even as the recommendation changes', () => {
+    // The user chose 11x11 (auto off). The word list grows and the
+    // recommendation climbs to 18x18, but the manual size must stand: a
+    // deliberate choice is never silently overwritten.
+    const manual = { width: 11, height: 11 };
+    expect(resolveEffectiveGridSize(false, manual, rec(13, 13))).toEqual(manual);
+    expect(resolveEffectiveGridSize(false, manual, rec(18, 18))).toEqual(manual);
+    expect(resolveEffectiveGridSize(false, manual, null)).toEqual(manual);
+  });
+
+  it('falls back to the manual size when there is no usable recommendation', () => {
+    // Empty list → recommendation is null or has minDimension 0; auto can't
+    // act on nothing, so the seed/manual size stands.
+    const manual = { width: 8, height: 8 };
+    expect(resolveEffectiveGridSize(true, manual, null)).toEqual(manual);
+    const emptyRec: GridRecommendation = { width: 10, height: 10, reason: '', minDimension: 0, outliers: [] };
+    expect(resolveEffectiveGridSize(true, manual, emptyRec)).toEqual(manual);
+  });
+
+  it('does not mutate the inputs', () => {
+    const manual = { width: 9, height: 9 };
+    const r = rec(13, 13);
+    resolveEffectiveGridSize(true, manual, r);
+    expect(manual).toEqual({ width: 9, height: 9 });
+    expect(r.width).toBe(13);
   });
 });
 
