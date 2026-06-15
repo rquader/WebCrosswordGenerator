@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/InfoTip';
 import { buildWordListPrompt, parseWordListResponse, type ParseIssue } from '../../utils/wordListPrompt';
 import { loadWizardState, saveWizardState } from '../sources/wizardState';
 import { getGenerationEntriesFromRows, createEntryRowsFromEntries, hasMeaningfulRows } from '../entries/entryTable';
@@ -312,8 +313,12 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
             best words that fit. Persisted to settings so Generate honors it. */}
         {isCrossword && (
           <div>
-            <span className="block text-sm font-medium text-ink-2 mb-1.5">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-ink-2 mb-1.5">
               Generation mode
+              <InfoTip label="Generation mode">
+                Standard uses exactly the words you ask for. Optimized asks the AI for several times
+                as many of its best words, then builds a denser, more interlocked puzzle from the ones that fit.
+              </InfoTip>
             </span>
             <div className="flex rounded-btn bg-well p-1" role="group" aria-label="Generation mode">
               <button
@@ -360,10 +365,15 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Word count stepper */}
           <div>
-            <span className="flex items-center gap-2 mb-1.5">
+            <span className="flex items-center gap-1.5 mb-1.5">
               <span className="text-sm font-medium text-ink-2">
                 {optimizedOn ? 'Target words in the puzzle' : 'New words to ask for'}
               </span>
+              <InfoTip label={optimizedOn ? 'Target words in the puzzle' : 'New words to ask for'}>
+                {optimizedOn
+                  ? 'About how many words you want in the finished puzzle — we suggest a count that fills this grid nicely.'
+                  : 'How many words to request — the suggested count fills this grid nicely. It is only a starting point; adjust it freely.'}
+              </InfoTip>
               {!draft.userTouchedCount && (
                 <span className="text-[10px] tracking-wide uppercase text-rubric">
                   Recommended
@@ -416,8 +426,11 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
               className="mt-0.5 w-4 h-4"
             />
             <span>
-              <span className="block text-sm text-ink-2">
+              <span className="flex items-center gap-1.5 text-sm text-ink-2">
                 Include my current words ({wordCountLabel})
+                <InfoTip label="Include my current words">
+                  Sends your existing words along so the AI avoids repeats and suggests words that fit with them.
+                </InfoTip>
               </span>
               <span className="block text-xs text-ink-3 mt-0.5">
                 Helps the AI avoid repeats and suggest words that fit together.
@@ -431,7 +444,13 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
             for more variety and give power users direct control. */}
         <details className="group rounded-lg border border-line/60">
           <summary className="px-3 py-2 text-xs font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors flex items-center justify-between">
-            <span>Advanced options</span>
+            <span className="flex items-center gap-1.5">
+              Advanced options
+              <InfoTip label="Advanced options">
+                Looser controls for more variety. The defaults already make the densest, most reliable
+                puzzle — open this only if you want to fine-tune what the AI suggests.
+              </InfoTip>
+            </span>
             {advancedActive
               ? <span className="text-[10px] tracking-wide uppercase text-rubric">On</span>
               : <span className="text-[10px] tracking-wide uppercase text-ink-3 group-open:hidden">Optimized</span>}
@@ -467,9 +486,15 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
                 any-letters toggles: one choice steers the AI's word pool. */}
             {isCrossword && (
               <div>
-                <label htmlFor="ai-quality-bias" className="block text-xs font-medium text-ink-2 mb-1.5">
-                  Optimize for
-                </label>
+                <span className="flex items-center gap-1.5 mb-1.5">
+                  <label htmlFor="ai-quality-bias" className="text-xs font-medium text-ink-2">
+                    Optimize for
+                  </label>
+                  <InfoTip label="Optimize for">
+                    Grid fit gives the densest puzzle. Best words gives the most interesting words,
+                    a little less tightly packed.
+                  </InfoTip>
+                </span>
                 <select
                   id="ai-quality-bias"
                   value={settings.qualityBias}
@@ -491,9 +516,15 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
 
             {/* Free-form extra instructions */}
             <div>
-              <label htmlFor="ai-extra" className="block text-xs font-medium text-ink-2 mb-1.5">
-                Extra instructions for the AI (optional)
-              </label>
+              <span className="flex items-center gap-1.5 mb-1.5">
+                <label htmlFor="ai-extra" className="text-xs font-medium text-ink-2">
+                  Extra instructions for the AI (optional)
+                </label>
+                <InfoTip label="Extra instructions">
+                  Anything else you want the AI to do — focus on a chapter, set a difficulty,
+                  avoid certain words. Added to the prompt in your own words.
+                </InfoTip>
+              </span>
               <textarea
                 id="ai-extra"
                 value={draft.extraInstructions}

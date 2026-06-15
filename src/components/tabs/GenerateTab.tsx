@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { InfoTip } from '../ui/InfoTip';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { CrosswordGrid } from '../grid/CrosswordGrid';
 import { CluePanel } from '../clues/CluePanel';
@@ -633,7 +634,14 @@ export function GenerateTab({
             </p>
 
             {/* Mode toggle */}
-            <div className="flex rounded-btn bg-well p-1" role="group">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-ink-3 mb-1.5">
+              Puzzle type
+              <InfoTip label="Puzzle type">
+                A crossword interlocks answers from clues. A word search hides whole words in a letter
+                grid to find. Switching changes the whole builder.
+              </InfoTip>
+            </span>
+            <div className="flex rounded-btn bg-well p-1" role="group" aria-label="Puzzle type">
               <button
                 onClick={() => patchWizard({ settings: { ...wizard.settings, puzzleMode: 'crossword' } })}
                 className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all

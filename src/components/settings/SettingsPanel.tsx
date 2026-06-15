@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { InfoTip } from '../ui/InfoTip';
 import type { GenerationSettings } from './generationSettings';
 import type { GridRecommendation } from '../../logic/types';
 import { recommendedWordCountRange } from '../../logic/gridRecommendation';
@@ -99,9 +100,13 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize, 
 
       <div className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-ink-2 mb-2">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-ink-2 mb-2">
             Grid Size
-          </label>
+            <InfoTip label="Grid size">
+              Left on auto, the grid sizes itself to your words so everything fits. You can set the
+              width and height by hand instead, or pick a quick size.
+            </InfoTip>
+          </span>
 
           {/* Auto-size banner — grid follows the word list */}
           {autoActive && (
@@ -225,7 +230,13 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize, 
               className="mt-0.5 w-4 h-4"
             />
             <span>
-              <span className="block text-sm text-ink-2">Force dimensions</span>
+              <span className="flex items-center gap-1.5 text-sm text-ink-2">
+                Force dimensions
+                <InfoTip label="Force dimensions">
+                  Keeps your exact grid size instead of growing to fit. Handy for a set page size — but
+                  it may leave blank slots for you to fill, and report any words that don't fit.
+                </InfoTip>
+              </span>
               <span className="block text-xs text-ink-3 mt-0.5">
                 Keep the grid exactly this size. Words that don't fit are reported instead of growing the grid.
               </span>
@@ -238,9 +249,15 @@ export function SettingsPanel({ value, onChange, recommendation, effectiveSize, 
         {/* Language + word shape — applies to entries, the AI prompt, and
             (word search) the filler letter filter. */}
         <div>
-          <label htmlFor="settings-language" className="block text-sm font-medium text-ink-2 mb-1.5">
-            Language
-          </label>
+          <span className="flex items-center gap-1.5 mb-1.5">
+            <label htmlFor="settings-language" className="text-sm font-medium text-ink-2">
+              Language
+            </label>
+            <InfoTip label="Language">
+              Sets which letters are allowed in answers, and the language the AI writes clues and
+              suggestions in.
+            </InfoTip>
+          </span>
           <select
             id="settings-language"
             value={value.language}
