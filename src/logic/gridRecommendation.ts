@@ -179,6 +179,24 @@ export function recommendedWordCountTarget(width: number, height: number): numbe
 }
 
 /**
+ * The square canvas whose comfortable target word count is ~`targetCount` — the
+ * inverse of {@link recommendedWordCountTarget}. Since target ≈ midDensity·G²/
+ * TYPICAL_WORD_LENGTH, G ≈ √(target·TYPICAL_WORD_LENGTH/midDensity).
+ *
+ * The Optimized AI mode builds at this PINNED canvas and fills it densely from
+ * the candidate pool. The density win only exists at a fixed grid — auto-sizing
+ * the chosen subset relaxes it back to the freeform ceiling (measured) — so the
+ * canvas is computed from the target count, not derived from the chosen words.
+ * Clamped to the supported grid range.
+ */
+export function canvasForCount(targetCount: number): { width: number; height: number } {
+  const midDensity = (COMFORTABLE_DENSITY_LO + COMFORTABLE_DENSITY_HI) / 2;
+  const side = Math.round(Math.sqrt(Math.max(1, targetCount) * TYPICAL_WORD_LENGTH / midDensity));
+  const clamped = clamp(side, MIN_GRID_SIZE, MAX_GRID_SIZE);
+  return { width: clamped, height: clamped };
+}
+
+/**
  * Recommend a grid size for word search puzzles.
  * Word searches need more breathing room — words are hidden among filler.
  *

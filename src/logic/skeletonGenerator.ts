@@ -373,9 +373,10 @@ function attachGridSizeSuggestion(result: SkeletonResult, config: SkeletonConfig
 
 /**
  * Build a SkeletonResult from a crossword where no skeleton slots are needed.
- * All placed words become pre-filled slots.
+ * All placed words become pre-filled slots. Exported so the Optimized AI path
+ * can turn its winning layout into a finished (blank-slot-free) result.
  */
-function buildResultFromCrossword(
+export function buildResultFromCrossword(
   crossword: CrosswordResult,
   placedMust: DirectionalWord[],
   placedCan: DirectionalWord[],

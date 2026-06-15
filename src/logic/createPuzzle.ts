@@ -28,7 +28,9 @@ import type {
 import { generateCrossword } from './generator';
 import { generateWordSearch } from './wordSearchGenerator';
 import { generateCrosswordWithPriority } from './priorityGenerator';
-import { generateSkeleton } from './skeletonGenerator';
+import { generateSkeleton, buildResultFromCrossword, cropSkeletonToContent } from './skeletonGenerator';
+import { selectOptimizedSubset } from './optimizedSelection';
+import { canvasForCount } from './gridRecommendation';
 import { filterByLength, prepareForGenerator } from './databaseProcessor';
 import { toGridWord } from './language';
 
@@ -240,6 +242,58 @@ export function createSkeletonFromEntries(
     }));
   }
   return result;
+}
+
+/**
+ * Options for the Optimized AI-generation puzzle (the flagship multi-candidate path).
+ */
+export interface OptimizedPuzzleOptions {
+  /** The AI candidate pool, BEST-FIRST (index 0 = highest quality), ~targetCount × N words. */
+  pool: WordCluePair[];
+  /** The target puzzle word count — sizes the pinned canvas (canvasForCount). */
+  targetCount: number;
+  /** Quality-vs-fit weight in [0,1]: grid-fit ≈ 0.2, best-words ≈ 0.45. */
+  qualityBias: number;
+  seed: number;
+  allowReverseWords?: boolean;
+}
+
+/**
+ * Create a crossword the OPTIMIZED way: choose the densest, highest-quality
+ * SUBSET of a larger AI candidate pool and lay it out on a PINNED canvas sized
+ * for the target count. The density win only exists at a fixed canvas — auto-
+ * sizing the subset relaxes it back to the freeform ceiling (measured) — so we
+ * build at canvasForCount(targetCount) and crop, never routing the subset
+ * through the auto path. Returns a finished SkeletonResult (no blank slots) so
+ * the Generate tab renders it exactly like any other result.
+ */
+export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions): SkeletonResult {
+  const { entries: gridPool, displayByGridWord } = toGridFormEntries(options.pool);
+  const canvas = canvasForCount(options.targetCount);
+
+  const selection = selectOptimizedSubset({
+    pool: gridPool,
+    width: canvas.width,
+    height: canvas.height,
+    seed: options.seed,
+    qualityBias: options.qualityBias,
+    allowReverseWords: options.allowReverseWords ?? false,
+  });
+
+  // Ship the selection's OWN dense layout (converting, not rebuilding — a rebuild
+  // would re-pick a layout and could drift off the measured density).
+  const placed = selection.crossword.wordLocations;
+  const result = buildResultFromCrossword(selection.crossword, placed, [], [], placed.length, 0);
+
+  if (displayByGridWord.size > 0) {
+    for (const slot of result.slots) {
+      if (slot.word !== undefined) {
+        const display = displayByGridWord.get(slot.word);
+        if (display !== undefined) slot.displayWord = display;
+      }
+    }
+  }
+  return cropSkeletonToContent(result);
 }
 
 /**
