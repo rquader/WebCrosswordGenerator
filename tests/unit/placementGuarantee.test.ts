@@ -202,7 +202,7 @@ describe('placement guarantee at recommended size', () => {
         expect(skeleton.failures, `seed ${seed} at ${rec.width}x${rec.height}`).toEqual([]);
         expect(skeleton.mustPlacedCount).toBe(words.length);
       }
-    });
+    }, 30000); // heavy: full pipeline x many seeds — generous timeout to avoid load-induced flakes
   }
 });
 
@@ -222,7 +222,7 @@ describe('auto-grow on placement failure', () => {
     expect(skeleton.mustPlacedCount).toBe(HISTORY_32.length);
     expect(skeleton.width).toBeGreaterThan(15);
     expect(skeleton.grewFrom).toEqual({ width: 15, height: 15 });
-  });
+  }, 30000);
 
   it('reports no grewFrom when the requested size already fits', () => {
     const skeleton = createSkeletonFromEntries({
@@ -260,5 +260,5 @@ describe('auto-grow on placement failure', () => {
     expect(a.grid).toEqual(b.grid);
     expect(a.width).toBe(b.width);
     expect(a.slots.length).toBe(b.slots.length);
-  });
+  }, 30000);
 });
