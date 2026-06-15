@@ -105,6 +105,57 @@ describe('buildWordListPrompt', () => {
     expect(lenOnly).toContain('Crossing-friendly');
   });
 
+  it('optimized mode asks for a best-first pool of about N×count words (crossword)', () => {
+    // default candidateMultiple is 3; wordCount 10 → about 30 (under the cap).
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { optimized: true } });
+    expect(prompt).toContain('Number of words: about 30');
+    expect(prompt).toContain('LIST THEM STRONGEST FIRST');
+    expect(prompt).toContain('best-fitting subset is used to build the puzzle');
+    expect(prompt).toContain('About 30 lines, strongest word first.');
+    // it supersedes the calibrated band / exact count entirely
+    expect(prompt).not.toContain('the right range for this grid size');
+    expect(prompt).not.toContain('Number of words: exactly');
+    expect(prompt).not.toContain('Between 10 and 15 lines.');
+  });
+
+  it('optimized mode caps the pool ask at 40 for a large count', () => {
+    // wordCount 20 × 3 = 60 → capped to 40.
+    const prompt = buildWordListPrompt({ ...baseOptions, wordCount: 20, advanced: { optimized: true } });
+    expect(prompt).toContain('Number of words: about 40');
+    expect(prompt).toContain('About 40 lines, strongest word first.');
+    expect(prompt).not.toContain('about 60');
+  });
+
+  it('optimized mode honors a custom candidateMultiple', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, advanced: { optimized: true, candidateMultiple: 2 } });
+    expect(prompt).toContain('Number of words: about 20'); // 10 × 2
+  });
+
+  it('optimized mode has no effect in word search mode (crossword-only flagship)', () => {
+    const prompt = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch', advanced: { optimized: true } });
+    // Word search keeps its exact count and never mentions the best-first pool.
+    expect(prompt).toContain('Number of words: exactly 10.');
+    expect(prompt).not.toContain('STRONGEST FIRST');
+    expect(prompt).not.toContain('strongest word first');
+    expect(prompt).not.toContain('Number of words: about');
+  });
+
+  it('qualityBias "words" drops both length and crossing guidance (crossword)', () => {
+    const words = buildWordListPrompt({ ...baseOptions, advanced: { qualityBias: 'words' } });
+    expect(words).not.toContain('most words 5 to 8 letters');
+    expect(words).not.toContain('Crossing-friendly');
+  });
+
+  it('qualityBias "grid" and the default keep both length and crossing guidance', () => {
+    const grid = buildWordListPrompt({ ...baseOptions, advanced: { qualityBias: 'grid' } });
+    expect(grid).toContain('most words 5 to 8 letters');
+    expect(grid).toContain('Crossing-friendly');
+    // default (no qualityBias) is identical in this respect
+    const def = buildWordListPrompt({ ...baseOptions, advanced: {} });
+    expect(def).toContain('most words 5 to 8 letters');
+    expect(def).toContain('Crossing-friendly');
+  });
+
   it('advanced allowProperNouns drops the proper-noun restriction', () => {
     const prompt = buildWordListPrompt({ ...baseOptions, advanced: { allowProperNouns: true } });
     expect(prompt).not.toContain('No proper nouns');

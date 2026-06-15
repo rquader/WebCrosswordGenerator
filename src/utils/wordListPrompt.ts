@@ -41,6 +41,26 @@ export interface AdvancedPromptOptions {
    *  - 'unlimited': let the AI choose how many, sized to fill the grid.
    */
   countMode?: 'optimized' | 'exact' | 'unlimited';
+  /**
+   * Crossword flagship "Optimized" mode: ask the AI for a larger pool of its
+   * BEST words listed strongest-first, then build the puzzle from the
+   * best-fitting subset (response order conveys quality — the parser keeps
+   * it). When on (crossword only), this supersedes `countMode` for the word
+   * count. No effect in word search — the flagship is crossword-only.
+   */
+  optimized?: boolean;
+  /** Optimized mode: pool ask = candidateMultiple × wordCount, capped. Default 3. */
+  candidateMultiple?: number;
+  /**
+   * The quality bias that replaces the anyLength + anyLetters toggles in the
+   * UI (crossword only):
+   *  - undefined / 'grid' (default): keep the engine-tuned length + crossing
+   *    guidance — densest, most reliable grids.
+   *  - 'words': drop BOTH so the AI picks the most interesting words
+   *    regardless of length or letter mix.
+   * The legacy anyLength/anyLetters fields still work and are OR-ed in.
+   */
+  qualityBias?: 'grid' | 'words';
   /** Crossword: drop the 5-8 letters / avoid-short / no-outlier guidance. */
   anyLength?: boolean;
   /** Crossword: drop the vowel/common-letter crossing guidance. */
@@ -117,8 +137,19 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   const range = recommendedWordCountRange(gridWidth, gridHeight);
   const rangeLo = Math.max(2, range.lo - existingWords.length);
   const rangeHi = Math.max(rangeLo, range.hi - existingWords.length);
-  // The grid-calibrated band only applies in the default 'optimized' mode.
-  const useCountRange = countMode === 'optimized' && isCrossword
+
+  // Flagship "Optimized" mode (crossword only): ask for a larger pool of the
+  // AI's BEST words, strongest-first, and let the engine pick the best-fitting
+  // subset. When on, this supersedes the count-mode logic for the word count.
+  const POOL_CAP = 40;
+  const optimized = isCrossword && adv.optimized === true;
+  const poolAsk = optimized
+    ? Math.min(POOL_CAP, Math.round((adv.candidateMultiple ?? 3) * wordCount))
+    : 0;
+
+  // The grid-calibrated band only applies in the default 'optimized' count
+  // mode, and never when the flagship pool ask is in effect.
+  const useCountRange = !optimized && countMode === 'optimized' && isCrossword
     && wordCount >= rangeLo && wordCount <= rangeHi;
 
   // 1 — Parameters block
@@ -126,7 +157,9 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   lines.push('');
   lines.push('REQUIREMENTS');
   lines.push(`- Language: ${languageLabel}. Every word and every clue must be written in ${languageLabel}.`);
-  if (countMode === 'unlimited') {
+  if (optimized) {
+    lines.push(`- Number of words: about ${poolAsk} — give your BEST, most interesting on-topic words, and LIST THEM STRONGEST FIRST. Only the best-fitting subset is used to build the puzzle, so favor quality and variety over hitting an exact number.`);
+  } else if (countMode === 'unlimited') {
     lines.push(`- Number of words: choose as many strong, on-topic words as the topic naturally supports — aim for a rich list that comfortably fills a ${gridWidth}x${gridHeight} grid (roughly ${rangeLo} or more). Quality over quantity; don't pad with weak words.`);
   } else if (useCountRange) {
     lines.push(`- Number of words: ${rangeLo} to ${rangeHi} — the right range for this grid size — aiming for about ${wordCount}. Return fewer rather than padding with weak or off-topic words.`);
@@ -141,10 +174,14 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     // often can't be placed; one outlier word forces an oversized, mostly
     // empty grid; and vowel/common-letter-rich words interlock far better
     // than rare-letter or vowel-poor ones (English letter frequency).
-    if (!adv.anyLength) {
+    // The "words" quality bias drops BOTH the length and crossing guidance so
+    // the AI picks the most interesting words regardless of length/letters.
+    // The legacy anyLength/anyLetters toggles are OR-ed in so they still work.
+    const dropForWords = adv.qualityBias === 'words';
+    if (!adv.anyLength && !dropForWords) {
       lines.push('- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).');
     }
-    if (!adv.anyLetters) {
+    if (!adv.anyLetters && !dropForWords) {
       lines.push('- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.');
     }
   } else {
@@ -211,9 +248,13 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
     lines.push('WORD | Clue text');
     lines.push('');
     lines.push(`Rules: WORD in ${caps}, a single pipe (|) as the separator, clue in sentence case.`);
-    lines.push(useCountRange
-      ? `Between ${rangeLo} and ${rangeHi} lines. No blank lines, no numbering, no text outside the code block.`
-      : `Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
+    if (optimized) {
+      lines.push(`About ${poolAsk} lines, strongest word first. No blank lines, no numbering, no text outside the code block.`);
+    } else if (useCountRange) {
+      lines.push(`Between ${rangeLo} and ${rangeHi} lines. No blank lines, no numbering, no text outside the code block.`);
+    } else {
+      lines.push(`Exactly ${wordCount} lines. No blank lines, no numbering, no text outside the code block.`);
+    }
     lines.push('');
     lines.push('Example format (do not copy these words):');
     lines.push('```');
