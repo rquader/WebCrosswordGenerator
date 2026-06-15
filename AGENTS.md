@@ -1,7 +1,7 @@
 # CrosswordGen — Puzzle Studio
 
 Fully client-side crossword/word-search generator + player. Ported from a Java Swing app.
-TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~13,500 LOC, 288 tests.
+TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~14,000 LOC, 333 tests.
 
 Target audience: teachers creating puzzles from their own word lists.
 Everything runs in the browser — zero server, zero tracking.
@@ -10,7 +10,7 @@ Everything runs in the browser — zero server, zero tracking.
 ```bash
 npm run dev          # Dev server at http://localhost:5173
 npm run build        # Type-check (tsc) + production build to dist/
-npm run test         # Run all Vitest unit tests (288 currently)
+npm run test         # Run all Vitest unit tests (333 currently)
 npm run test:watch   # Tests in watch mode
 npm run deploy       # Build + push to gh-pages branch (GitHub Pages)
 ```
@@ -32,7 +32,7 @@ src/hooks/         useTheme (dark/light/sepia), usePuzzleState (play state)
 src/utils/         fileParser, exportUtils, pdfExport, printLayout, puzzleUrl, wordListPrompt
 src/data/          blocklist.ts — word search filler profanity filter (standalone)
 src/presets/       6 starter packs (Animals, Solar System, Weather, Ocean Life, Instruments, Kitchen), 83 entries — tuned for dense crosswords + clean word searches
-tests/unit/        Vitest tests (21 test files)
+tests/unit/        Vitest tests (24 test files)
 ```
 
 ### Generation Pipeline (read this — it's the novel part)
@@ -68,6 +68,20 @@ The core generator runs with `presorted: true` to preserve this ordering.
 - Word search mirrors the crossword: auto-grows by default (`growToFit`),
   pins + reports honestly when forced.
 
+### Optimized AI mode (flagship — Session 9)
+The AI Words tab has a prominent **Standard | Optimized** toggle. Optimized asks
+the AI for ~3× the target word count (best-first) and builds the densest,
+highest-quality **subset** at a **PINNED canvas** (`canvasForCount(t)`, the inverse
+of the word-count calibration) via `optimizedSelection.ts` (best-of-K multi-start)
+→ `createOptimizedPuzzleFromEntries`. Measured ~+5pp fill vs Standard with ≥ t
+words. The advanced **"Optimize for: grid fit | best words"** dropdown (replaces the
+old length/letter toggles) sets a bias β (grid 0.2 / words 0.45) weighting density
+vs word quality, and tunes the prompt. `optimizedMode`/`qualityBias`/
+`optimizedTargetCount` are generation settings (set in the AI tab, read by Generate).
+**The density win REQUIRES the pinned canvas** — do NOT route the subset through the
+auto path (auto-sizing relaxes it back to the freeform ceiling). Full design + data:
+Obsidian Phase 16 ADR-9.
+
 ### Skeleton System (`bankFill: true` paths only)
 When a user doesn't provide enough words to fill the grid:
 1. Priority generator places user words (must + can)
@@ -79,7 +93,7 @@ When a user doesn't provide enough words to fill the grid:
 ### Core Generator Algorithm
 Classic crossword legality, rebuilt from the Java port —
 `tests/unit/placementGuarantee.test.ts` is the behavioral contract:
-1. First word centered (configurable offset); 5 candidate layouts ranked by quality score
+1. First word centered (configurable offset); an adaptive number of candidate layouts (8–30, EVT-tuned) ranked by a compactness-dominant quality score
 2. Words place across existing letters; multi-cross allowed, head/tail abutment
    and parallel adjacency forbidden (no junk runs, ever)
 3. Best-spot selection (crossings → direction preference → centering), rescue
@@ -107,6 +121,7 @@ crossword (still emitted for compatibility), v2 = mode + per-word vectors.
 | `src/logic/wordSearchGenerator.ts` | Word search engine (8-direction vectors, filler filter) |
 | `src/data/blocklist.ts` | Profanity blocklist for word search filler (update needs no engine knowledge) |
 | `src/utils/wordListPrompt.ts` | AI Words tab — prompt builder + response parser |
+| `src/logic/optimizedSelection.ts` | Optimized AI mode — best-of-K subset selection from a larger pool (density × quality) |
 | `src/utils/printLayout.ts` | Shared page geometry — browser print and PDF make the same layout call |
 | `src/components/tabs/GenerateTab.tsx` | Main generation UI (words-to-puzzle flow) |
 | `src/components/skeleton/SkeletonFillView.tsx` | Skeleton fill workspace (constraints, validation) |
