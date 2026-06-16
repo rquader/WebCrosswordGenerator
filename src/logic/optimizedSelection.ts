@@ -5,19 +5,31 @@
  * grid, this picks the SUBSET of words that builds the best crossword —
  * densest packing, weighted against word quality. It is the core of an
  * "Optimized" AI-generation mode: instead of feeding exactly the target count
- * of words to the generator, the caller supplies a larger pool (typically ~3×),
+ * of words to the generator, the caller supplies a larger pool (typically ~4×),
  * and we let the packer choose which words actually land. A bigger pool gives
  * the intersection-based placer more letters to interlock on, so it packs
  * meaningfully denser than the exactly-target set at the same grid size.
  *
+ * MUST-INCLUDE (ADR-10): the caller can pass a set of words that are GUARANTEED
+ * a spot — the teacher's manually-typed/pack words. Only the AI-suggested pool
+ * is curated down to a subset; must words are always placed. Each multi-start
+ * places must words first (longest-first, with the core generator's swap-rescue
+ * for stuck must words), then fills the rest from the pool. A start counts as
+ * VALID only if EVERY must word placed; scoring/selection happens over valid
+ * starts. The result reports `allMustPlaced` so the caller can grow the canvas
+ * when even the most-spacious start couldn't fit the must set.
+ *
  * Strategy: multi-start greedy, best-of-K. We do NOT enumerate subsets —
- * C(3t, t) explodes. Instead, each multi-start re-orders the pool by a blended
+ * C(4t, t) explodes. Instead, each multi-start re-orders the pool by a blended
  * sort key (grid-fit preference vs. quality preference, plus a little jitter to
- * diversify the subsets across starts), runs the existing core generator with
- * `presorted: true` (which places words greedily in the given order), and the
- * words that actually placed become that start's subset. We score each start on
- * its own density and the average quality of the words it placed, then keep the
- * best-scoring start.
+ * diversify the subsets across starts), then runs the core generator with
+ * `presorted: true` on [must (longest-first) ++ ordered pool] and
+ * `priorityWordCount` = the must count (so must words are placed and rescued
+ * before any pool word can crowd the grid). The pool words that actually placed
+ * become that start's subset. We score each start on its own density and the
+ * average quality of the POOL words it placed, then keep the best-scoring valid
+ * start. With no must words this reduces to placing the ordered pool directly —
+ * byte-identical to the pre-ADR-10 behavior.
  *
  * PURE + deterministic: the result is a pure function of the config. Logic uses
  * only SeededRandom — no Date, no Math.random — so the same config always
@@ -32,6 +44,12 @@ import { SeededRandom } from './seedRandom';
 export interface OptimizedSelectionConfig {
   /** Candidate entries, BEST-FIRST (index 0 = highest quality). */
   pool: WordCluePair[];
+  /**
+   * Words GUARANTEED a spot (ADR-10) — the teacher's manual/pack words.
+   * Placed before any pool word; a start is only valid if all of them placed.
+   * Default: [] (pure-AI path — every word is curated, nothing guaranteed).
+   */
+  mustInclude?: WordCluePair[];
   /** Target grid width (pinned — the caller sizes it for the target count). */
   width: number;
   /** Target grid height (pinned). */
@@ -61,6 +79,12 @@ export interface OptimizedSelectionResult {
   selectedCount: number;
   /** Occupied cells / cropped-bbox area of the winning layout (0..1). */
   density: number;
+  /**
+   * Whether the winning layout placed EVERY must-include word. Always true
+   * when no must words were given. When false, no start could fit the must
+   * set on this canvas — the caller should grow and retry (contract > density).
+   */
+  allMustPlaced: boolean;
 }
 
 /** Multi-start count when the caller doesn't specify one. */
@@ -88,13 +112,27 @@ export function selectOptimizedSubset(
   config: OptimizedSelectionConfig,
 ): OptimizedSelectionResult {
   const pool = config.pool;
+  const must = config.mustInclude ?? [];
   const n = pool.length;
   const beta = config.qualityBias;
   const multiStarts = Math.max(1, config.multiStarts ?? DEFAULT_MULTI_STARTS);
   const allowReverseWords = config.allowReverseWords ?? false;
 
-  // Edge case: empty pool -> empty result with an empty grid.
-  if (n === 0) {
+  // Must words placed longest-first (best grid structure). Their order is the
+  // same across every start — only the curated pool is reshuffled per start.
+  // A must word longer than the canvas side CANNOT place here and would crash
+  // the placer (out-of-bounds first-word write), so we hold it out of the
+  // generator call and count it as unplaced — `allMustPlaced` then reports
+  // false and the caller grows the canvas (it never drops a must word). With a
+  // right-sized canvas this list is empty and nothing is held out.
+  const maxDim = Math.max(config.width, config.height);
+  const sortedMust = [...must].sort((a, b) => b.word.length - a.word.length);
+  const fittingMust = sortedMust.filter(m => m.word.length <= maxDim);
+  const oversizeMustCount = sortedMust.length - fittingMust.length;
+  const mustWordSet = new Set(sortedMust.map(m => m.word));
+
+  // Edge case: nothing to place at all -> empty result with an empty grid.
+  if (n === 0 && sortedMust.length === 0) {
     return {
       entries: [],
       crossword: {
@@ -106,6 +144,7 @@ export function selectOptimizedSubset(
       poolSize: 0,
       selectedCount: 0,
       density: 0,
+      allMustPlaced: true,
     };
   }
 
@@ -137,14 +176,19 @@ export function selectOptimizedSubset(
     lengthRankNorm[byLengthDesc[position].index] = position / denom;
   }
 
-  let best: StartOutcome | null = null;
+  // Best VALID start (all must words placed) and, as a fallback, the start that
+  // placed the MOST must words. The fallback only surfaces when no start fits
+  // the whole must set on this canvas — the caller grows and retries — but it
+  // keeps the function total (never returns nothing).
+  let bestValid: StartOutcome | null = null;
+  let bestFallback: StartOutcome | null = null;
 
   for (let k = 0; k < multiStarts; k++) {
     const startSeed = config.seed + k * SEED_STRIDE;
     const rng = new SeededRandom(startSeed);
 
     // Blend fit preference, quality preference, and jitter into one sort key
-    // per word. Lower key = placed earlier (more preferred). Drawing the
+    // per pool word. Lower key = placed earlier (more preferred). Drawing the
     // jitter in pool order keeps the whole computation seed-deterministic.
     const ordered = pool
       .map((entry, index) => ({
@@ -157,8 +201,14 @@ export function selectOptimizedSubset(
       }))
       .sort((a, b) => a.sortKey - b.sortKey);
 
-    const words = ordered.map(o => o.entry.word);
-    const clues = ordered.map(o => o.entry.clue);
+    // Must words first (guaranteed, longest-first), then the curated pool in
+    // this start's blended order. `priorityWordCount` makes the core generator
+    // place + rescue the must words BEFORE any pool word crowds the grid — the
+    // same swap-rescue guarantee the priority generator gives must-include
+    // words. Only must words that FIT the canvas reach the generator; with no
+    // must words this is exactly the ordered pool (the old path).
+    const words = [...fittingMust.map(m => m.word), ...ordered.map(o => o.entry.word)];
+    const clues = [...fittingMust.map(m => m.clue), ...ordered.map(o => o.entry.clue)];
 
     const crossword = generateCrossword({
       width: config.width,
@@ -168,22 +218,41 @@ export function selectOptimizedSubset(
       clues,
       allowReverseWords,
       presorted: true,
+      priorityWordCount: fittingMust.length,
     });
 
+    // A start is VALID only if EVERY must word placed — including ones held out
+    // for being too long (they can never place here, so any oversize must word
+    // forces the caller to grow). placedMustCount counts the fitting ones that
+    // landed; oversize ones are unplaced by construction.
+    const placedMustCount = countPlacedMust(crossword, mustWordSet);
+    const allMustPlaced = oversizeMustCount === 0 && placedMustCount === fittingMust.length;
+
+    // Density covers ALL placed cells (must + pool) — it IS the finished grid.
+    // Quality is averaged over the placed POOL words only: must words are
+    // guaranteed regardless of rank, so they don't sway the quality tradeoff.
     const density = measureDensity(crossword);
-    const avgQuality = measureAvgQuality(crossword, wordToRank, n);
+    const avgQuality = measureAvgPoolQuality(crossword, wordToRank, mustWordSet, n);
     const score = (1 - beta) * density + beta * avgQuality;
 
+    const outcome: StartOutcome = { crossword, density, score, placedMustCount };
+
     // Strictly-greater keeps the earliest start on ties -> deterministic.
-    if (best === null || score > best.score) {
-      best = { crossword, density, score };
+    if (allMustPlaced && (bestValid === null || score > bestValid.score)) {
+      bestValid = outcome;
+    }
+    if (bestFallback === null || outcome.placedMustCount > bestFallback.placedMustCount) {
+      bestFallback = outcome;
     }
   }
 
-  const winner = best!;
+  const winner = bestValid ?? bestFallback!;
+  const allMustPlaced = bestValid !== null;
 
-  // The selected subset is exactly the words the winning layout placed,
-  // each paired with the clue it carried into the grid.
+  // The selected subset is exactly the words the winning layout placed (must +
+  // the chosen pool words), each paired with the clue it carried into the grid.
+  // `displayWord` is the spaced form for two-word phrases; it is absent for
+  // ordinary words, so fall back to the grid form.
   const entries: WordCluePair[] = winner.crossword.wordLocations.map(loc => ({
     word: loc.displayWord ?? loc.word,
     clue: loc.clue,
@@ -195,6 +264,7 @@ export function selectOptimizedSubset(
     poolSize: n,
     selectedCount: winner.crossword.wordLocations.length,
     density: winner.density,
+    allMustPlaced,
   };
 }
 
@@ -206,6 +276,25 @@ interface StartOutcome {
   crossword: CrosswordResult;
   density: number;
   score: number;
+  /** How many must-include words this start placed (used for the fallback). */
+  placedMustCount: number;
+}
+
+/**
+ * Count how many distinct must-include words the layout placed. Duplicates in
+ * the grid count once (a word is either in or not), matching how the priority
+ * generator classifies must placements.
+ */
+function countPlacedMust(
+  crossword: CrosswordResult,
+  mustWordSet: Set<string>,
+): number {
+  if (mustWordSet.size === 0) return 0;
+  const seen = new Set<string>();
+  for (const loc of crossword.wordLocations) {
+    if (mustWordSet.has(loc.word)) seen.add(loc.word);
+  }
+  return seen.size;
 }
 
 /**
@@ -243,26 +332,27 @@ function measureDensity(crossword: CrosswordResult): number {
 }
 
 /**
- * Average quality of a layout's placed words, in [0, 1] (higher = better).
- * Each placed word maps back to its pool rank; quality = (n - rank) / n.
- * Returns 0 for an empty layout.
+ * Average quality of the placed POOL words, in [0, 1] (higher = better). Each
+ * placed pool word maps back to its pool rank; quality = (n - rank) / n.
+ * Must-include words are EXCLUDED from the average — they are guaranteed
+ * regardless of rank, so they must not sway the quality-vs-density tradeoff.
+ * Returns 0 when the layout placed no pool words (only must words, or empty).
  */
-function measureAvgQuality(
+function measureAvgPoolQuality(
   crossword: CrosswordResult,
   wordToRank: Map<string, number>,
+  mustWordSet: Set<string>,
   n: number,
 ): number {
-  const { wordLocations } = crossword;
-  if (wordLocations.length === 0) {
-    return 0;
-  }
-
   let sum = 0;
-  for (const loc of wordLocations) {
+  let count = 0;
+  for (const loc of crossword.wordLocations) {
+    if (mustWordSet.has(loc.word)) continue; // guaranteed — not part of curation
     const rank = wordToRank.get(loc.word) ?? n; // Unknown word -> worst quality.
     sum += (n - rank) / n;
+    count++;
   }
-  return sum / wordLocations.length;
+  return count === 0 ? 0 : sum / count;
 }
 
 /** Create an empty grid filled with '-'. */

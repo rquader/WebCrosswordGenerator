@@ -44,6 +44,7 @@ import {
   createEmptyEntryRow,
   createEntryRowsFromEntries,
   getGenerationEntriesFromRows,
+  splitEntriesBySource,
   hasMeaningfulRows,
   type EntryTableRow,
   type EntryValidationOptions,
@@ -437,16 +438,20 @@ export function GenerateTab({
       const seed = Number.isFinite(parsedSeed) ? parsedSeed : randomSeed();
       patchWizard({ settings: { ...wizard.settings, seedText: String(seed) } });
 
-      // Flagship "Optimized" mode (crossword + words present): the word list is
-      // the AI's best-first candidate pool — preserve that order — and the
-      // engine builds the densest/highest-quality subset on a pinned canvas.
-      // It returns a finished SkeletonResult (zero blanks, zero failures), so
-      // the SAME applyGenerationOutcome renders it as a finished puzzle.
-      if (wizard.settings.optimizedMode && wordEntries.length > 0) {
+      // Flagship "Optimized" mode (ADR-10). Words split by provenance: manual
+      // words (typed / pack) are GUARANTEED a spot (must-include); AI words are
+      // the best-first candidate pool the engine curates down to a dense subset
+      // on a pinned canvas. Only fires with AI words present — otherwise there
+      // is nothing to curate, so we fall through to the Standard path (which
+      // guarantees every word). It returns a finished SkeletonResult (zero
+      // blanks, zero failures), so the SAME applyGenerationOutcome renders it.
+      const { manual, ai } = splitEntriesBySource(wizard.table.rows, wordRules);
+      if (wizard.settings.optimizedMode && ai.length > 0) {
         const targetCount = wizard.settings.optimizedTargetCount
           || recommendedWordCountTarget(effectiveWidth, effectiveHeight);
         const skeleton = createOptimizedPuzzleFromEntries({
-          pool: wordEntries, // already WordCluePair[] in list order (quality rank)
+          pool: ai, // best-first AI pool (response order = quality rank)
+          mustInclude: manual, // teacher's words — never dropped
           targetCount,
           qualityBias: OPTIMIZED_BIAS[wizard.settings.qualityBias],
           seed,

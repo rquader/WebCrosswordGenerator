@@ -28,7 +28,7 @@ import type {
 import { generateCrossword } from './generator';
 import { generateWordSearch } from './wordSearchGenerator';
 import { generateCrosswordWithPriority } from './priorityGenerator';
-import { generateSkeleton, buildResultFromCrossword, cropSkeletonToContent } from './skeletonGenerator';
+import { generateSkeleton, buildResultFromCrossword, cropSkeletonToContent, GROWTH_HARD_CAP } from './skeletonGenerator';
 import { selectOptimizedSubset } from './optimizedSelection';
 import { canvasForCount } from './gridRecommendation';
 import { filterByLength, prepareForGenerator } from './databaseProcessor';
@@ -250,6 +250,12 @@ export function createSkeletonFromEntries(
 export interface OptimizedPuzzleOptions {
   /** The AI candidate pool, BEST-FIRST (index 0 = highest quality), ~targetCount × N words. */
   pool: WordCluePair[];
+  /**
+   * Words GUARANTEED a spot (ADR-10) — the teacher's manually-typed/pack words.
+   * Placed first and never dropped; the canvas grows if it can't fit them.
+   * Only the AI `pool` is curated down to a subset. Default: [] (pure-AI path).
+   */
+  mustInclude?: WordCluePair[];
   /** The target puzzle word count — sizes the pinned canvas (canvasForCount). */
   targetCount: number;
   /** Quality-vs-fit weight in [0,1]: grid-fit ≈ 0.2, best-words ≈ 0.45. */
@@ -259,26 +265,47 @@ export interface OptimizedPuzzleOptions {
 }
 
 /**
- * Create a crossword the OPTIMIZED way: choose the densest, highest-quality
- * SUBSET of a larger AI candidate pool and lay it out on a PINNED canvas sized
- * for the target count. The density win only exists at a fixed canvas — auto-
- * sizing the subset relaxes it back to the freeform ceiling (measured) — so we
- * build at canvasForCount(targetCount) and crop, never routing the subset
- * through the auto path. Returns a finished SkeletonResult (no blank slots) so
- * the Generate tab renders it exactly like any other result.
+ * Create a crossword the OPTIMIZED way: place the GUARANTEED must words, then
+ * choose the densest, highest-quality SUBSET of the larger AI candidate pool to
+ * fill the rest, laid out on a PINNED canvas sized for the target count. The
+ * density win only exists at a fixed canvas — auto-sizing the subset relaxes it
+ * back to the freeform ceiling (measured) — so we build at
+ * canvasForCount(targetCount) and crop, never routing the subset through the
+ * auto path. Returns a finished SkeletonResult (no blank slots) so the Generate
+ * tab renders it exactly like any other result.
+ *
+ * Two robustness guards (ADR-10 F3):
+ *   1. The AI pool is length-filtered to words that fit the current canvas —
+ *      they are optional, and an over-long word would crash the placer
+ *      (out-of-bounds first-word placement). Must words are NOT dropped.
+ *   2. The canvas starts large enough for the longest MUST word and GROWS one
+ *      cell per side (up to GROWTH_HARD_CAP) until every must word places —
+ *      the teacher's words are a contract that outranks density.
  */
 export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions): SkeletonResult {
-  const { entries: gridPool, displayByGridWord } = toGridFormEntries(options.pool);
-  const canvas = canvasForCount(options.targetCount);
+  const { entries: gridPool, displayByGridWord: poolDisplay } = toGridFormEntries(options.pool);
+  const { entries: gridMust, displayByGridWord: mustDisplay } = toGridFormEntries(options.mustInclude ?? []);
 
-  const selection = selectOptimizedSubset({
-    pool: gridPool,
-    width: canvas.width,
-    height: canvas.height,
-    seed: options.seed,
-    qualityBias: options.qualityBias,
-    allowReverseWords: options.allowReverseWords ?? false,
-  });
+  // One display map for the finished result (must + pool two-word phrases).
+  const displayByGridWord = new Map<string, string>([...poolDisplay, ...mustDisplay]);
+
+  // Start at the canvas for the target count, but never smaller than the longest
+  // must word needs — a must word longer than the canvas side would crash the
+  // placer before we could even measure placement. Grow from there.
+  const base = canvasForCount(options.targetCount);
+  const longestMust = gridMust.reduce((max, e) => Math.max(max, e.word.length), 0);
+  let side = Math.min(GROWTH_HARD_CAP, Math.max(base.width, longestMust + (longestMust > 0 ? 1 : 0)));
+
+  let selection = runSelectionAtSize(gridPool, gridMust, side, options);
+
+  // Grow until every must word places (or we hit the cap — beyond which the
+  // input is unreasonable and we ship the best effort, mirroring the skeleton
+  // generator's grow loop). The pool is re-filtered to each larger canvas, so
+  // words that only fit a bigger grid become eligible as we grow.
+  while (!selection.allMustPlaced && side < GROWTH_HARD_CAP) {
+    side = Math.min(GROWTH_HARD_CAP, side + 1);
+    selection = runSelectionAtSize(gridPool, gridMust, side, options);
+  }
 
   // Ship the selection's OWN dense layout (converting, not rebuilding — a rebuild
   // would re-pick a layout and could drift off the measured density).
@@ -294,6 +321,30 @@ export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions
     }
   }
   return cropSkeletonToContent(result);
+}
+
+/**
+ * One Optimized selection pass at a fixed square canvas. The AI pool is filtered
+ * to words that fit the canvas (over-long optional words are dropped, never
+ * crashing the placer); must words are passed through verbatim (the canvas was
+ * sized to hold them).
+ */
+function runSelectionAtSize(
+  gridPool: WordCluePair[],
+  gridMust: WordCluePair[],
+  side: number,
+  options: OptimizedPuzzleOptions,
+) {
+  const fittingPool = filterByLength(gridPool, side);
+  return selectOptimizedSubset({
+    pool: fittingPool,
+    mustInclude: gridMust,
+    width: side,
+    height: side,
+    seed: options.seed,
+    qualityBias: options.qualityBias,
+    allowReverseWords: options.allowReverseWords ?? false,
+  });
 }
 
 /**
