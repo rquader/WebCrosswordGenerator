@@ -35,5 +35,11 @@ coverage/
 # TypeScript build info
 *.tsbuildinfo
 
+# Scratch: local measurement harnesses (vite-node), Playwright checks, screenshots.
+# Subagents fall back here when the sandbox blocks /tmp writes — keep it un-committable.
+.scratch/
+.cw-tmp/
+*.local.*
+
 # Claude Code config
 CLAUDE.md
