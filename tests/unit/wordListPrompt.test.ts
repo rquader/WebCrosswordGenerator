@@ -106,12 +106,12 @@ describe('buildWordListPrompt', () => {
   });
 
   it('optimized mode asks for a best-first pool of about N×count words (crossword)', () => {
-    // default candidateMultiple is 3; wordCount 10 → about 30 (under the cap).
+    // default candidateMultiple is 4; wordCount 10 → about 40 (= the cap).
     const prompt = buildWordListPrompt({ ...baseOptions, advanced: { optimized: true } });
-    expect(prompt).toContain('Number of words: about 30');
+    expect(prompt).toContain('Number of words: about 40');
     expect(prompt).toContain('LIST THEM STRONGEST FIRST');
     expect(prompt).toContain('best-fitting subset is used to build the puzzle');
-    expect(prompt).toContain('About 30 lines, strongest word first.');
+    expect(prompt).toContain('About 40 lines, strongest word first.');
     // it supersedes the calibrated band / exact count entirely
     expect(prompt).not.toContain('the right range for this grid size');
     expect(prompt).not.toContain('Number of words: exactly');
@@ -119,11 +119,11 @@ describe('buildWordListPrompt', () => {
   });
 
   it('optimized mode caps the pool ask at 40 for a large count', () => {
-    // wordCount 20 × 3 = 60 → capped to 40.
+    // wordCount 20 × 4 = 80 → capped to 40.
     const prompt = buildWordListPrompt({ ...baseOptions, wordCount: 20, advanced: { optimized: true } });
     expect(prompt).toContain('Number of words: about 40');
     expect(prompt).toContain('About 40 lines, strongest word first.');
-    expect(prompt).not.toContain('about 60');
+    expect(prompt).not.toContain('about 80');
   });
 
   it('optimized mode honors a custom candidateMultiple', () => {

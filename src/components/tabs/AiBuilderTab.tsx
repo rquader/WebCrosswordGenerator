@@ -22,8 +22,13 @@ import { toGridWord } from '../../logic/language';
 import type { EntryValidationOptions } from '../entries/entryTable';
 import type { GenerationSettings } from '../settings/generationSettings';
 
-/** How many of its best words the AI is asked for, per target word, in Optimized mode. */
-const OPTIMIZED_CANDIDATE_MULTIPLE = 3;
+/**
+ * How many of its best words the AI is asked for, per target word, in Optimized
+ * mode (pool ask = this × target, capped at 40 in the prompt). 4× is the measured
+ * sweet spot (Phase 16 ADR-10 F1): a denser pool for small targets, cap-bound for
+ * typical ones, and 5× buys nothing more once capped.
+ */
+const OPTIMIZED_CANDIDATE_MULTIPLE = 4;
 
 /** Language, two-word option, and clue policy for a settings snapshot. */
 function rulesFromSettings(settings: GenerationSettings): EntryValidationOptions {
@@ -493,17 +498,18 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
                     Optimize for
                   </label>
                   <InfoTip label="Optimize for">
-                    Grid fit gives the densest puzzle. Best words gives the most interesting words,
-                    a little less tightly packed.
+                    Densest grid packs the most words in tightly. Best words favors the AI&rsquo;s most
+                    interesting picks, a little less tightly packed. Balanced sits between the two.
                   </InfoTip>
                 </span>
                 <select
                   id="ai-quality-bias"
                   value={settings.qualityBias}
-                  onChange={e => patchSettings({ qualityBias: e.target.value as 'grid' | 'words' })}
+                  onChange={e => patchSettings({ qualityBias: e.target.value as 'grid' | 'balanced' | 'words' })}
                   className="field text-sm focus:outline-none"
                 >
-                  <option value="grid">Grid fit — denser puzzle</option>
+                  <option value="grid">Densest grid (recommended)</option>
+                  <option value="balanced">Balanced — dense + interesting</option>
                   <option value="words">Best words — most interesting</option>
                 </select>
               </div>

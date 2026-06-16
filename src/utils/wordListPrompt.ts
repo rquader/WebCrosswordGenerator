@@ -49,18 +49,19 @@ export interface AdvancedPromptOptions {
    * count. No effect in word search — the flagship is crossword-only.
    */
   optimized?: boolean;
-  /** Optimized mode: pool ask = candidateMultiple × wordCount, capped. Default 3. */
+  /** Optimized mode: pool ask = candidateMultiple × wordCount, capped. Default 4. */
   candidateMultiple?: number;
   /**
    * The quality bias that replaces the anyLength + anyLetters toggles in the
    * UI (crossword only):
-   *  - undefined / 'grid' (default): keep the engine-tuned length + crossing
-   *    guidance — densest, most reliable grids.
+   *  - undefined / 'grid' (default) / 'balanced': keep the engine-tuned length +
+   *    crossing guidance — densest, most reliable grids. ('balanced' differs only
+   *    in the selection weight, not the prompt text.)
    *  - 'words': drop BOTH so the AI picks the most interesting words
    *    regardless of length or letter mix.
    * The legacy anyLength/anyLetters fields still work and are OR-ed in.
    */
-  qualityBias?: 'grid' | 'words';
+  qualityBias?: 'grid' | 'balanced' | 'words';
   /** Crossword: drop the 5-8 letters / avoid-short / no-outlier guidance. */
   anyLength?: boolean;
   /** Crossword: drop the vowel/common-letter crossing guidance. */
@@ -144,7 +145,7 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   const POOL_CAP = 40;
   const optimized = isCrossword && adv.optimized === true;
   const poolAsk = optimized
-    ? Math.min(POOL_CAP, Math.round((adv.candidateMultiple ?? 3) * wordCount))
+    ? Math.min(POOL_CAP, Math.round((adv.candidateMultiple ?? 4) * wordCount))
     : 0;
 
   // The grid-calibrated band only applies in the default 'optimized' count

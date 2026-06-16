@@ -93,7 +93,7 @@ describe('wizardState', () => {
       },
     });
 
-    expect(state.settings.optimizedMode).toBe(false);
+    expect(state.settings.optimizedMode).toBe(true);
     expect(state.settings.qualityBias).toBe('grid');
     expect(state.settings.optimizedTargetCount).toBe(13);
   });
@@ -109,6 +109,13 @@ describe('wizardState', () => {
     expect(reloaded.settings.optimizedMode).toBe(true);
     expect(reloaded.settings.qualityBias).toBe('words');
     expect(reloaded.settings.optimizedTargetCount).toBe(17);
+  });
+
+  it('round-trips the balanced qualityBias through persistence', () => {
+    const state = createDefaultWizardState();
+    state.settings.qualityBias = 'balanced';
+    saveWizardState(state);
+    expect(loadWizardState().settings.qualityBias).toBe('balanced');
   });
 
   it('round-trips forceDimensions through persistence', () => {

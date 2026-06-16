@@ -39,11 +39,11 @@ export interface GenerationSettings {
   optimizedMode: boolean;
   /**
    * Optimized mode's quality bias: 'grid' favors a denser puzzle, 'words'
-   * favors the most interesting words. Mapped to a numeric weight via
-   * {@link OPTIMIZED_BIAS} before it reaches the engine. Also passed to the
-   * AI prompt builder so the AI's pool leans the same way.
+   * favors the most interesting words, 'balanced' sits between. Mapped to a
+   * numeric weight via {@link OPTIMIZED_BIAS} before it reaches the engine.
+   * Also passed to the AI prompt builder so the AI's pool leans the same way.
    */
-  qualityBias: 'grid' | 'words';
+  qualityBias: 'grid' | 'balanced' | 'words';
   /**
    * Optimized mode's target puzzle word count — the pinned canvas is sized
    * for this (canvasForCount). The AI is asked for a multiple of it.
@@ -53,10 +53,12 @@ export interface GenerationSettings {
 
 /**
  * Quality-vs-fit weights passed to the optimized selector for each bias.
- * 'grid' leans toward density (lower weight); 'words' toward word quality.
- * Shared so the AI tab's bias choice and Generate's engine call stay in sync.
+ * 'grid' leans toward density (lower weight); 'words' toward word quality;
+ * 'balanced' is the measured midpoint (β=0.33 — a near-free fill cost for a
+ * real quality gain, Phase 16 ADR-10 F1). Shared so the AI tab's bias choice
+ * and Generate's engine call stay in sync.
  */
-export const OPTIMIZED_BIAS = { grid: 0.2, words: 0.45 } as const;
+export const OPTIMIZED_BIAS = { grid: 0.2, balanced: 0.33, words: 0.45 } as const;
 
 export function createDefaultGenerationSettings(): GenerationSettings {
   return {
@@ -69,7 +71,7 @@ export function createDefaultGenerationSettings(): GenerationSettings {
     forceDimensions: false,
     language: DEFAULT_LANGUAGE,
     allowTwoWords: false,
-    optimizedMode: false,
+    optimizedMode: true,
     qualityBias: 'grid',
     optimizedTargetCount: 13,
   };
