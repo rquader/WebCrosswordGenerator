@@ -11,11 +11,26 @@ export interface EntryValidationOptions extends WordRules {
   requireClue?: boolean;
 }
 
+/**
+ * Per-word provenance (ADR-10). Manual words are guaranteed a spot in the
+ * puzzle; AI words form a curated pool the generator may pick a subset from.
+ * Defaults to 'manual' everywhere — typed words and pack words are guaranteed,
+ * and old persisted rows (no source) migrate to 'manual' on load.
+ */
+export type EntrySource = 'manual' | 'ai';
+
 export interface EntryTableRow {
   id: string;
   word: string;
   clue: string;
+  source: EntrySource;
 }
+
+/**
+ * The fields validation reads off a row. Validation never touches `source`,
+ * so it accepts this looser shape — handy for tests and ad-hoc row checks.
+ */
+export type EntryRowValues = Pick<EntryTableRow, 'word' | 'clue'>;
 
 export interface EntryTableDraft {
   rows: EntryTableRow[];
@@ -62,14 +77,26 @@ export function createEmptyEntryRow(): EntryTableRow {
     id: createEntryRowId(),
     word: '',
     clue: '',
+    source: 'manual',
   };
 }
 
-export function createEntryRowsFromEntries(entries: WordCluePair[], rules: WordRules = {}): EntryTableRow[] {
+/**
+ * Build editable rows from entries. `source` tags where the words came from:
+ * 'manual' (default) for typed words, pack loads, and file/text imports —
+ * all guaranteed a spot — and 'ai' for words pasted back from the AI builder
+ * (a curated pool). See ADR-10.
+ */
+export function createEntryRowsFromEntries(
+  entries: WordCluePair[],
+  rules: WordRules = {},
+  source: EntrySource = 'manual',
+): EntryTableRow[] {
   return entries.map((entry) => ({
     id: createEntryRowId(),
     word: normalizeWordInput(entry.word, rules),
     clue: entry.clue,
+    source,
   }));
 }
 
@@ -79,7 +106,7 @@ export function createEntryRowsFromEntries(entries: WordCluePair[], rules: WordR
  * answers option (see validateWord in logic/language.ts), and whether
  * clues are required (crossword yes, word search no).
  */
-export function validateEntryTableRow(row: EntryTableRow, rules: EntryValidationOptions = {}): EntryRowValidation {
+export function validateEntryTableRow(row: EntryRowValues, rules: EntryValidationOptions = {}): EntryRowValidation {
   const requireClue = rules.requireClue ?? true;
   const normalizedWord = normalizeWordInput(row.word, rules);
   const trimmedClue = row.clue.trim();
@@ -97,7 +124,7 @@ export function validateEntryTableRow(row: EntryTableRow, rules: EntryValidation
   };
 }
 
-export function getGenerationEntriesFromRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): WordCluePair[] {
+export function getGenerationEntriesFromRows(rows: EntryRowValues[], rules: EntryValidationOptions = {}): WordCluePair[] {
   const entries: WordCluePair[] = [];
   for (const row of rows) {
     const validation = validateEntryTableRow(row, rules);
@@ -110,7 +137,7 @@ export function getGenerationEntriesFromRows(rows: EntryTableRow[], rules: Entry
   return entries;
 }
 
-export function countInvalidOrEmptyRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): number {
+export function countInvalidOrEmptyRows(rows: EntryRowValues[], rules: EntryValidationOptions = {}): number {
   let count = 0;
   for (const row of rows) {
     if (!validateEntryTableRow(row, rules).isValid) {
@@ -120,9 +147,54 @@ export function countInvalidOrEmptyRows(rows: EntryTableRow[], rules: EntryValid
   return count;
 }
 
-export function hasMeaningfulRows(rows: EntryTableRow[], rules: EntryValidationOptions = {}): boolean {
+export function hasMeaningfulRows(rows: EntryRowValues[], rules: EntryValidationOptions = {}): boolean {
   return rows.some((row) => {
     const validation = validateEntryTableRow(row, rules);
     return !validation.isEmpty;
   });
+}
+
+/**
+ * Partition valid entries by provenance (ADR-10). Manual entries are
+ * guaranteed a spot (must-include); AI entries form a curated pool the
+ * generator picks a subset from. Order is preserved within each group, and
+ * invalid/empty rows are dropped (same rules as getGenerationEntriesFromRows).
+ *
+ * This is the API the Optimized generation split (F3) consumes:
+ *   manual -> mustInclude, ai -> candidate pool.
+ *
+ * A row missing `source` is treated as 'manual' — safe for any partially
+ * shaped input and consistent with the persistence migration.
+ */
+export function splitEntriesBySource(
+  rows: EntryTableRow[],
+  rules: EntryValidationOptions = {},
+): { manual: WordCluePair[]; ai: WordCluePair[] } {
+  const manual: WordCluePair[] = [];
+  const ai: WordCluePair[] = [];
+  for (const row of rows) {
+    const validation = validateEntryTableRow(row, rules);
+    if (!validation.isValid) continue;
+    const entry: WordCluePair = { word: validation.normalizedWord, clue: validation.trimmedClue };
+    if (row.source === 'ai') {
+      ai.push(entry);
+    } else {
+      manual.push(entry);
+    }
+  }
+  return { manual, ai };
+}
+
+/**
+ * Set the provenance of a single row by id, returning a NEW array (rows are
+ * never mutated in place). The "Keep" UI (F6) calls this to promote an AI
+ * suggestion to a guaranteed manual word ('ai' -> 'manual'). Rows whose id
+ * doesn't match are returned untouched.
+ */
+export function setEntryRowSource(
+  rows: EntryTableRow[],
+  id: string,
+  source: EntrySource,
+): EntryTableRow[] {
+  return rows.map((row) => (row.id === id ? { ...row, source } : row));
 }

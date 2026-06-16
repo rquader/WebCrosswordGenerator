@@ -266,7 +266,9 @@ export function AiBuilderTab({ onGoToGenerate }: AiBuilderTabProps) {
     });
 
     if (parsed.entries.length > 0) {
-      const imported = createEntryRowsFromEntries(parsed.entries, rules);
+      // AI-pasted words are a curated pool (ADR-10): tag them 'ai' so the
+      // Optimized build may pick a subset. Existing kept rows stay as-is.
+      const imported = createEntryRowsFromEntries(parsed.entries, rules, 'ai');
       const keepExisting = hasMeaningfulRows(wizard.table.rows, rules);
       saveWizardState({
         ...wizard,

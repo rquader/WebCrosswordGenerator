@@ -124,10 +124,40 @@ describe('wizardState', () => {
     expect(reloaded.settings.autoGridSize).toBe(false);
   });
 
+  it('round-trips per-word source through persistence', () => {
+    const state = createDefaultWizardState();
+    state.table.rows = [
+      { id: 'row-1', word: 'react', clue: 'A UI library', source: 'manual' },
+      { id: 'row-2', word: 'vite', clue: 'A build tool', source: 'ai' },
+    ];
+    saveWizardState(state);
+
+    const reloaded = loadWizardState();
+    expect(reloaded.table.rows[0].source).toBe('manual');
+    expect(reloaded.table.rows[1].source).toBe('ai');
+  });
+
+  it('defaults a persisted row missing source to manual (migration)', () => {
+    // A row saved before provenance existed has no `source`. It was a typed or
+    // imported word — guaranteed — so it must load as 'manual', never 'ai'.
+    const state = hydrateWizardState({
+      table: {
+        rows: [
+          { id: 'row-1', word: 'react', clue: 'A UI library' },
+          { id: 'row-2', word: 'vite', clue: 'A build tool', source: 'ai' },
+        ],
+        warnings: [],
+      },
+    });
+
+    expect(state.table.rows[0].source).toBe('manual');
+    expect(state.table.rows[1].source).toBe('ai');
+  });
+
   it('saves and reloads persisted wizard state', () => {
     const state = createDefaultWizardState();
     state.currentStep = 'settings';
-    state.table.rows = [{ id: 'row-1', word: 'loop', clue: 'Repeating block' }];
+    state.table.rows = [{ id: 'row-1', word: 'loop', clue: 'Repeating block', source: 'manual' }];
     state.table.warnings = ['Line 2: Empty clue'];
 
     saveWizardState(state);

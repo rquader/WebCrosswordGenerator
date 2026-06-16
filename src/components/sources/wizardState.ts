@@ -1,4 +1,4 @@
-import type { EntryTableDraft } from '../entries/entryTable';
+import type { EntryTableDraft, EntryTableRow } from '../entries/entryTable';
 import { createDefaultGenerationSettings, type GenerationSettings } from '../settings/generationSettings';
 import { createEmptyEntryRow } from '../entries/entryTable';
 import { isPuzzleLanguage } from '../../logic/language';
@@ -71,7 +71,7 @@ export function hydrateWizardState(raw: unknown): WizardState {
   // Always assign fresh IDs on hydration to avoid collisions with the
   // runtime counter. Old localStorage entries may have stale IDs like
   // "entry-row-1" that would collide with newly created rows.
-  const rows = rawRows.reduce<Array<{ id: string; word: string; clue: string }>>((acc, row) => {
+  const rows = rawRows.reduce<EntryTableRow[]>((acc, row) => {
     if (!row || typeof row !== 'object') {
       return acc;
     }
@@ -81,6 +81,9 @@ export function hydrateWizardState(raw: unknown): WizardState {
       id: createEmptyEntryRow().id,
       word: typeof record.word === 'string' ? record.word : '',
       clue: typeof record.clue === 'string' ? record.clue : '',
+      // Provenance migration (ADR-10): rows saved before `source` existed were
+      // typed/imported words — guaranteed — so they default to 'manual'.
+      source: record.source === 'ai' ? 'ai' : 'manual',
     });
     return acc;
   }, []);
