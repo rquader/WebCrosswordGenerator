@@ -45,6 +45,7 @@ import {
   createEntryRowsFromEntries,
   getGenerationEntriesFromRows,
   splitEntriesBySource,
+  setEntryRowSource,
   hasMeaningfulRows,
   type EntryTableRow,
   type EntryValidationOptions,
@@ -335,6 +336,11 @@ export function GenerateTab({
       const next = rows.filter(r => r.id !== rowId);
       return next.length > 0 ? next : [createEmptyEntryRow()];
     });
+  }
+
+  /** Promote an AI suggestion to a guaranteed (manual) word — ADR-10 "Keep". */
+  function handleKeepRow(rowId: string) {
+    updateTableRows(rows => setEntryRowSource(rows, rowId, 'manual'));
   }
 
   function handleDismissWarnings() {
@@ -740,6 +746,8 @@ export function GenerateTab({
                 onChangeRow={handleChangeRow}
                 onAddRow={handleAddRow}
                 onDeleteRow={handleDeleteRow}
+                onKeepRow={handleKeepRow}
+                showAiDistinction={isCrossword && wizard.settings.optimizedMode}
                 onDismissWarnings={handleDismissWarnings}
                 onOpenTextImport={() => setShowTextImport(true)}
                 onImportFile={handleFileImport}

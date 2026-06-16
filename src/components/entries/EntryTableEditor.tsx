@@ -8,6 +8,10 @@ interface EntryTableEditorProps {
   onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowId: string) => void;
+  /** Promote an AI-suggested row to a guaranteed (manual) word. */
+  onKeepRow?: (rowId: string) => void;
+  /** Show the AI-suggestion treatment (Keep + marker). Optimized crossword only. */
+  showAiDistinction?: boolean;
   onDismissWarnings: () => void;
   onOpenTextImport: () => void;
   onImportFile: (files: FileList | null) => void;
@@ -20,6 +24,8 @@ export function EntryTableEditor({
   onChangeRow,
   onAddRow,
   onDeleteRow,
+  onKeepRow,
+  showAiDistinction,
   onDismissWarnings,
   onOpenTextImport,
   onImportFile,
@@ -64,6 +70,14 @@ export function EntryTableEditor({
         </div>
       )}
 
+      {showAiDistinction && table.rows.some((r) => r.source === 'ai') && (
+        <p className="note text-xs">
+          <span className="font-semibold text-rubric">AI suggestions</span> are a pool — your
+          puzzle keeps the best that fit. Your own words are always included; press{' '}
+          <span className="font-semibold">Keep</span> to guarantee an AI word too.
+        </p>
+      )}
+
       <div className="overflow-x-auto max-h-[45vh] overflow-y-auto scrollbar-thin">
         <table className="w-full border-separate border-spacing-0">
           <thead>
@@ -83,6 +97,8 @@ export function EntryTableEditor({
                 wordRules={wordRules}
                 onChangeRow={onChangeRow}
                 onDeleteRow={onDeleteRow}
+                onKeepRow={onKeepRow}
+                showAiDistinction={showAiDistinction}
               />
             ))}
           </tbody>
@@ -101,17 +117,22 @@ function EntryTableRowEditor({
   wordRules,
   onChangeRow,
   onDeleteRow,
+  onKeepRow,
+  showAiDistinction,
 }: {
   row: EntryTableRow;
   wordRules?: EntryValidationOptions;
   onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
   onDeleteRow: (rowId: string) => void;
+  onKeepRow?: (rowId: string) => void;
+  showAiDistinction?: boolean;
 }) {
   const validation = validateEntryTableRow(row, wordRules ?? {});
   const clueOptional = wordRules?.requireClue === false;
+  const isAiSuggestion = !!showAiDistinction && row.source === 'ai';
 
   return (
-    <tr className="align-top">
+    <tr className={`align-top ${isAiSuggestion ? 'bg-well/40' : ''}`}>
       <td className="pr-3 pb-3 w-48">
         <input
           value={row.word}
@@ -134,12 +155,26 @@ function EntryTableRowEditor({
           <p className="mt-1 text-xs text-danger">{validation.clueError}</p>
         )}
       </td>
-      <td className="pb-3 pt-2 text-right">
+      <td className="pb-3 pt-2 text-right whitespace-nowrap">
+        {isAiSuggestion && (
+          <>
+            <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3 align-middle">AI</span>
+            {onKeepRow && (
+              <button
+                onClick={() => onKeepRow(row.id)}
+                title="Keep — always include this word"
+                className="mr-1 px-2 py-1 rounded-btn text-xs font-medium text-rubric hover:bg-well transition-colors align-middle"
+              >
+                Keep
+              </button>
+            )}
+          </>
+        )}
         <button
           onClick={() => onDeleteRow(row.id)}
           aria-label={row.word ? `Remove ${row.word}` : 'Remove row'}
           title="Remove"
-          className="p-1.5 rounded-btn text-ink-3 hover:text-danger hover:bg-well transition-colors"
+          className="p-1.5 rounded-btn text-ink-3 hover:text-danger hover:bg-well transition-colors align-middle"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
