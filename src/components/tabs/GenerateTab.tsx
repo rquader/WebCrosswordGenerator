@@ -663,12 +663,15 @@ export function GenerateTab({
 
           {/* --- Your Words (the primary input — always visible) --- */}
           <div className="warm-card p-5">
-            <div className="flex items-center justify-between gap-2 mb-1">
+            {/* Heading + controls share one line on sm+; on narrow phones the
+                controls group wraps to its own line so the long-labelled
+                starter-pack select never overflows the card (see min-w-0 below). */}
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
               <h3 className="flex items-baseline gap-2 section-label">
                 <span className="font-display text-base leading-none text-rubric" aria-hidden="true">1</span>
                 Your Words
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 {!showTextImport && hasMeaningfulRows(wizard.table.rows, wordRules) && (
                   <button
                     onClick={handleClearAll}
@@ -684,7 +687,7 @@ export function GenerateTab({
                   value=""
                   onChange={e => { if (e.target.value) handleLoadPack(e.target.value); }}
                   aria-label="Load a starter word pack"
-                  className="rounded-field border border-line-2 bg-card
+                  className="min-w-0 max-w-full rounded-field border border-line-2 bg-card
                              px-2 py-1.5 text-xs text-ink-2
                              focus:outline-none focus:border-accent transition-colors"
                 >
