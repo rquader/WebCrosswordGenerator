@@ -29,7 +29,7 @@ import { generateCrossword } from './generator';
 import { generateWordSearch } from './wordSearchGenerator';
 import { generateCrosswordWithPriority } from './priorityGenerator';
 import { generateSkeleton, buildResultFromCrossword, cropSkeletonToContent, GROWTH_HARD_CAP } from './skeletonGenerator';
-import { selectOptimizedSubset } from './optimizedSelection';
+import { selectOptimizedSubset, type OptimizedSelectionResult } from './optimizedSelection';
 import { canvasForCount } from './gridRecommendation';
 import { filterByLength, prepareForGenerator } from './databaseProcessor';
 import { toGridWord } from './language';
@@ -256,7 +256,11 @@ export interface OptimizedPuzzleOptions {
    * Only the AI `pool` is curated down to a subset. Default: [] (pure-AI path).
    */
   mustInclude?: WordCluePair[];
-  /** The target puzzle word count — sizes the pinned canvas (canvasForCount). */
+  /**
+   * The target puzzle word count (ADR-11). It sizes the pinned canvas
+   * (canvasForCount) AND caps the finished word count: the puzzle holds at most
+   * `targetCount` words (must words count toward it, aiming for exactly that).
+   */
   targetCount: number;
   /** Quality-vs-fit weight in [0,1]: grid-fit ≈ 0.2, best-words ≈ 0.45. */
   qualityBias: number;
@@ -296,7 +300,7 @@ export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions
   const longestMust = gridMust.reduce((max, e) => Math.max(max, e.word.length), 0);
   let side = Math.min(GROWTH_HARD_CAP, Math.max(base.width, longestMust + (longestMust > 0 ? 1 : 0)));
 
-  let selection = runSelectionAtSize(gridPool, gridMust, side, options);
+  let selection: OptimizedSelectionResult = runSelectionAtSize(gridPool, gridMust, side, options);
 
   // Grow until every must word places (or we hit the cap — beyond which the
   // input is unreasonable and we ship the best effort, mirroring the skeleton
@@ -327,14 +331,15 @@ export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions
  * One Optimized selection pass at a fixed square canvas. The AI pool is filtered
  * to words that fit the canvas (over-long optional words are dropped, never
  * crashing the placer); must words are passed through verbatim (the canvas was
- * sized to hold them).
+ * sized to hold them). `targetCount` is threaded so the selector caps the
+ * finished word count (ADR-11).
  */
 function runSelectionAtSize(
   gridPool: WordCluePair[],
   gridMust: WordCluePair[],
   side: number,
   options: OptimizedPuzzleOptions,
-) {
+): OptimizedSelectionResult {
   const fittingPool = filterByLength(gridPool, side);
   return selectOptimizedSubset({
     pool: fittingPool,
@@ -344,6 +349,7 @@ function runSelectionAtSize(
     seed: options.seed,
     qualityBias: options.qualityBias,
     allowReverseWords: options.allowReverseWords ?? false,
+    targetCount: options.targetCount,
   });
 }
 

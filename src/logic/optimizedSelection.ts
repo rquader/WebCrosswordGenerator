@@ -66,6 +66,17 @@ export interface OptimizedSelectionConfig {
   multiStarts?: number;
   /** Allow reversed words in the layout. Default false. */
   allowReverseWords?: boolean;
+  /**
+   * Cap on the finished word count (ADR-11.1/11.2). Manual/must words COUNT
+   * toward it: each start feeds the generator at most `targetCount - mustCount`
+   * pool words (the top ones under that start's perturbed ordering), so the
+   * puzzle can never exceed `targetCount`. The exception is mustCount ≥
+   * targetCount: all must words still place (typed-words contract — never drop a
+   * typed word) and the result may exceed the target. When UNDEFINED the whole
+   * pool is fed and the densest free-floating subset wins (the pre-ADR-11 path —
+   * kept byte-identical for callers that don't pass a target).
+   */
+  targetCount?: number;
 }
 
 export interface OptimizedSelectionResult {
@@ -87,8 +98,19 @@ export interface OptimizedSelectionResult {
   allMustPlaced: boolean;
 }
 
-/** Multi-start count when the caller doesn't specify one. */
+/** Multi-start count when the caller doesn't specify one (uncapped path). */
 const DEFAULT_MULTI_STARTS = 16;
+
+/**
+ * Multi-start count for the CAPPED path (a `targetCount` is set). Capping each
+ * start to the top `targetCount - mustCount` pool words shrinks the slice the
+ * packer sees, so a single start more often fails to interlock the whole slice.
+ * More starts give more distinct top-budget subsets a shot at full placement,
+ * which is what lands the finished count ON the target. Builds are sub-10ms even
+ * at this count, so the extra starts are imperceptible. Deterministic — purely a
+ * function of the seed.
+ */
+const CAPPED_MULTI_STARTS = 64;
 
 /**
  * Seed stride between multi-starts. A large odd prime keeps derived seeds
@@ -115,7 +137,9 @@ export function selectOptimizedSubset(
   const must = config.mustInclude ?? [];
   const n = pool.length;
   const beta = config.qualityBias;
-  const multiStarts = Math.max(1, config.multiStarts ?? DEFAULT_MULTI_STARTS);
+  const capped = config.targetCount !== undefined;
+  const defaultStarts = capped ? CAPPED_MULTI_STARTS : DEFAULT_MULTI_STARTS;
+  const multiStarts = Math.max(1, config.multiStarts ?? defaultStarts);
   const allowReverseWords = config.allowReverseWords ?? false;
 
   // Must words placed longest-first (best grid structure). Their order is the
@@ -130,6 +154,16 @@ export function selectOptimizedSubset(
   const fittingMust = sortedMust.filter(m => m.word.length <= maxDim);
   const oversizeMustCount = sortedMust.length - fittingMust.length;
   const mustWordSet = new Set(sortedMust.map(m => m.word));
+
+  // How many POOL words a start may feed the generator (ADR-11). Must words
+  // count toward the target, so the pool fills only the remainder. With no
+  // target the whole pool is eligible (the pre-ADR-11 free-floating-subset
+  // path). When mustCount ≥ target the budget is 0 — must words still all place
+  // (the result may exceed the target, by design). Clamped to the pool size.
+  const poolBudget =
+    config.targetCount === undefined
+      ? n
+      : Math.min(n, Math.max(0, config.targetCount - fittingMust.length));
 
   // Edge case: nothing to place at all -> empty result with an empty grid.
   if (n === 0 && sortedMust.length === 0) {
@@ -201,14 +235,21 @@ export function selectOptimizedSubset(
       }))
       .sort((a, b) => a.sortKey - b.sortKey);
 
-    // Must words first (guaranteed, longest-first), then the curated pool in
+    // Cap the curated pool at the per-start budget (ADR-11): the generator never
+    // sees more than `poolBudget` pool words, so the puzzle can never exceed the
+    // target. With no target, `poolBudget === n` and this is the full ordered
+    // pool — the old path. The multi-start diversity is preserved: each start
+    // still reshuffles the whole pool, we just keep its top `poolBudget`.
+    const selectedPool = ordered.slice(0, poolBudget);
+
+    // Must words first (guaranteed, longest-first), then the budgeted pool in
     // this start's blended order. `priorityWordCount` makes the core generator
     // place + rescue the must words BEFORE any pool word crowds the grid — the
     // same swap-rescue guarantee the priority generator gives must-include
     // words. Only must words that FIT the canvas reach the generator; with no
-    // must words this is exactly the ordered pool (the old path).
-    const words = [...fittingMust.map(m => m.word), ...ordered.map(o => o.entry.word)];
-    const clues = [...fittingMust.map(m => m.clue), ...ordered.map(o => o.entry.clue)];
+    // must words this is exactly the budgeted pool.
+    const words = [...fittingMust.map(m => m.word), ...selectedPool.map(o => o.entry.word)];
+    const clues = [...fittingMust.map(m => m.clue), ...selectedPool.map(o => o.entry.clue)];
 
     const crossword = generateCrossword({
       width: config.width,
@@ -234,11 +275,16 @@ export function selectOptimizedSubset(
     const density = measureDensity(crossword);
     const avgQuality = measureAvgPoolQuality(crossword, wordToRank, mustWordSet, n);
     const score = (1 - beta) * density + beta * avgQuality;
+    const placedCount = crossword.wordLocations.length;
 
-    const outcome: StartOutcome = { crossword, density, score, placedMustCount };
+    const outcome: StartOutcome = { crossword, density, score, placedMustCount, placedCount };
 
-    // Strictly-greater keeps the earliest start on ties -> deterministic.
-    if (allMustPlaced && (bestValid === null || score > bestValid.score)) {
+    // Pick the best valid start (all must words placed). When CAPPED, the count
+    // is the contract: prefer the start that placed the MOST words so the result
+    // lands on the target (the per-start budget already bounds it from above),
+    // breaking ties by the density×quality score. UNCAPPED keeps the original
+    // score-only winner, so the legacy free-floating-subset path is unchanged.
+    if (allMustPlaced && (bestValid === null || isBetterValid(outcome, bestValid, capped))) {
       bestValid = outcome;
     }
     if (bestFallback === null || outcome.placedMustCount > bestFallback.placedMustCount) {
@@ -278,6 +324,25 @@ interface StartOutcome {
   score: number;
   /** How many must-include words this start placed (used for the fallback). */
   placedMustCount: number;
+  /** Total words this start placed (must + pool) — drives the capped winner. */
+  placedCount: number;
+}
+
+/**
+ * Whether `candidate` is a strictly better valid start than the current best.
+ * CAPPED: more placed words wins (the count is the contract; the per-start
+ * budget already caps it above, so maximizing placement lands it on the target),
+ * ties broken by the density×quality score. UNCAPPED: score only — identical to
+ * the pre-ADR-11 winner so that path stays byte-for-byte unchanged. Strict
+ * comparisons keep the earliest qualifying start on ties -> deterministic.
+ */
+function isBetterValid(candidate: StartOutcome, best: StartOutcome, capped: boolean): boolean {
+  if (capped) {
+    if (candidate.placedCount !== best.placedCount) {
+      return candidate.placedCount > best.placedCount;
+    }
+  }
+  return candidate.score > best.score;
 }
 
 /**
