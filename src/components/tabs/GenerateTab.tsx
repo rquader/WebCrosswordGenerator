@@ -762,6 +762,7 @@ export function GenerateTab({
                 onDeleteRow={handleDeleteRow}
                 onKeepRow={handleKeepRow}
                 showAiDistinction={isCrossword && wizard.settings.optimizedMode}
+                targetCount={wizard.settings.optimizedTargetCount}
                 onDismissWarnings={handleDismissWarnings}
                 onOpenTextImport={() => setShowTextImport(true)}
                 onImportFile={handleFileImport}

@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { InfoTip } from '../ui/InfoTip';
 import { validateEntryTableRow, type EntryTableDraft, type EntryTableRow, type EntryValidationOptions } from './entryTable';
 
 interface EntryTableEditorProps {
@@ -10,8 +11,14 @@ interface EntryTableEditorProps {
   onDeleteRow: (rowId: string) => void;
   /** Promote an AI-suggested row to a guaranteed (manual) word. */
   onKeepRow?: (rowId: string) => void;
-  /** Show the AI-suggestion treatment (Keep + marker). Optimized crossword only. */
+  /** Show the AI-suggestion treatment (Keep + pool section). Optimized crossword only. */
   showAiDistinction?: boolean;
+  /**
+   * Target word count for the puzzle (Optimized mode). When provided, the
+   * "Your words" header shows how many guaranteed words fill the target —
+   * e.g. "7 of 11 in your puzzle". Display only.
+   */
+  targetCount?: number;
   onDismissWarnings: () => void;
   onOpenTextImport: () => void;
   onImportFile: (files: FileList | null) => void;
@@ -26,12 +33,25 @@ export function EntryTableEditor({
   onDeleteRow,
   onKeepRow,
   showAiDistinction,
+  targetCount,
   onDismissWarnings,
   onOpenTextImport,
   onImportFile,
   isImportingFile,
 }: EntryTableEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Two anchored groups appear only in the AI-distinction case AND only once
+  // the AI has actually contributed words. Otherwise the list is a single
+  // plain table — the manual / word-search flow stays exactly as before.
+  const aiRows = table.rows.filter((r) => r.source === 'ai');
+  const showGroups = !!showAiDistinction && aiRows.length > 0;
+  const manualRows = showGroups ? table.rows.filter((r) => r.source !== 'ai') : table.rows;
+
+  // How many guaranteed words are real (valid) — the number that will be in
+  // the puzzle. Counts only non-empty, valid rows so a trailing blank row
+  // never inflates the tally.
+  const keptCount = manualRows.filter((r) => validateEntryTableRow(r, wordRules ?? {}).isValid).length;
 
   return (
     <div className="space-y-4">
@@ -70,44 +90,125 @@ export function EntryTableEditor({
         </div>
       )}
 
-      {showAiDistinction && table.rows.some((r) => r.source === 'ai') && (
-        <p className="note text-xs">
-          <span className="font-semibold text-rubric">AI suggestions</span> are a pool — your
-          puzzle keeps the best that fit. Your own words are always included; press{' '}
-          <span className="font-semibold">Keep</span> to guarantee an AI word too.
-        </p>
+      {showGroups ? (
+        <div className="space-y-4">
+          {/* ── Your words — anchored, permanent (always in the puzzle) ── */}
+          <section className="rounded-card border border-line bg-well px-3.5 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-0.5">
+              <h4 className="section-label">Your words</h4>
+              <span className="text-meta text-ink-3">
+                {targetCount && targetCount > keptCount
+                  ? <><span className="font-semibold text-ink-2">{keptCount}</span> of {targetCount} in your puzzle</>
+                  : <><span className="font-semibold text-ink-2">{keptCount}</span> {keptCount === 1 ? 'word' : 'words'} in your puzzle</>}
+              </span>
+            </div>
+            <p className="text-meta text-ink-3 mb-2.5">
+              {keptCount === 0
+                ? 'Type a word below, or keep an AI suggestion to lock it in.'
+                : 'Always in your puzzle.'}
+            </p>
+            <EntryRowsTable
+              rows={manualRows}
+              wordRules={wordRules}
+              onChangeRow={onChangeRow}
+              onDeleteRow={onDeleteRow}
+            />
+            <button onClick={onAddRow} className="btn-secondary btn-sm mt-3">
+              Add word
+            </button>
+          </section>
+
+          {/* ── AI suggestions — a separate pool the user pulls from ── */}
+          <section className="rounded-card border border-dashed border-line-2 px-3.5 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-0.5">
+              <h4 className="section-label flex items-center gap-1.5">
+                AI suggestions
+                <InfoTip label="AI suggestions">
+                  A pool of candidate words. Your puzzle automatically keeps the best ones that fit;
+                  press Keep on any word to guarantee it a spot.
+                </InfoTip>
+              </h4>
+              <span className="text-meta text-ink-3">
+                <span className="font-semibold text-ink-2">{aiRows.length}</span> in the pool
+              </span>
+            </div>
+            <p className="text-meta text-ink-3 mb-2.5">
+              Your puzzle keeps the best that fit. Press{' '}
+              <span className="font-semibold text-rubric">Keep</span> to lock one in.
+            </p>
+            <EntryRowsTable
+              rows={aiRows}
+              wordRules={wordRules}
+              onChangeRow={onChangeRow}
+              onDeleteRow={onDeleteRow}
+              onKeepRow={onKeepRow}
+              isPool
+            />
+          </section>
+        </div>
+      ) : (
+        <>
+          <EntryRowsTable
+            rows={manualRows}
+            wordRules={wordRules}
+            onChangeRow={onChangeRow}
+            onDeleteRow={onDeleteRow}
+          />
+          <button onClick={onAddRow} className="btn-secondary btn-sm">
+            Add word
+          </button>
+        </>
       )}
+    </div>
+  );
+}
 
-      <div className="overflow-x-auto max-h-[45vh] overflow-y-auto scrollbar-thin">
-        <table className="w-full border-separate border-spacing-0">
-          <thead>
-            <tr>
-              <th className="text-left sub-label pb-2 pr-3">Word</th>
-              <th className="text-left sub-label pb-2 pr-3">Clue / Definition</th>
-              <th className="pb-2">
-                <span className="sr-only">Remove</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((row) => (
-              <EntryTableRowEditor
-                key={row.id}
-                row={row}
-                wordRules={wordRules}
-                onChangeRow={onChangeRow}
-                onDeleteRow={onDeleteRow}
-                onKeepRow={onKeepRow}
-                showAiDistinction={showAiDistinction}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <button onClick={onAddRow} className="btn-secondary btn-sm">
-        Add word
-      </button>
+/**
+ * The editable word/clue table. Shared by the plain (single-list) layout and
+ * by each grouped section. In a pool section (`isPool`) every row shows a
+ * deliberate Keep button that promotes it into "Your words".
+ */
+function EntryRowsTable({
+  rows,
+  wordRules,
+  onChangeRow,
+  onDeleteRow,
+  onKeepRow,
+  isPool,
+}: {
+  rows: EntryTableRow[];
+  wordRules?: EntryValidationOptions;
+  onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
+  onDeleteRow: (rowId: string) => void;
+  onKeepRow?: (rowId: string) => void;
+  isPool?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto max-h-[45vh] overflow-y-auto scrollbar-thin">
+      <table className="w-full border-separate border-spacing-0">
+        <thead>
+          <tr>
+            <th className="text-left sub-label pb-2 pr-3">Word</th>
+            <th className="text-left sub-label pb-2 pr-3">Clue / Definition</th>
+            <th className="pb-2">
+              <span className="sr-only">{isPool ? 'Keep or remove' : 'Remove'}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <EntryTableRowEditor
+              key={row.id}
+              row={row}
+              wordRules={wordRules}
+              onChangeRow={onChangeRow}
+              onDeleteRow={onDeleteRow}
+              onKeepRow={onKeepRow}
+              isPool={isPool}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -118,21 +219,20 @@ function EntryTableRowEditor({
   onChangeRow,
   onDeleteRow,
   onKeepRow,
-  showAiDistinction,
+  isPool,
 }: {
   row: EntryTableRow;
   wordRules?: EntryValidationOptions;
   onChangeRow: (rowId: string, field: 'word' | 'clue', value: string) => void;
   onDeleteRow: (rowId: string) => void;
   onKeepRow?: (rowId: string) => void;
-  showAiDistinction?: boolean;
+  isPool?: boolean;
 }) {
   const validation = validateEntryTableRow(row, wordRules ?? {});
   const clueOptional = wordRules?.requireClue === false;
-  const isAiSuggestion = !!showAiDistinction && row.source === 'ai';
 
   return (
-    <tr className={`align-top ${isAiSuggestion ? 'bg-well/40' : ''}`}>
+    <tr className="align-top animate-fade-in">
       <td className="pr-3 pb-3 w-48">
         <input
           value={row.word}
@@ -156,19 +256,14 @@ function EntryTableRowEditor({
         )}
       </td>
       <td className="pb-3 pt-2 text-right whitespace-nowrap">
-        {isAiSuggestion && (
-          <>
-            <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3 align-middle">AI</span>
-            {onKeepRow && (
-              <button
-                onClick={() => onKeepRow(row.id)}
-                title="Keep — always include this word"
-                className="mr-1 px-2 py-1 rounded-btn text-xs font-medium text-rubric hover:bg-well transition-colors align-middle"
-              >
-                Keep
-              </button>
-            )}
-          </>
+        {isPool && onKeepRow && (
+          <button
+            onClick={() => onKeepRow(row.id)}
+            title="Keep — move into your words, always included"
+            className="btn-secondary btn-sm mr-1 align-middle"
+          >
+            Keep
+          </button>
         )}
         <button
           onClick={() => onDeleteRow(row.id)}
