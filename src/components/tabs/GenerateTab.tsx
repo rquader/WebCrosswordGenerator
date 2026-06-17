@@ -160,6 +160,14 @@ export function GenerateTab({
   // one-time callout points at the toggle until the user flips it once.
   const [showAnswers, setShowAnswers] = useState(false);
   const [answersCallout, setAnswersCallout] = useState(() => !hasSeenAnswersCallout());
+  // Every generation path hands a freshly built result to onPuzzleGenerated,
+  // so the `puzzle` prop is a new object reference each time (and also when a
+  // shared puzzle arrives from the URL). Keying off that reference resets the
+  // answers toggle to hidden for each new puzzle — even if the user had it on
+  // for the last one — without firing on unrelated re-renders.
+  useEffect(() => {
+    setShowAnswers(false);
+  }, [puzzle]);
   const [gridKey, setGridKey] = useState(0);
   const [wizard, setWizard] = useState(() => loadWizardState());
   const [pendingImport, setPendingImport] = useState<ImportedEntryRows | null>(null);
