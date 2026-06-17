@@ -739,6 +739,39 @@ export function GenerateTab({
                 </button>
               </div>
             )}
+            {/* Import decision — rendered right under the starter-pack picker
+                (the element the user just used), as a lightweight margin note
+                rather than a modal dialog. Keeps both choices; awaits a click,
+                never auto-dismisses. Shared by pack / text / file imports, so
+                the source name (sourceLabel) leads the message in every case. */}
+            {pendingImport && (
+              <div className="mb-3 note animate-slide-down" role="status" aria-live="polite">
+                <p className="text-xs text-ink-2">
+                  <span className="font-medium text-rubric">{pendingImport.sourceLabel}</span>
+                  {' '}&mdash; add these to your list, or replace what&rsquo;s there?
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => applyImport(pendingImport, 'append')}
+                    className="btn-primary btn-sm"
+                  >
+                    Add to list
+                  </button>
+                  <button
+                    onClick={() => applyImport(pendingImport, 'replace')}
+                    className="btn-secondary btn-sm"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    onClick={() => setPendingImport(null)}
+                    className="btn-ghost btn-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <p className="text-xs text-ink-2 mb-3">
               {isCrossword
                 ? 'Every word you add is guaranteed a spot in the puzzle. You can also leave this empty and fill a blank skeleton yourself.'
@@ -803,16 +836,6 @@ export function GenerateTab({
                 ? (wordEntries.length > 0 ? 'Generate puzzle' : 'Generate blank skeleton')
                 : 'Generate word search'}
           </button>
-
-          {/* Import decision dialog */}
-          {pendingImport && (
-            <ImportDecisionDialog
-              payload={pendingImport}
-              onReplace={() => applyImport(pendingImport, 'replace')}
-              onAppend={() => applyImport(pendingImport, 'append')}
-              onCancel={() => setPendingImport(null)}
-            />
-          )}
         </div>
 
         {/* ============ RIGHT PANEL — Result or live preview ============ */}
@@ -935,24 +958,6 @@ export function GenerateTab({
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-function ImportDecisionDialog({ payload, onReplace, onAppend, onCancel }: {
-  payload: ImportedEntryRows; onReplace: () => void; onAppend: () => void; onCancel: () => void;
-}) {
-  return (
-    <div className="warm-card p-5 border-accent/40 animate-slide-down" role="alertdialog" aria-label="Choose how to import">
-      <h3 className="text-base font-semibold text-ink">You already have words in your list</h3>
-      <p className="mt-1 text-sm text-ink-2">
-        {payload.sourceSummary} — keep your current words alongside the new ones, or start over?
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onAppend} className="btn-primary">Add to my list</button>
-        <button onClick={onReplace} className="btn-secondary">Replace my list</button>
-        <button onClick={onCancel} className="btn-ghost">Cancel</button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * A clean, themed arrow that floats in the open space and graceful-scrolls
