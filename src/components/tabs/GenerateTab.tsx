@@ -461,6 +461,12 @@ export function GenerateTab({
           targetCount,
           qualityBias: OPTIMIZED_BIAS[wizard.settings.qualityBias],
           seed,
+          // Force Dimensions pins the user's grid (P2): build on exactly that
+          // canvas instead of canvasForCount(targetCount). Auto leaves both
+          // undefined so the engine sizes the canvas for the target count.
+          ...(wizard.settings.forceDimensions
+            ? { pinnedWidth: effectiveWidth, pinnedHeight: effectiveHeight }
+            : {}),
         });
         applyGenerationOutcome(skeleton);
         return;

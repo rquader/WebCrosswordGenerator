@@ -257,15 +257,27 @@ export interface OptimizedPuzzleOptions {
    */
   mustInclude?: WordCluePair[];
   /**
-   * The target puzzle word count (ADR-11). It sizes the pinned canvas
+   * The target puzzle word count (ADR-11). On the AUTO path it sizes the canvas
    * (canvasForCount) AND caps the finished word count: the puzzle holds at most
    * `targetCount` words (must words count toward it, aiming for exactly that).
+   * When force-dimensions pins the canvas (pinnedWidth/pinnedHeight) it only caps
+   * the count — the canvas is the forced grid.
    */
   targetCount: number;
   /** Quality-vs-fit weight in [0,1]: grid-fit ≈ 0.2, best-words ≈ 0.45. */
   qualityBias: number;
   seed: number;
   allowReverseWords?: boolean;
+  /**
+   * Force-dimensions (P2): build on EXACTLY this canvas instead of
+   * canvasForCount(targetCount). Pass both when the user pinned the grid size
+   * (Force Dimensions). A forced canvas does NOT grow — fewer than `targetCount`
+   * words may fit on a small one, which is the intended pin-and-report behavior.
+   * Omit both for the auto path (canvasForCount + grow-for-must, unchanged — the
+   * ADR-9 density win lives there and must not be disturbed).
+   */
+  pinnedWidth?: number;
+  pinnedHeight?: number;
 }
 
 /**
@@ -293,22 +305,35 @@ export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions
   // One display map for the finished result (must + pool two-word phrases).
   const displayByGridWord = new Map<string, string>([...poolDisplay, ...mustDisplay]);
 
-  // Start at the canvas for the target count, but never smaller than the longest
-  // must word needs — a must word longer than the canvas side would crash the
-  // placer before we could even measure placement. Grow from there.
-  const base = canvasForCount(options.targetCount);
-  const longestMust = gridMust.reduce((max, e) => Math.max(max, e.word.length), 0);
-  let side = Math.min(GROWTH_HARD_CAP, Math.max(base.width, longestMust + (longestMust > 0 ? 1 : 0)));
+  // Force-dimensions (P2): build on EXACTLY the pinned canvas and never grow it
+  // (pin-and-report — fewer than the target may fit on a small forced grid, which
+  // the existing forced-dims under-fill flow handles). Auto path is unchanged:
+  // start at canvasForCount(target), floor it at the longest must word (a must
+  // word longer than the canvas side would crash the placer on the first write),
+  // and grow until every must word places.
+  const pinned =
+    options.pinnedWidth !== undefined && options.pinnedHeight !== undefined;
 
-  let selection: OptimizedSelectionResult = runSelectionAtSize(gridPool, gridMust, side, options);
+  let selection: OptimizedSelectionResult;
+  if (pinned) {
+    selection = runSelectionAtSize(
+      gridPool, gridMust, options.pinnedWidth!, options.pinnedHeight!, options,
+    );
+  } else {
+    const base = canvasForCount(options.targetCount);
+    const longestMust = gridMust.reduce((max, e) => Math.max(max, e.word.length), 0);
+    let side = Math.min(GROWTH_HARD_CAP, Math.max(base.width, longestMust + (longestMust > 0 ? 1 : 0)));
 
-  // Grow until every must word places (or we hit the cap — beyond which the
-  // input is unreasonable and we ship the best effort, mirroring the skeleton
-  // generator's grow loop). The pool is re-filtered to each larger canvas, so
-  // words that only fit a bigger grid become eligible as we grow.
-  while (!selection.allMustPlaced && side < GROWTH_HARD_CAP) {
-    side = Math.min(GROWTH_HARD_CAP, side + 1);
-    selection = runSelectionAtSize(gridPool, gridMust, side, options);
+    selection = runSelectionAtSize(gridPool, gridMust, side, side, options);
+
+    // Grow until every must word places (or we hit the cap — beyond which the
+    // input is unreasonable and we ship the best effort, mirroring the skeleton
+    // generator's grow loop). The pool is re-filtered to each larger canvas, so
+    // words that only fit a bigger grid become eligible as we grow.
+    while (!selection.allMustPlaced && side < GROWTH_HARD_CAP) {
+      side = Math.min(GROWTH_HARD_CAP, side + 1);
+      selection = runSelectionAtSize(gridPool, gridMust, side, side, options);
+    }
   }
 
   // Ship the selection's OWN dense layout (converting, not rebuilding — a rebuild
@@ -328,24 +353,25 @@ export function createOptimizedPuzzleFromEntries(options: OptimizedPuzzleOptions
 }
 
 /**
- * One Optimized selection pass at a fixed square canvas. The AI pool is filtered
+ * One Optimized selection pass at a fixed canvas (square on the auto path,
+ * possibly rectangular when force-dimensions pins it). The AI pool is filtered
  * to words that fit the canvas (over-long optional words are dropped, never
- * crashing the placer); must words are passed through verbatim (the canvas was
- * sized to hold them). `targetCount` is threaded so the selector caps the
- * finished word count (ADR-11).
+ * crashing the placer); must words are passed through verbatim. `targetCount`
+ * is threaded so the selector caps the finished word count (ADR-11).
  */
 function runSelectionAtSize(
   gridPool: WordCluePair[],
   gridMust: WordCluePair[],
-  side: number,
+  width: number,
+  height: number,
   options: OptimizedPuzzleOptions,
 ): OptimizedSelectionResult {
-  const fittingPool = filterByLength(gridPool, side);
+  const fittingPool = filterByLength(gridPool, Math.max(width, height));
   return selectOptimizedSubset({
     pool: fittingPool,
     mustInclude: gridMust,
-    width: side,
-    height: side,
+    width,
+    height,
     seed: options.seed,
     qualityBias: options.qualityBias,
     allowReverseWords: options.allowReverseWords ?? false,
