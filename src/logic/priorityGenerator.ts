@@ -30,37 +30,69 @@ import { SeededRandom } from './seedRandom';
  * The candidate loop is a best-of-N scheme: more candidates => denser
  * finished grids, because the winner places every word at a SMALLER grid
  * more often and crop-to-fit then tightens it. Best-of-N is MONOTONIC
- * (the winner can only improve or tie with more candidates), so raising
- * this never regresses quality — the only cost is time.
+ * (the winner can only improve or tie with more candidates — verified), so
+ * raising this never regresses quality — the only cost is time, and time is
+ * LINEAR in N.
  *
- * Sizing is grounded in extreme-value theory rather than a fitted curve.
- * If single-candidate density D ~ Normal(mu, sigma^2), then
- *   E[best of N] ~= mu + sigma * c_N,   c_N = expected max of N standard
- * normals, Blom (1958): c_N ~= Phi^-1((N - 0.375)/(N + 0.25)) ~ sqrt(2 ln N).
- * The marginal gain of the Nth candidate is sigma * (c_N - c_{N-1}) ∝
- * sigma / (N sqrt(ln N)) — positive but sharply diminishing. Measured
- * (see /tmp/cw-evt.ts): the model fits 14-30 word lists well; sigma falls
- * with list size (~8/sqrt(W)); large lists show a HEAVY right tail so they
- * benefit from more candidates than Normal predicts; small lists hit a
- * bounded density ceiling and saturate by ~15.
+ * RAISED (2026-06-17, measurement-derived) from best-of-8..30 to
+ * best-of-12..120. The earlier 8..30 ceiling left density on the table for
+ * the small/mid lists that are by far the common case — where each candidate
+ * is cheap and the best-of-N gain is largest. The new budget is a pure,
+ * deterministic function of the WORDS (count + total letters), NOT wall-clock,
+ * so the winner stays seed-reproducible.
  *
- * So: scale candidates DOWN with list size (lower sigma + higher per-
- * candidate cost), but keep enough for mid-to-large lists where the tail
- * still pays. Pure function of the word count (NOT wall-clock) so the
- * winner stays seed-reproducible. Floor protects the word-bank-flooded
- * skeleton path (total ~300 words) from doing many expensive candidates.
+ * Why letter-weighted, not count-only: a benchmark showed per-candidate cost
+ * scales with both word count AND total letters — long words are the most
+ * expensive to place per candidate. A flat-high N made big/long lists take
+ * 1.2-3s. So the budget divides a fixed work allowance by an "effective work"
+ * unit that charges for letters as well as words:
  *
- * Effective counts: <=18 words -> 30; 24 -> 23; 30 -> 19; 40 -> 14;
- * 70+ -> 8. Validated on the general corpus (/tmp/cw-corpus.ts): no list
- * regresses vs the prior 420/W setting, mid-large lists gain ~0.3-1pp.
+ *   effectiveWork = totalWords + totalLetters / 5
+ *   count         = clamp(round(5400 / effectiveWork), 12, 120)
+ *
+ * The /5 weight and the 5400 allowance are measured constants (do not retune
+ * by feel). Net effect:
+ *   - small  (8w / ~41 ltr)  -> 120  (cheap; density gains most here)
+ *   - mid    (14w / ~85 ltr) -> 120
+ *   - large  (24w / ~140 ltr)-> ~100
+ *   - xlarge (40w / ~250 ltr)-> ~60-75
+ *   - long   (12w / ~130 ltr)-> ~120, but only ~0.3s (cheap count, costly each)
+ * Measured p95 stays at ~1s worst case across the corpus. The clamp floor (12)
+ * also keeps the word-bank-flooded skeleton path (total ~300 words) bounded.
  */
-const MIN_CANDIDATES = 8;
-const MAX_CANDIDATES = 30;
-const CANDIDATE_BUDGET = 560; // candidates ≈ CANDIDATE_BUDGET / wordCount, clamped
+const MIN_CANDIDATES = 12;
+const MAX_CANDIDATES = 120;
+const CANDIDATE_WORK_BUDGET = 5400; // count ≈ BUDGET / effectiveWork, clamped
+const LETTER_WEIGHT = 5; // a letter costs ~1/5 of a word in the work budget
 
-export function defaultCandidateCount(totalWords: number): number {
+/**
+ * Letter-weighted candidate budget — a pure function of the word set, split out
+ * so it can be unit-tested directly. `totalWords` = number of must+can words;
+ * `totalLetters` = sum of their grid-form lengths. Deterministic: same input,
+ * same output, no wall-clock. See the doc comment above for the constants.
+ */
+export function candidateBudget(
+  { totalWords, totalLetters }: { totalWords: number; totalLetters: number },
+): number {
   if (totalWords <= 0) return MIN_CANDIDATES;
-  return Math.max(MIN_CANDIDATES, Math.min(MAX_CANDIDATES, Math.round(CANDIDATE_BUDGET / totalWords)));
+  const effectiveWork = totalWords + totalLetters / LETTER_WEIGHT;
+  const raw = Math.round(CANDIDATE_WORK_BUDGET / effectiveWork);
+  return Math.max(MIN_CANDIDATES, Math.min(MAX_CANDIDATES, raw));
+}
+
+/**
+ * Default candidate count for a set of words. Takes the words themselves so it
+ * can weigh total letters (see {@link candidateBudget}) — long words cost more
+ * per candidate, so the budget throttles letter-heavy lists. The grid-form
+ * length is `word.length` (the placed letters; spaced display forms aren't seen
+ * here — callers pass the grid words).
+ */
+export function defaultCandidateCount(words: string[]): number {
+  let totalLetters = 0;
+  for (const word of words) {
+    totalLetters += word.length;
+  }
+  return candidateBudget({ totalWords: words.length, totalLetters });
 }
 
 /**
@@ -144,7 +176,7 @@ export function generateCrosswordWithPriority(
   // first-word offset, so the same config always produces the same winner.
   const candidateCount = Math.max(
     1,
-    config.candidateCount ?? defaultCandidateCount(mustWords.length + canWords.length),
+    config.candidateCount ?? defaultCandidateCount([...mustWords, ...canWords]),
   );
   let best: RankedCandidate | null = null;
 

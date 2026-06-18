@@ -98,19 +98,26 @@ export interface OptimizedSelectionResult {
   allMustPlaced: boolean;
 }
 
-/** Multi-start count when the caller doesn't specify one (uncapped path). */
-const DEFAULT_MULTI_STARTS = 16;
+/**
+ * Multi-start count when the caller doesn't specify one (uncapped path).
+ * RAISED 16 -> 48 (2026-06-17, measurement-tuned): uncapped builds are cheap
+ * (~50ms at 48 starts) and the extra starts buy ~+1.5pp density. Deterministic.
+ */
+const DEFAULT_MULTI_STARTS = 48;
 
 /**
  * Multi-start count for the CAPPED path (a `targetCount` is set). Capping each
  * start to the top `targetCount - mustCount` pool words shrinks the slice the
  * packer sees, so a single start more often fails to interlock the whole slice.
  * More starts give more distinct top-budget subsets a shot at full placement,
- * which is what lands the finished count ON the target. Builds are sub-10ms even
- * at this count, so the extra starts are imperceptible. Deterministic — purely a
- * function of the seed.
+ * which is what lands the finished count ON the target. RAISED 64 -> 150
+ * (2026-06-17, measurement-tuned): the capped path was under-provisioned — still
+ * climbing at 200 starts — and builds are cheap here (t=24 @ 150 ≈ 54ms). Note
+ * `createOptimizedPuzzleFromEntries` may re-run selection in its grow loop, so
+ * per-pass cost must stay modest; 150 is safe. Deterministic — purely a function
+ * of the seed.
  */
-const CAPPED_MULTI_STARTS = 64;
+const CAPPED_MULTI_STARTS = 150;
 
 /**
  * Seed stride between multi-starts. A large odd prime keeps derived seeds
