@@ -38,6 +38,15 @@ interface SkeletonFillViewProps {
    * default words-to-puzzle flow.
    */
   onReleaseDimensions?: () => void;
+  /**
+   * Optional pre-filled words + clues to SEED the editable slots, keyed by
+   * slot id. Manual fill passes nothing (every blank starts empty); a future
+   * AI/solver fill passes the words it placed so the user lands in this view
+   * with the grid filled in and editable. Only entries for empty (non
+   * user-word) slots are applied; the user can change any of them. Changing
+   * the seed remounts via React `key`, so this is read once on mount.
+   */
+  initialAssignments?: Map<number, { word: string; clue: string }>;
 }
 
 /** Internal state for each slot being edited. */
@@ -53,18 +62,33 @@ export function SkeletonFillView({
   onBack,
   onApplySuggestion,
   onReleaseDimensions,
+  initialAssignments,
 }: SkeletonFillViewProps) {
   const [slotEdits, setSlotEdits] = useState<Map<number, SlotEditState>>(() => {
     const initial = new Map<number, SlotEditState>();
     for (const slot of skeleton.slots) {
       if (!slot.isUserWord) {
-        initial.set(slot.id, { word: '', clue: '' });
+        // Seed from a solver/AI pre-fill when one was passed; sanitize the
+        // word the same way typed input is (lowercase a–z, clamped to length)
+        // so a seeded value behaves identically to one the user typed.
+        const seed = initialAssignments?.get(slot.id);
+        const seedWord = seed
+          ? seed.word.toLowerCase().replace(/[^a-z]/g, '').slice(0, slot.length)
+          : '';
+        initial.set(slot.id, { word: seedWord, clue: seed?.clue ?? '' });
       }
     }
     return initial;
   });
 
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(() => {
+    // Prefer the first blank slot that still has no seeded word, so a partly
+    // pre-filled grid lands the user on the next thing to do; otherwise the
+    // first empty slot.
+    const firstUnseeded = skeleton.slots.find(
+      s => !s.isUserWord && !(initialAssignments?.get(s.id)?.word),
+    );
+    if (firstUnseeded) return firstUnseeded.id;
     const firstEmpty = skeleton.slots.find(s => !s.isUserWord);
     return firstEmpty?.id ?? null;
   });

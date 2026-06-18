@@ -53,7 +53,9 @@ import {
 import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
 import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
+import { GridDesigner, createDefaultGridDraft, type GridDraft } from '../skeleton/GridDesigner';
 import { MiniGridPreview } from '../grid/MiniGridPreview';
+import { deriveSlotsFromBlockMask, type BlockMask } from '../../logic/gridSkeleton';
 
 interface GenerateTabProps {
   puzzle: CrosswordResult | null;
@@ -177,6 +179,23 @@ export function GenerateTab({
   // Skeleton-first state
   const [activeSkeleton, setActiveSkeleton] = useState<SkeletonResult | null>(null);
   const [showTextImport, setShowTextImport] = useState(false);
+
+  // Which crossword creation flow is active (crossword mode only):
+  //   'words' — the default words-to-puzzle flow (add words → generate).
+  //   'grid'  — "build your own grid": draw the geometry, then fill it.
+  // Word search has no grid-design flow, so this only affects crosswords.
+  const [crosswordFlow, setCrosswordFlow] = useState<'words' | 'grid'>('words');
+
+  // The user-drawn grid for "build your own grid", lifted here so the drawing
+  // survives a round-trip into the fill view and back (Back / edit again).
+  const [gridDraft, setGridDraft] = useState<GridDraft>(createDefaultGridDraft);
+
+  // Optional pre-filled words to SEED the fill view, keyed by slot id. Manual
+  // fill leaves this null (every blank starts empty); a future AI/solver fill
+  // sets it so the user lands in the fill view with the grid filled in. Threaded
+  // into SkeletonFillView's initialAssignments — the seam for that next stage.
+  const [skeletonAssignments, setSkeletonAssignments] =
+    useState<Map<number, { word: string; clue: string }> | null>(null);
 
   // Cleared word list held for a short undo window
   const [clearUndo, setClearUndo] = useState<{ rows: EntryTableRow[]; count: number } | null>(null);
@@ -615,6 +634,26 @@ export function GenerateTab({
     if (!activeSkeleton) return;
     onPuzzleGenerated(skeletonToPuzzle(activeSkeleton, filledSlots), 'crossword');
     setActiveSkeleton(null);
+    setSkeletonAssignments(null);
+    setGridKey(prev => prev + 1);
+  }
+
+  /**
+   * "Build your own grid" → fill. The user-drawn mask is turned into a
+   * skeleton by reading its geometry (deriveSlotsFromBlockMask), and that
+   * skeleton flows into the SAME fill workspace + sink as every other path
+   * (handleSkeletonComplete → skeletonToPuzzle → onPuzzleGenerated).
+   *
+   * Deliberately bypasses the structure-changing generation knobs
+   * (createSkeletonFromEntries, the Optimized engine, canvasForCount,
+   * auto-grow): the grid is exactly what the user drew, so we never re-derive
+   * or resize it. skeletonAssignments stays null — manual fill seeds nothing;
+   * the AI-fill stage will set it before opening this same view.
+   */
+  function handleFillDesignedGrid(mask: BlockMask, width: number, height: number) {
+    const skeleton = deriveSlotsFromBlockMask(mask, width, height);
+    setSkeletonAssignments(null);
+    setActiveSkeleton(skeleton);
     setGridKey(prev => prev + 1);
   }
 
@@ -628,14 +667,32 @@ export function GenerateTab({
           skeleton={activeSkeleton}
           onComplete={handleSkeletonComplete}
           onRegenerate={handleSkeletonRegenerate}
-          onBack={() => setActiveSkeleton(null)}
+          onBack={() => { setActiveSkeleton(null); setSkeletonAssignments(null); }}
           onApplySuggestion={handleApplySuggestion}
           onReleaseDimensions={
             wizard.settings.forceDimensions && wordEntries.length > 0
               ? handleReleaseDimensions
               : undefined
           }
+          initialAssignments={skeletonAssignments ?? undefined}
         />
+      </div>
+    );
+  }
+
+  // "Build your own grid" — a focused full-width workspace (like the fill view).
+  // The drawing lives in gridDraft (lifted), so it survives a Back/round-trip.
+  if (isCrossword && crosswordFlow === 'grid') {
+    return (
+      <div className="animate-fade-in space-y-4" key={`grid-designer-${gridKey}`}>
+        <div className="warm-card p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-ink">Build a crossword</h2>
+            <p className="text-sm text-ink-2">Draw the grid yourself, then fill it in.</p>
+          </div>
+          <CrosswordFlowToggle value={crosswordFlow} onChange={setCrosswordFlow} />
+        </div>
+        <GridDesigner draft={gridDraft} setDraft={setGridDraft} onFill={handleFillDesignedGrid} />
       </div>
     );
   }
@@ -684,6 +741,17 @@ export function GenerateTab({
                 Word Search
               </button>
             </div>
+
+            {/* Crossword-only: choose the build flow — type words (default) or
+                draw the grid first ("build your own grid"). */}
+            {isCrossword && (
+              <>
+                <span className="block text-xs font-medium text-ink-3 mt-4 mb-1.5">
+                  How to build it
+                </span>
+                <CrosswordFlowToggle value={crosswordFlow} onChange={setCrosswordFlow} />
+              </>
+            )}
           </div>
 
           {/* --- Your Words (the primary input — always visible) --- */}
@@ -1033,6 +1101,31 @@ function ScrollToPuzzleArrow({
  * higher-quality searches (long 30+ word lists) can take ~half a second,
  * and this keeps the wait legible instead of a frozen panel.
  */
+/** Crossword build-flow toggle: type words (default) vs. draw the grid first. */
+function CrosswordFlowToggle({ value, onChange }: {
+  value: 'words' | 'grid';
+  onChange: (v: 'words' | 'grid') => void;
+}) {
+  return (
+    <div className="flex rounded-btn bg-well p-1" role="group" aria-label="How to build the crossword">
+      <button
+        type="button"
+        onClick={() => onChange('words')}
+        className={`flex-1 py-1.5 px-3 rounded-[5px] text-sm font-medium transition-all whitespace-nowrap
+          ${value === 'words' ? 'bg-card text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
+        Words first
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('grid')}
+        className={`flex-1 py-1.5 px-3 rounded-[5px] text-sm font-medium transition-all whitespace-nowrap
+          ${value === 'grid' ? 'bg-card text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
+        Build your own grid
+      </button>
+    </div>
+  );
+}
+
 function GeneratingState({ isCrossword }: { isCrossword: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in" role="status" aria-live="polite">
