@@ -172,8 +172,12 @@ export function selectOptimizedSubset(
       ? n
       : Math.min(n, Math.max(0, config.targetCount - fittingMust.length));
 
-  // Edge case: nothing to place at all -> empty result with an empty grid.
-  if (n === 0 && sortedMust.length === 0) {
+  // Edge case: nothing to feed the generator -> empty result with an empty grid.
+  // Covers no input at all AND a pool budget clamped to 0 with no fitting must
+  // word (e.g. a corrupted non-positive targetCount); without this the generator
+  // would crash shifting an empty word list. A valid targetCount >= 1 with pool
+  // words keeps poolBudget > 0, so normal selection is unaffected.
+  if (fittingMust.length === 0 && poolBudget === 0) {
     return {
       entries: [],
       crossword: {

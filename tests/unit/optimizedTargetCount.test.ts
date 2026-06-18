@@ -70,6 +70,26 @@ describe('selectOptimizedSubset — target count cap (P0)', () => {
     }
   });
 
+  it('returns an empty result (never crashes) when the budget collapses to zero', () => {
+    // Defensive: a non-positive targetCount (only reachable via corrupted
+    // persisted state — the UI clamps word count to [1, 40]) drives the pool
+    // budget to 0 with no fitting must word. The packer must not be fed an empty
+    // word list (it would crash shifting it); the selector returns an empty puzzle.
+    const { width, height } = canvasForCount(11);
+    for (const targetCount of [0, -3]) {
+      const result = selectOptimizedSubset({
+        pool: entries(POOL_40),
+        width,
+        height,
+        seed: 1234,
+        qualityBias: 0.2,
+        targetCount,
+      });
+      expect(result.entries).toHaveLength(0);
+      expect(result.selectedCount).toBe(0);
+    }
+  });
+
   it('hits exactly targetCount on a crossing-friendly pool at the count-sized canvas', () => {
     // Seed chosen so the placer fully interlocks the target set on the (tight)
     // count-sized canvas for every target — see the caveat in the suite header:

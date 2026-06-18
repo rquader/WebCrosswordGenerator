@@ -740,12 +740,18 @@ export function GenerateTab({
           <CrosswordFlowToggle value={crosswordFlow} onChange={setFlow} />
         </div>
         {gridDesignStage === 'ai-fill' ? (
+          // SkeletonFillView stores [a-z] only (it sanitizes both typed and
+          // seeded words to a-z), so keep AI fill English single-word to match —
+          // otherwise accented or two-word answers the parser would accept get
+          // mangled when seeded into the fill view. Widening the whole fill view
+          // to the language charset (both skeleton paths) is a tracked future
+          // enhancement; until then skeleton-first is English single-word.
           <SkeletonAiFillView
             mask={gridDraft.mask}
             width={gridDraft.width}
             height={gridDraft.height}
-            language={wizard.settings.language}
-            allowTwoWords={wizard.settings.allowTwoWords}
+            language="english"
+            allowTwoWords={false}
             onFilled={handleAiFilled}
             onBack={() => setGridDesignStage('design')}
           />
@@ -797,7 +803,12 @@ export function GenerateTab({
                 Crossword
               </button>
               <button
-                onClick={() => patchWizard({ settings: { ...wizard.settings, puzzleMode: 'wordsearch' } })}
+                onClick={() => {
+                  patchWizard({ settings: { ...wizard.settings, puzzleMode: 'wordsearch' } });
+                  // Leave any "build your own grid" flow so returning to crossword
+                  // starts on the default Words-first view, not back in the editor.
+                  setCrosswordFlow('words');
+                }}
                 className={`flex-1 py-1.5 rounded-[5px] text-sm font-medium transition-all
                   ${!isCrossword
                     ? 'bg-card text-ink shadow-sm'
