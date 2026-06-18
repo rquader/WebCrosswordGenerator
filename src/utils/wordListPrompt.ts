@@ -91,8 +91,13 @@ export interface WordListPromptOptions {
   advanced?: AdvancedPromptOptions;
 }
 
-/** The charset rule, phrased for the prompt, per language. */
-function charsetLines(language: PuzzleLanguage): string[] {
+/**
+ * The charset rule, phrased for the prompt, per language.
+ *
+ * Exported (no behavior change) so the skeleton-fill prompt builder can reuse
+ * the exact same charset wording — see src/utils/skeletonFillPrompt.ts.
+ */
+export function charsetLines(language: PuzzleLanguage): string[] {
   if (language === 'spanish') {
     return [
       '- Use the letters A-Z, the Spanish letters Á É Í Ó Ú Ü Ñ where the correct spelling needs them, and digits 0-9. No punctuation, no abbreviations, no other symbols.',
@@ -319,8 +324,12 @@ export interface ParseWordListOptions {
   wordsOnly?: boolean;
 }
 
-/** Leading list markers AIs add despite instructions: "1.", "2)", "-", "*", "•". */
-const LIST_MARKER = /^\s*(?:[-*•]|\d{1,3}[.)])\s*/;
+/**
+ * Leading list markers AIs add despite instructions: "1.", "2)", "-", "*", "•".
+ * Exported (no behavior change) so the skeleton-fill parser strips the same
+ * markers — see src/utils/skeletonFillPrompt.ts.
+ */
+export const LIST_MARKER = /^\s*(?:[-*•]|\d{1,3}[.)])\s*/;
 
 /**
  * Parse an AI response into word-clue entries.
@@ -461,8 +470,11 @@ export function parseWordListResponse(
  * entry line is mode-dependent — the caller passes the test. Returns the
  * block's content and the 0-based line index where its content starts in
  * the raw text, so issue messages can reference absolute line numbers.
+ *
+ * Exported (no behavior change) so the skeleton-fill parser reuses the exact
+ * same fence-finding logic — see src/utils/skeletonFillPrompt.ts.
  */
-function findBestFencedBlock(
+export function findBestFencedBlock(
   raw: string,
   looksLikeEntry: (line: string) => boolean
 ): { content: string; startLine: number } | null {
@@ -487,8 +499,11 @@ function findBestFencedBlock(
  * Strip markdown bold/quotes around the word and uppercase it.
  * With two-word phrases allowed, interior underscores are the prompt's
  * join character — they become spaces (and literal spaces collapse).
+ *
+ * Exported (no behavior change) so the skeleton-fill parser cleans words the
+ * exact same way — see src/utils/skeletonFillPrompt.ts.
  */
-function cleanWord(s: string, allowTwoWords: boolean): string {
+export function cleanWord(s: string, allowTwoWords: boolean): string {
   let word = s.trim().replace(/^[*_"'`]+|[*_"'`]+$/g, '').trim();
   if (allowTwoWords) {
     word = word.replace(/_/g, ' ').replace(/ +/g, ' ').trim();
