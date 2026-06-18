@@ -1,7 +1,7 @@
 {
   "name": "crossword-generator",
   "private": true,
-  "version": "5.0.0",
+  "version": "6.0.0",
   "type": "module",
   "description": "A fully client-side crossword puzzle generator and player",
   "scripts": {
