@@ -54,6 +54,7 @@ import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
 import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
 import { GridDesigner, createDefaultGridDraft, type GridDraft } from '../skeleton/GridDesigner';
+import { SkeletonAiFillView } from '../skeleton/SkeletonAiFillView';
 import { MiniGridPreview } from '../grid/MiniGridPreview';
 import { deriveSlotsFromBlockMask, type BlockMask } from '../../logic/gridSkeleton';
 
@@ -189,6 +190,14 @@ export function GenerateTab({
   // The user-drawn grid for "build your own grid", lifted here so the drawing
   // survives a round-trip into the fill view and back (Back / edit again).
   const [gridDraft, setGridDraft] = useState<GridDraft>(createDefaultGridDraft);
+
+  // Within the "build your own grid" flow, which step is showing:
+  //   'design'  — the grid editor (GridDesigner).
+  //   'ai-fill' — the "Fill with AI" copy/paste workspace (SkeletonAiFillView).
+  // The drawing lives in gridDraft regardless, so stepping between them (or
+  // hitting Back) never loses the grid. Manual "Fill this grid" skips this and
+  // goes straight to the skeleton fill view via activeSkeleton.
+  const [gridDesignStage, setGridDesignStage] = useState<'design' | 'ai-fill'>('design');
 
   // Optional pre-filled words to SEED the fill view, keyed by slot id. Manual
   // fill leaves this null (every blank starts empty); a future AI/solver fill
@@ -657,6 +666,33 @@ export function GenerateTab({
     setGridKey(prev => prev + 1);
   }
 
+  /**
+   * "Build your own grid" → "Fill with AI". Opens the copy/paste AI-fill
+   * workspace for the drawn grid (SkeletonAiFillView reads its geometry from the
+   * mask). The drawing stays in gridDraft, so Back returns to the editor intact.
+   * Like the manual path this bypasses every structure-changing knob — the grid
+   * is exactly what the user drew.
+   */
+  function handleFillDesignedGridWithAI() {
+    setGridDesignStage('ai-fill');
+  }
+
+  /**
+   * The AI-fill workspace produced a filled grid. Seed the fill view with the
+   * placed words (skeletonAssignments → SkeletonFillView.initialAssignments) and
+   * open it via the existing activeSkeleton seam — the user lands in the normal
+   * editor pre-filled, free to change any slot before finishing.
+   */
+  function handleAiFilled(
+    skeleton: SkeletonResult,
+    assignments: Map<number, { word: string; clue: string }>,
+  ) {
+    setSkeletonAssignments(assignments);
+    setActiveSkeleton(skeleton);
+    setGridDesignStage('design'); // reset for the next visit to the designer
+    setGridKey(prev => prev + 1);
+  }
+
   // --- Render ---
 
   // If skeleton is active, show the skeleton fill view full-width
@@ -681,18 +717,46 @@ export function GenerateTab({
   }
 
   // "Build your own grid" — a focused full-width workspace (like the fill view).
-  // The drawing lives in gridDraft (lifted), so it survives a Back/round-trip.
+  // The drawing lives in gridDraft (lifted), so it survives a Back/round-trip,
+  // including the detour through the AI-fill workspace. Switching the flow
+  // toggle back to "Words first" also resets the sub-stage so a later return to
+  // the designer starts on the editor, not mid-AI-fill.
   if (isCrossword && crosswordFlow === 'grid') {
+    const setFlow = (v: 'words' | 'grid') => {
+      if (v === 'words') setGridDesignStage('design');
+      setCrosswordFlow(v);
+    };
     return (
       <div className="animate-fade-in space-y-4" key={`grid-designer-${gridKey}`}>
         <div className="warm-card p-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-ink">Build a crossword</h2>
-            <p className="text-sm text-ink-2">Draw the grid yourself, then fill it in.</p>
+            <p className="text-sm text-ink-2">
+              {gridDesignStage === 'ai-fill'
+                ? 'Fill the grid you drew with help from any AI.'
+                : 'Draw the grid yourself, then fill it in.'}
+            </p>
           </div>
-          <CrosswordFlowToggle value={crosswordFlow} onChange={setCrosswordFlow} />
+          <CrosswordFlowToggle value={crosswordFlow} onChange={setFlow} />
         </div>
-        <GridDesigner draft={gridDraft} setDraft={setGridDraft} onFill={handleFillDesignedGrid} />
+        {gridDesignStage === 'ai-fill' ? (
+          <SkeletonAiFillView
+            mask={gridDraft.mask}
+            width={gridDraft.width}
+            height={gridDraft.height}
+            language={wizard.settings.language}
+            allowTwoWords={wizard.settings.allowTwoWords}
+            onFilled={handleAiFilled}
+            onBack={() => setGridDesignStage('design')}
+          />
+        ) : (
+          <GridDesigner
+            draft={gridDraft}
+            setDraft={setGridDraft}
+            onFill={handleFillDesignedGrid}
+            onFillWithAI={handleFillDesignedGridWithAI}
+          />
+        )}
       </div>
     );
   }

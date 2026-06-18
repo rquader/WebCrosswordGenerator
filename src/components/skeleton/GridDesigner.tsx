@@ -72,12 +72,19 @@ interface GridDesignerProps {
   setDraft: Dispatch<SetStateAction<GridDraft>>;
   /**
    * Called with the finished mask + dimensions when the user clicks "Fill this
-   * grid". The parent derives slots and opens the fill workspace.
+   * grid" (the manual path). The parent derives slots and opens the fill
+   * workspace with every slot blank.
    */
   onFill: (mask: BlockMask, width: number, height: number) => void;
+  /**
+   * Called with the finished mask + dimensions when the user clicks "Fill with
+   * AI". Optional so existing callers (and tests) keep working — the button is
+   * only shown when this is provided. The parent opens the AI-fill workspace.
+   */
+  onFillWithAI?: (mask: BlockMask, width: number, height: number) => void;
 }
 
-export function GridDesigner({ draft, setDraft, onFill }: GridDesignerProps) {
+export function GridDesigner({ draft, setDraft, onFill, onFillWithAI }: GridDesignerProps) {
   const { mask, width, height } = draft;
 
   // Drag-paint: on the first cell of a drag we capture the target state
@@ -328,18 +335,32 @@ export function GridDesigner({ draft, setDraft, onFill }: GridDesignerProps) {
         </div>
       )}
 
-      {/* Primary action */}
-      <div className="flex items-center justify-end gap-3">
+      {/* Primary actions — fill it yourself, or hand the slots to an AI. Both
+          need at least one slot; "Fill with AI" only appears when the host
+          wires it (kept optional so existing callers/tests are unaffected). */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           onClick={() => onFill(mask, width, height)}
           disabled={!stats.canFill}
-          className="btn-primary"
+          className="btn-secondary"
           title={stats.canFill
             ? 'Open the fill workspace and type a word into each slot'
             : 'Open at least one run of two or more cells to make a slot'}
         >
           Fill this grid
         </button>
+        {onFillWithAI && (
+          <button
+            onClick={() => onFillWithAI(mask, width, height)}
+            disabled={!stats.canFill}
+            className="btn-primary"
+            title={stats.canFill
+              ? 'Get words for these slots from any AI, then edit them'
+              : 'Open at least one run of two or more cells to make a slot'}
+          >
+            Fill with AI
+          </button>
+        )}
       </div>
     </div>
   );
