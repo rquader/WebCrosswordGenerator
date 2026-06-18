@@ -13,13 +13,13 @@
  * keeps using the '-' empty-cell convention for grids (see EMPTY_CELL below),
  * which is what the SkeletonResult.grid this module produces is filled with.
  *
- * Numbering note: slot numbers here are assigned with the SAME row-major rule
- * as numbering.ts/assignNumbers (the numbering Play and Export use). A cell
- * starts a number when it begins an across run and/or a down run; an across
- * and a down starting at the same cell SHARE one number; numbers increase
- * left-to-right then top-to-bottom. Deriving numbers from the geometry up
- * front therefore yields the same numbers the finished grid gets later, so a
- * slot's number never changes across the skeleton -> puzzle boundary.
+ * Id note: each slot gets a UNIQUE sequential id (row-major scan order). The id
+ * is a per-slot identity, NOT a crossword display number — every consumer (the
+ * fill solver, the AI-fill parser, the fill view, skeletonToPuzzle) keys slots
+ * by id and requires uniqueness, so an across and a down that begin at the SAME
+ * cell get DIFFERENT ids (they must never collide). Display numbering is a
+ * separate concern: the finished puzzle is renumbered by numbering.ts/
+ * assignNumbers when it leaves the skeleton, so nothing here needs to match it.
  */
 
 import type { SkeletonResult, SkeletonSlot } from './types';
@@ -95,13 +95,13 @@ export function deriveSlotsFromBlockMask(
 ): SkeletonResult {
   const slots: SkeletonSlot[] = [];
 
-  // Single row-major scan (y outer, x inner) over cells that start a run. This
-  // mirrors assignNumbers exactly: a number is consumed once per starting cell,
-  // and an across + down starting at the same cell share that number. Because
-  // the scan order and the "is this a run start?" predicate match the numbering
-  // utility, the numbers we assign here are identical to the ones the finished
-  // grid receives later.
-  let nextNumber = 1;
+  // Single row-major scan (y outer, x inner) over cells that start a run. Each
+  // across/down run gets its OWN unique sequential id in scan order. Ids are a
+  // stable per-slot identity (consumers key by them), NOT crossword display
+  // numbers — an across and a down sharing a start cell get DIFFERENT ids so
+  // they never collide. The finished puzzle's display numbers come later from
+  // numbering.ts.
+  let nextId = 1;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -119,21 +119,19 @@ export function deriveSlotsFromBlockMask(
 
       if (!startsAcross && !startsDown) continue;
 
-      // This cell starts at least one slot -> it consumes exactly one number,
-      // shared between the across and down slots that begin here.
-      const number = nextNumber;
-      nextNumber++;
-
+      // This cell starts at least one slot. Across and down each get their OWN
+      // id (they do NOT share one) so slot ids stay globally unique — the fill
+      // solver, AI-fill parser, fill view and skeletonToPuzzle all key by id.
       if (startsAcross) {
         let length = 0;
         while (isOpen(mask, width, height, x + length, y)) length++;
-        slots.push(makeEmptySlot(number, 'across', x, y, length));
+        slots.push(makeEmptySlot(nextId++, 'across', x, y, length));
       }
 
       if (startsDown) {
         let length = 0;
         while (isOpen(mask, width, height, x, y + length)) length++;
-        slots.push(makeEmptySlot(number, 'down', x, y, length));
+        slots.push(makeEmptySlot(nextId++, 'down', x, y, length));
       }
     }
   }

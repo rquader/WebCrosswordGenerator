@@ -15,8 +15,6 @@ import {
   countComponents,
   type BlockMask,
 } from '../../src/logic/gridSkeleton';
-import { assignNumbers } from '../../src/logic/numbering';
-import type { DirectionalWord, SkeletonSlot } from '../../src/logic/types';
 
 /**
  * Build a BlockMask (boolean[][], true = block) from a visual string grid.
@@ -27,22 +25,6 @@ function maskFromRows(rows: string[]): { mask: BlockMask; width: number; height:
   const height = mask.length;
   const width = height > 0 ? mask[0].length : 0;
   return { mask, width, height };
-}
-
-/**
- * Convert derived slots into DirectionalWords (with placeholder letters) so we
- * can feed them to assignNumbers — the authoritative numbering used by Play /
- * Export — and prove our slot numbers match it cell-for-cell.
- */
-function slotsToDirectionalWords(slots: SkeletonSlot[]): DirectionalWord[] {
-  return slots.map(slot => ({
-    word: 'x'.repeat(slot.length),
-    isHorizontal: slot.direction === 'across',
-    isReversed: false,
-    clue: '',
-    x: slot.startX,
-    y: slot.startY,
-  }));
 }
 
 describe('deriveSlotsFromBlockMask — slot geometry', () => {
@@ -84,21 +66,12 @@ describe('deriveSlotsFromBlockMask — slot geometry', () => {
       { x: 4, y: 0, len: 5 },
     ]);
 
-    // Numbering (row-major, across+down share a number at the same start cell):
-    //   (0,0) across+down  -> 1
-    //   (2,0) down         -> 2
-    //   (4,0) down         -> 3
-    //   (0,2) across       -> 4
-    //   (0,4) across       -> 5
-    const numberAt = (dir: 'across' | 'down', x: number, y: number) =>
-      result.slots.find(s => s.direction === dir && s.startX === x && s.startY === y)!.id;
-
-    expect(numberAt('across', 0, 0)).toBe(1);
-    expect(numberAt('down', 0, 0)).toBe(1); // shares with across at (0,0)
-    expect(numberAt('down', 2, 0)).toBe(2);
-    expect(numberAt('down', 4, 0)).toBe(3);
-    expect(numberAt('across', 0, 2)).toBe(4);
-    expect(numberAt('across', 0, 4)).toBe(5);
+    // Every slot has a UNIQUE id — across and down beginning at the same start
+    // cell get DIFFERENT ids (consumers key by id and require uniqueness). Ids
+    // are not crossword display numbers; the finished puzzle is renumbered later.
+    const ids = result.slots.map(s => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every(id => Number.isInteger(id) && id >= 1)).toBe(true);
 
     // Constraints start empty (no letters placed yet).
     for (const slot of result.slots) {
@@ -184,64 +157,32 @@ describe('deriveSlotsFromBlockMask — slot geometry', () => {
   });
 });
 
-describe('numbering parity with assignNumbers', () => {
-  /**
-   * For any mask, the slot numbers we assign must equal the numbers
-   * assignNumbers would assign when the finished grid (same word positions)
-   * goes through Play / Export. We verify cell-for-cell.
-   */
-  function assertParity(rows: string[]) {
+describe('slot ids are unique', () => {
+  // Ids are a per-slot identity that every consumer (the fill solver, the
+  // AI-fill parser, the fill view, skeletonToPuzzle) keys by, so an across and a
+  // down beginning at the same cell must get DIFFERENT ids. We check several
+  // masks, including ones where many cells start both an across and a down slot.
+  function assertUniqueIds(rows: string[]) {
     const { mask, width, height } = maskFromRows(rows);
-    const result = deriveSlotsFromBlockMask(mask, width, height);
-
-    const words = slotsToDirectionalWords(result.slots);
-    const { acrossClues, downClues } = assignNumbers(words, width, height);
-
-    // Build expected number lookups keyed by start cell + direction.
-    const expectedAcross = new Map<string, number>();
-    for (const c of acrossClues) expectedAcross.set(`${c.x},${c.y}`, c.number);
-    const expectedDown = new Map<string, number>();
-    for (const c of downClues) expectedDown.set(`${c.x},${c.y}`, c.number);
-
-    // Same slot count both ways (no slot dropped/added).
-    expect(acrossClues.length).toBe(result.slots.filter(s => s.direction === 'across').length);
-    expect(downClues.length).toBe(result.slots.filter(s => s.direction === 'down').length);
-
-    for (const slot of result.slots) {
-      const key = `${slot.startX},${slot.startY}`;
-      const expected = slot.direction === 'across'
-        ? expectedAcross.get(key)
-        : expectedDown.get(key);
-      expect(expected, `slot ${slot.direction} at ${key}`).toBe(slot.id);
-    }
+    const { slots } = deriveSlotsFromBlockMask(mask, width, height);
+    const ids = slots.map(s => s.id);
+    expect(new Set(ids).size, 'all slot ids unique').toBe(ids.length);
   }
 
-  it('matches assignNumbers on the 5x5 cross-grid', () => {
-    assertParity(['.....', '.#.#.', '.....', '.#.#.', '.....']);
+  it('unique on the 5x5 cross-grid (cells start both across and down)', () => {
+    assertUniqueIds(['.....', '.#.#.', '.....', '.#.#.', '.....']);
   });
 
-  it('matches assignNumbers on an irregular mask', () => {
-    assertParity([
-      '..#..',
-      '.###.',
-      '.....',
-      '#...#',
-      '..#..',
-    ]);
+  it('unique on an irregular mask', () => {
+    assertUniqueIds(['..#..', '.###.', '.....', '#...#', '..#..']);
   });
 
-  it('matches assignNumbers on an all-open rectangle', () => {
-    assertParity(['......', '......', '......', '......']);
+  it('unique on an all-open rectangle', () => {
+    assertUniqueIds(['......', '......', '......', '......']);
   });
 
-  it('matches assignNumbers on a mask with isolated stray cells', () => {
-    // Includes single open cells that form no slot — these must NOT get numbers
-    // on either side, so parity still holds.
-    assertParity([
-      '.#.#.',
-      '#...#',
-      '.#.#.',
-    ]);
+  it('unique on a mask with isolated stray cells', () => {
+    assertUniqueIds(['.#.#.', '#...#', '.#.#.']);
   });
 });
 
