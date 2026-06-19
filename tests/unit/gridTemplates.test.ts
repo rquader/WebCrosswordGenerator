@@ -10,6 +10,7 @@ import {
   GRID_TEMPLATES,
   maskFromTemplateRows,
   generateCrosswordMaskRows,
+  generatedTemplate,
 } from '../../src/logic/gridTemplates';
 import { deriveSlotsFromBlockMask } from '../../src/logic/gridSkeleton';
 
@@ -171,5 +172,31 @@ describe('generateCrosswordMaskRows', () => {
   it('places black squares at a standard size', () => {
     const blacks = generateCrosswordMaskRows(15, 15, 3).join('').split('').filter(c => c === '#').length;
     expect(blacks).toBeGreaterThan(0);
+  });
+});
+
+describe('generatedTemplate', () => {
+  for (const size of [9, 11, 13, 15, 17, 19, 21]) {
+    for (const seed of [1, 2, 3, 4]) {
+      it(`wraps a valid template at ${size}x${size} (seed ${seed})`, () => {
+        const t = generatedTemplate(size, size, seed);
+        expect(t.width).toBe(size);
+        expect(t.height).toBe(size);
+        expect(t.rows.length).toBe(size);
+        expect(t.id).toBe(`gen-${size}x${size}-${seed}`);
+
+        const mask = maskFromTemplateRows(t.rows);
+        const { slots } = deriveSlotsFromBlockMask(mask, size, size);
+        for (const s of slots) {
+          expect(s.length, `slot ${s.id}-${s.direction}`).toBeGreaterThanOrEqual(3);
+        }
+        expect(slots.length).toBeGreaterThanOrEqual(4);
+        expect(openComponentCount(mask, size, size)).toBe(1);
+      });
+    }
+  }
+
+  it('is deterministic for a given seed', () => {
+    expect(generatedTemplate(15, 15, 2).rows).toEqual(generatedTemplate(15, 15, 2).rows);
   });
 });

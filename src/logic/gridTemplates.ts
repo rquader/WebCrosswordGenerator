@@ -30,12 +30,20 @@ export interface GridTemplate {
   rows: string[];
 }
 
+/**
+ * The curated set — every one HAND-CRAFTED (not machine-generated), so the
+ * common sizes get a clean, deliberate, good-looking starting grid. These show
+ * FIRST in the gallery; the generator (generateCrosswordMaskRows) supplies extra
+ * variety on demand, primarily for sizes that aren't curated here.
+ *
+ * Each follows the same contract the test enforces: 180° symmetry, no stray
+ * cells, no word shorter than 3, a single connected region of white cells.
+ */
 export const GRID_TEMPLATES: GridTemplate[] = [
-  // Hand-drawn small patterns (distinct styles).
   {
     id: 'mini-5',
     name: '5 × 5',
-    blurb: 'Mini — six five-letter words',
+    blurb: 'Mini',
     width: 5,
     height: 5,
     rows: [
@@ -49,7 +57,7 @@ export const GRID_TEMPLATES: GridTemplate[] = [
   {
     id: 'compact-7',
     name: '7 × 7',
-    blurb: 'Compact — short words',
+    blurb: 'Compact',
     width: 7,
     height: 7,
     rows: [
@@ -62,38 +70,64 @@ export const GRID_TEMPLATES: GridTemplate[] = [
       '...#...',
     ],
   },
-  // Standard, fully-interlocked grids across the common sizes — produced by the
-  // generator below at fixed, hand-picked seeds (frozen here so they're stable
-  // named presets; the test suite verifies every one).
   {
-    id: 'std-8',
+    id: 'pinwheel-8',
     name: '8 × 8',
-    blurb: 'Fully interlocked',
+    blurb: 'Pinwheel',
     width: 8,
     height: 8,
-    rows: generateCrosswordMaskRows(8, 8, 1),
+    rows: [
+      '....#...',
+      '....#...',
+      '........',
+      '###.....',
+      '.....###',
+      '........',
+      '...#....',
+      '...#....',
+    ],
   },
   {
-    id: 'std-9',
+    id: 'pinwheel-9',
     name: '9 × 9',
-    blurb: 'Fully interlocked',
+    blurb: 'Pinwheel',
     width: 9,
     height: 9,
-    rows: generateCrosswordMaskRows(9, 9, 1),
+    rows: [
+      '.....#...',
+      '.....#...',
+      '.........',
+      '###......',
+      '....#....',
+      '......###',
+      '.........',
+      '...#.....',
+      '...#.....',
+    ],
   },
   {
-    id: 'std-10',
+    id: 'windmill-10',
     name: '10 × 10',
-    blurb: 'Fully interlocked',
+    blurb: 'Windmill',
     width: 10,
     height: 10,
-    rows: generateCrosswordMaskRows(10, 10, 3),
+    rows: [
+      '.....#....',
+      '.....#....',
+      '..........',
+      '###.......',
+      '.......###',
+      '###.......',
+      '.......###',
+      '..........',
+      '....#.....',
+      '....#.....',
+    ],
   },
-  // Hand-drawn open style (fewer blacks, some longer answers).
   {
     id: 'diamond-11',
     name: '11 × 11',
-    blurb: 'Open — a few longer answers',
+    blurb: 'Open lattice',
     width: 11,
     height: 11,
     rows: [
@@ -111,17 +145,30 @@ export const GRID_TEMPLATES: GridTemplate[] = [
     ],
   },
   {
-    id: 'std-12',
+    id: 'windmill-12',
     name: '12 × 12',
-    blurb: 'Fully interlocked',
+    blurb: 'Windmill',
     width: 12,
     height: 12,
-    rows: generateCrosswordMaskRows(12, 12, 3),
+    rows: [
+      '......#.....',
+      '......#.....',
+      '............',
+      '###.........',
+      '.........###',
+      '............',
+      '............',
+      '###.........',
+      '.........###',
+      '............',
+      '.....#......',
+      '.....#......',
+    ],
   },
   {
     id: 'classic-13',
     name: '13 × 13',
-    blurb: 'Open — roomy',
+    blurb: 'Open & roomy',
     width: 13,
     height: 13,
     rows: [
@@ -141,14 +188,46 @@ export const GRID_TEMPLATES: GridTemplate[] = [
     ],
   },
   {
-    id: 'std-15',
+    id: 'classic-15',
     name: '15 × 15',
-    blurb: 'A full-size crossword',
+    blurb: 'Full-size crossword',
     width: 15,
     height: 15,
-    rows: generateCrosswordMaskRows(15, 15, 3),
+    rows: [
+      '.....#...#.....',
+      '.....#...#.....',
+      '...............',
+      '###.........###',
+      '......#.#......',
+      '...............',
+      '...#.......#...',
+      '.....#...#.....',
+      '...#.......#...',
+      '...............',
+      '......#.#......',
+      '###.........###',
+      '...............',
+      '.....#...#.....',
+      '.....#...#.....',
+    ],
   },
 ];
+
+/**
+ * Wrap a freshly generated mask as a GridTemplate so the gallery can show
+ * algorithmic variants as pickable tiles alongside the curated ones. Used for
+ * on-demand "generate a grid" at any dimension (deterministic per seed).
+ */
+export function generatedTemplate(width: number, height: number, seed: number): GridTemplate {
+  return {
+    id: `gen-${width}x${height}-${seed}`,
+    name: `${width} × ${height}`,
+    blurb: 'Generated',
+    width,
+    height,
+    rows: generateCrosswordMaskRows(width, height, seed),
+  };
+}
 
 /**
  * Convert a template's rows ('#' = block, '.' = open) to a BlockMask
