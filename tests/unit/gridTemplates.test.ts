@@ -109,6 +109,33 @@ describe('GRID_TEMPLATES', () => {
       });
     });
   }
+
+  // The standard-size curated grids (7+) are full newspaper crosswords: every
+  // open cell must belong to BOTH an across and a down word (fully checked, no
+  // "unchecked" cells). The 5x5 mini is exempt — minis can't be fully checked.
+  for (const t of GRID_TEMPLATES.filter(t => Math.min(t.width, t.height) >= 7)) {
+    it(`${t.id} is fully checked (every open cell crosses an across and a down word)`, () => {
+      const mask = maskFromTemplateRows(t.rows);
+      const { slots } = deriveSlotsFromBlockMask(mask, t.width, t.height);
+      const across = new Set<string>();
+      const down = new Set<string>();
+      for (const s of slots) {
+        for (let i = 0; i < s.length; i++) {
+          const x = s.direction === 'across' ? s.startX + i : s.startX;
+          const y = s.direction === 'across' ? s.startY : s.startY + i;
+          (s.direction === 'across' ? across : down).add(`${x},${y}`);
+        }
+      }
+      const unchecked: string[] = [];
+      for (let y = 0; y < t.height; y++) {
+        for (let x = 0; x < t.width; x++) {
+          if (mask[y][x]) continue;
+          if (!across.has(`${x},${y}`) || !down.has(`${x},${y}`)) unchecked.push(`${x},${y}`);
+        }
+      }
+      expect(unchecked, `${t.id}: unchecked open cells`).toEqual([]);
+    });
+  }
 });
 
 describe('generateCrosswordMaskRows', () => {

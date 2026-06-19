@@ -1,16 +1,13 @@
 /**
- * Starter-grid gallery for "Build your own grid".
+ * Size-first starter-grid menu for "Build your own grid".
  *
- * Two ways to begin instead of a blank canvas:
- *   1. Curated, hand-crafted templates (src/logic/gridTemplates.ts) shown FIRST
- *      as small print-style previews — clean, deliberate shapes for the common
- *      sizes.
- *   2. A "generate a fresh grid" control that builds valid, fully-interlocked
- *      crossword patterns at any size on demand (generateCrosswordMaskRows),
- *      shown as a row of pickable variants — primarily for sizes the curated set
- *      doesn't cover, or for extra variety. Shuffle re-rolls the batch.
+ * Pick a size, then pick a shape. For the chosen size we show the curated,
+ * hand-frozen crossword grid(s) FIRST (clean, fully-interlocked, newspaper
+ * style), then top up to a full row with fresh on-the-fly variants from the
+ * generator (generateCrosswordMaskRows) — every one valid by construction.
+ * "More variations" re-rolls the generated tiles with new seeds.
  *
- * Either way it just hands a BlockMask up via onLoad; the parent loads it into
+ * Picking a tile just hands a BlockMask up via onLoad; the parent loads it into
  * the editable draft, where the existing Fill / Fill-with-AI paths take over.
  */
 
@@ -28,89 +25,90 @@ interface GridTemplateGalleryProps {
   onLoad: (mask: BlockMask, width: number, height: number) => void;
 }
 
-/** Sizes offered by the generator — a spread that complements the curated set. */
-const GENERATE_SIZES = [9, 11, 13, 15, 17, 19, 21];
-/** How many generated variants to show per batch. */
-const GEN_VARIANTS = 4;
+/** Sizes offered, smallest to largest — drawn from the curated set. */
+const SIZES = Array.from(new Set(GRID_TEMPLATES.map(t => t.width))).sort((a, b) => a - b);
+/** Size shown the moment BYOG opens — a roomy, familiar full-page shape. */
+const DEFAULT_SIZE = SIZES.includes(13) ? 13 : SIZES[Math.floor(SIZES.length / 2)];
+/** Target number of tiles per size (curated first, generated fills the rest). */
+const TILE_COUNT = 5;
 
 export function GridTemplateGallery({ onLoad }: GridTemplateGalleryProps) {
-  const [size, setSize] = useState(15);
+  const [size, setSize] = useState(DEFAULT_SIZE);
   const [batch, setBatch] = useState(0);
-  const [showGenerated, setShowGenerated] = useState(false);
 
-  // Deterministic variants for the current size + batch (seeds advance with the
-  // batch so "Shuffle" always yields a fresh, repeatable set).
-  const variants = useMemo(
-    () =>
-      Array.from({ length: GEN_VARIANTS }, (_, i) =>
-        generatedTemplate(size, size, batch * GEN_VARIANTS + i + 1),
-      ),
-    [size, batch],
-  );
+  // Curated grids for this size come first; generated variants top up to
+  // TILE_COUNT. Variant seeds advance with the batch so "More variations"
+  // yields a fresh, repeatable set every press.
+  const tiles = useMemo<{ template: GridTemplate; curated: boolean }[]>(() => {
+    const curated = GRID_TEMPLATES.filter(t => t.width === size);
+    const needed = Math.max(0, TILE_COUNT - curated.length);
+    const generated = Array.from({ length: needed }, (_, i) =>
+      generatedTemplate(size, size, batch * needed + i + 1),
+    );
+    return [
+      ...curated.map(template => ({ template, curated: true })),
+      ...generated.map(template => ({ template, curated: false })),
+    ];
+  }, [size, batch]);
 
   function load(template: GridTemplate) {
     onLoad(maskFromTemplateRows(template.rows), template.width, template.height);
   }
 
-  function handleGenerate() {
-    if (!showGenerated) setShowGenerated(true);
-    else setBatch(b => b + 1); // already showing — Shuffle to the next batch
-  }
-
   function handleSizeChange(next: number) {
     setSize(next);
     setBatch(0);
-    setShowGenerated(true);
   }
 
   return (
     <div className="warm-card p-4">
-      <div className="mb-3">
-        <h3 className="section-label">Start from a template</h3>
-        <p className="text-xs text-ink-3 mt-0.5">
-          Pick a clean, ready-made crossword shape to tweak and fill &mdash; or generate one at any size.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {GRID_TEMPLATES.map(template => (
-          <TemplateTile key={template.id} template={template} onPick={() => load(template)} />
-        ))}
-      </div>
-
-      {/* Generate fresh, valid grids at any size — pick one, or shuffle for more. */}
-      <div className="mt-5 pt-4 border-t border-line/50">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-ink-2">Or generate a fresh grid:</span>
-          <select
-            value={size}
-            onChange={e => handleSizeChange(Number(e.target.value))}
-            aria-label="Generated grid size"
-            className="rounded-md border border-line-2 bg-card px-2 py-1 text-sm text-ink
-                       focus:outline-none focus:border-accent"
-          >
-            {GENERATE_SIZES.map(s => (
-              <option key={s} value={s}>{s}&times;{s}</option>
-            ))}
-          </select>
-          <button type="button" onClick={handleGenerate} className="btn-secondary btn-sm">
-            {showGenerated ? 'Shuffle ↻' : 'Generate'}
-          </button>
-          <span className="text-[11px] text-ink-3">fully interlocked &mdash; shuffle for more</span>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="section-label">Grid size</h3>
+          <p className="text-xs text-ink-3 mt-0.5">
+            Pick a size, then choose a shape to tweak and fill.
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setBatch(b => b + 1)}
+          className="btn-secondary btn-sm"
+        >
+          More variations ↻
+        </button>
+      </div>
 
-        {showGenerated && (
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {variants.map((template, i) => (
-              <TemplateTile
-                key={template.id}
-                template={template}
-                label={`Option ${i + 1}`}
-                onPick={() => load(template)}
-              />
-            ))}
-          </div>
-        )}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grid size">
+        {SIZES.map(s => {
+          const active = s === size;
+          return (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={active}
+              onClick={() => handleSizeChange(s)}
+              className={
+                'rounded-md border px-2.5 py-1 text-sm transition-colors ' +
+                (active
+                  ? 'border-rubric bg-rubric/10 text-rubric font-medium'
+                  : 'border-line-2 bg-card text-ink-2 hover:border-rubric/50')
+              }
+            >
+              {s}&times;{s}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {tiles.map(({ template, curated }, i) => (
+          <TemplateTile
+            key={template.id}
+            template={template}
+            label={curated ? 'Curated' : `Variation ${i}`}
+            onPick={() => load(template)}
+          />
+        ))}
       </div>
     </div>
   );
@@ -123,23 +121,20 @@ function TemplateTile({
   onPick,
 }: {
   template: GridTemplate;
-  label?: string;
+  label: string;
   onPick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onPick}
-      aria-label={`${template.name} ${label ?? template.blurb}`}
+      aria-label={`${template.name} ${label}`}
       className="group flex flex-col items-center gap-2 rounded-lg border border-line/60 bg-card/50 p-3
                  hover:border-rubric/50 hover:bg-card transition-all
                  focus:outline-none focus-visible:border-rubric"
     >
       <GridPreview rows={template.rows} width={template.width} height={template.height} />
-      <span className="text-center">
-        <span className="block text-sm font-medium text-ink">{template.name}</span>
-        <span className="block text-[11px] leading-tight text-ink-3">{label ?? template.blurb}</span>
-      </span>
+      <span className="block text-[11px] leading-tight text-ink-3">{label}</span>
     </button>
   );
 }
