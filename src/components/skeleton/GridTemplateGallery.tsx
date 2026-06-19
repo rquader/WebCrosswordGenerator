@@ -17,6 +17,7 @@ import {
   maskFromTemplateRows,
   generateCrosswordMaskRows,
 } from '../../logic/gridTemplates';
+import { CELL_PAPER, CELL_BLOCKED } from '../grid/gridStyles';
 
 interface GridTemplateGalleryProps {
   onLoad: (mask: BlockMask, width: number, height: number) => void;
@@ -102,7 +103,7 @@ function GridPreview({ rows, width }: { rows: string[]; width: number }) {
     >
       {rows.flatMap((row, y) =>
         row.split('').map((ch, x) => (
-          <div key={`${x}-${y}`} className={ch === '#' ? 'bg-ink' : 'bg-page'} />
+          <div key={`${x}-${y}`} className={ch === '#' ? CELL_BLOCKED : CELL_PAPER} />
         )),
       )}
     </div>
