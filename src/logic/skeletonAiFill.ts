@@ -87,22 +87,30 @@ export function gridFromPlacedSlots(
 export function solveSkeletonFill(options: {
   slots: SkeletonSlot[];
   intersections: SlotIntersection[];
-  /** The AI's per-slot picks (slot id -> word + clue), respected verbatim. */
+  /** Words that MUST stay verbatim (placed user words). Locked always wins. */
   locked: Map<number, { word: string; clue: string }>;
   /** Unlabeled spare suggestions from the AI, best-first. */
   pool: WordCluePair[];
+  /**
+   * The AI's per-slot picks (slot id -> candidate words, best-first). Tried
+   * first per slot as SOFT preferences, so a pick that cannot cross cleanly
+   * falls back to an alternate candidate (or the pool/bank) instead of forcing
+   * a bad letter onto its crossings.
+   */
+  slotCandidates?: Map<number, WordCluePair[]>;
   /** Determinism seed; only breaks ties inside the solver. */
   seed?: number;
 }): {
   assignments: Map<number, { word: string; clue: string }>;
   unfilledSlotIds: number[];
 } {
-  const { slots, intersections, locked, pool, seed = 0 } = options;
+  const { slots, intersections, locked, pool, slotCandidates, seed = 0 } = options;
   return fillGrid({
     slots,
     intersections,
     pool,
     locked,
+    slotCandidates,
     // Always complete the grid with the curated bank so the user lands on a
     // plausible, fully filled puzzle to edit (unfillable slots stay blank).
     includeWordBank: true,

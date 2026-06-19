@@ -48,8 +48,16 @@ export function fillGrid(options: {
   intersections: SlotIntersection[];
   /** Candidate words (+clues) to draw from, best-first (earlier = preferred). */
   pool: WordCluePair[];
-  /** Slots that MUST keep a given word (kept / AI-accepted). Locked always wins. */
+  /** Slots that MUST keep a given word (kept / placed user word). Locked always wins. */
   locked?: Map<number, { word: string; clue: string }>;
+  /**
+   * Preferred per-slot candidates (e.g. the AI's picks), best-first. Unlike
+   * `locked`, these are SOFT: for each slot the solver tries its candidates
+   * first, but may fall back to a later candidate (or the pool/bank) when an
+   * earlier one cannot cross cleanly. This lets a single wrong AI pick be
+   * replaced by an alternate instead of poisoning its crossings.
+   */
+  slotCandidates?: Map<number, WordCluePair[]>;
   /** Append the curated word bank as clue-less fallback fill when true. */
   includeWordBank?: boolean;
   /** Determinism seed; only breaks ties (perturbs per-slot candidate order). */
@@ -64,6 +72,23 @@ export function fillGrid(options: {
   // intersections is part of the contract; crossings are enforced cell-by-cell
   // through the shared virtual grid below, so we do not need to index it here.
   void options.intersections;
+
+  // Preferred per-slot candidates (AI picks), normalized once: lowercased,
+  // deduped within a slot, clue preserved. Tried first by matchingCandidates.
+  const prefsBySlot = new Map<number, Candidate[]>();
+  if (options.slotCandidates) {
+    for (const [slotId, list] of options.slotCandidates) {
+      const seenPref = new Set<string>();
+      const out: Candidate[] = [];
+      for (const { word, clue } of list) {
+        const w = word.toLowerCase();
+        if (seenPref.has(w)) continue;
+        seenPref.add(w);
+        out.push({ word: w, clue });
+      }
+      if (out.length > 0) prefsBySlot.set(slotId, out);
+    }
+  }
 
   const assignments = new Map<number, Assignment>();
   if (slots.length === 0) return { assignments, unfilledSlotIds: [] };
@@ -148,13 +173,38 @@ export function fillGrid(options: {
   // staying deterministic for a given seed.
   const matchingCandidates = (slot: SkeletonSlot): Candidate[] => {
     const base = candidatesByLength.get(slot.length) ?? [];
-    const fitting = base.filter(c => !usedWords.has(c.word) && candidateFits(slot, c.word));
-    if (seed !== 0 && fitting.length > 1) {
-      // Stable, slot-scoped perturbation: same seed + slot id => same order.
-      const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
-      rng.shuffle(fitting);
+    const prefs = prefsBySlot.get(slot.id);
+
+    if (!prefs || prefs.length === 0) {
+      // No per-slot preferences: original behavior, unchanged (seeded shuffle).
+      const fitting = base.filter(c => !usedWords.has(c.word) && candidateFits(slot, c.word));
+      if (seed !== 0 && fitting.length > 1) {
+        // Stable, slot-scoped perturbation: same seed + slot id => same order.
+        const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
+        rng.shuffle(fitting);
+      }
+      return fitting;
     }
-    return fitting;
+
+    // Preferences first, IN ORDER (best-first, never shuffled), then the rest of
+    // the fitting pool/bank words with a stable seeded shuffle. A pref word that
+    // also appears in the base list is kept only once (the pref carries its clue).
+    const chosen = new Set<string>();
+    const front: Candidate[] = [];
+    for (const c of prefs) {
+      if (!usedWords.has(c.word) && !chosen.has(c.word) && candidateFits(slot, c.word)) {
+        chosen.add(c.word);
+        front.push(c);
+      }
+    }
+    const rest = base.filter(
+      c => !usedWords.has(c.word) && !chosen.has(c.word) && candidateFits(slot, c.word),
+    );
+    if (seed !== 0 && rest.length > 1) {
+      const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
+      rng.shuffle(rest);
+    }
+    return [...front, ...rest];
   };
 
   // How constrained a slot is right now: fewer fitting candidates = fill sooner.

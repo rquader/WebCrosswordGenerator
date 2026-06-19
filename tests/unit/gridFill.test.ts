@@ -232,6 +232,46 @@ describe('fillGrid - locked words', () => {
   });
 });
 
+describe('fillGrid - per-slot candidates (soft preferences)', () => {
+  it('tries a slot\u2019s candidates first, falling back to an alternate that crosses', () => {
+    // 3x3 plus: across crosses down at (1,1). The across slot's FIRST candidate
+    // ("dog", 'o' at idx1) clashes with the down candidate ("cat", 'a' at idx1).
+    // Its SECOND candidate ("oak", 'a' at idx1) agrees, so the solver must
+    // backtrack off "dog" and place "oak" to fill both slots.
+    const { slots, intersections } = fixture(['#.#', '...', '#.#']);
+    const acrossSlot = slots.find(s => s.direction === 'across')!;
+    const downSlot = slots.find(s => s.direction === 'down')!;
+    const slotCandidates = new Map<number, WordCluePair[]>([
+      [acrossSlot.id, [{ word: 'dog', clue: 'a pet' }, { word: 'oak', clue: 'a tree' }]],
+      [downSlot.id, [{ word: 'cat', clue: 'a feline' }]],
+    ]);
+
+    const result = fillGrid({ slots, intersections, pool: [], slotCandidates, seed: 1 });
+
+    expect(result.assignments.size).toBe(2);
+    expect(result.assignments.get(acrossSlot.id)?.word).toBe('oak');
+    expect(result.assignments.get(downSlot.id)?.word).toBe('cat');
+    assertCrossingsAgree(slots, intersections, result.assignments);
+  });
+
+  it('prefers a candidate over an equally-valid pool word, keeping its clue', () => {
+    const { slots, intersections } = fixture(['...']); // one length-3 across slot
+    const slot = slots[0];
+    const slotCandidates = new Map<number, WordCluePair[]>([
+      [slot.id, [{ word: 'sun', clue: 'a star' }]],
+    ]);
+    // Pool also offers 'sun' (different clue) plus others; the candidate wins.
+    const result = fillGrid({
+      slots,
+      intersections,
+      pool: pool(['dog', 'sun', 'pen']),
+      slotCandidates,
+      seed: 1,
+    });
+    expect(result.assignments.get(slot.id)).toEqual({ word: 'sun', clue: 'a star' });
+  });
+});
+
 describe('fillGrid - no duplicate answers across the whole grid', () => {
   it('never places the same word in two slots', () => {
     const { slots, intersections } = fixture(['#...#', '.....', '..#..', '.....', '#...#']);

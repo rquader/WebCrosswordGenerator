@@ -185,12 +185,15 @@ export function buildSkeletonFillPrompt(options: {
     ? 'ALL CAPS using only the letters A-Z, Á É Í Ó Ú Ü Ñ, and digits'
     : 'ALL CAPS using only the letters A-Z and digits';
   lines.push('OUTPUT FORMAT');
-  lines.push('Respond with ONLY a fenced code block. Inside it, one line per blank slot:');
+  lines.push('Respond with ONLY a fenced code block. Each line is:');
   lines.push('');
   lines.push('{id}-{ACROSS or DOWN}: WORD | Clue text');
   lines.push('');
   lines.push(`Rules: the label must match a slot above, WORD in ${caps}, a single pipe (|) before the clue, clue in sentence case.`);
-  lines.push(`One line for every blank slot listed (${emptySlots.length}). No blank lines, no numbering, no text outside the code block.`);
+  // Multiple candidates per slot: the parser collects every valid labeled line,
+  // and a fallback solver picks whichever set crosses cleanly — so a single bad
+  // pick can be swapped for an alternate instead of breaking its crossings.
+  lines.push(`Give 2 or 3 DIFFERENT options for EACH blank slot, best first — one option per line, all reusing that slot's label (same id and direction). Every option must be the right length and respect the slot's locked letters and crossings. List a slot's options together (best first), then move to the next slot. Cover all ${emptySlots.length} blank slots. No blank lines, no numbering, no text outside the code block.`);
 
   if (solverAssist) {
     // Optional spare pool: a few extra unlabeled words of the lengths that
@@ -201,16 +204,18 @@ export function buildSkeletonFillPrompt(options: {
   }
   lines.push('');
 
-  // 7 — Worked example.
+  // 7 — Worked example: two options per slot (same label), best first.
   lines.push('Example format (do not copy these words):');
   lines.push('```');
   lines.push('3-ACROSS: PLANET | A world that orbits a star.');
+  lines.push('3-ACROSS: PLASMA | A hot, charged state of matter.');
   lines.push('5-DOWN: ORBIT | The path one body takes around another.');
+  lines.push('5-DOWN: COMET | An icy body with a glowing tail.');
   if (allowTwoWords) {
     lines.push('7-ACROSS: SOLAR_FLARE | A burst of energy from the sun.');
   }
   if (solverAssist) {
-    lines.push('COMET | An icy body with a glowing tail.');
+    lines.push('NEBULA | A vast cloud of gas and dust.');
   }
   lines.push('```');
   lines.push('');
@@ -312,8 +317,16 @@ function distinctSlotLengths(slots: SkeletonSlot[]): number[] {
 /* ── Response parser ──────────────────────────────────────────────────── */
 
 export interface SkeletonFillParse {
-  /** slot id -> the word + clue accepted for it. */
+  /** slot id -> the word + clue accepted for it (the FIRST valid pick per slot). */
   assignments: Map<number, { word: string; clue: string }>;
+  /**
+   * slot id -> ALL valid words the AI offered for that slot, best-first
+   * (length / locked-letter / charset valid). The first entry mirrors
+   * `assignments`; later entries are alternates the solver can fall back to
+   * when the first does not cross cleanly. Multiple labeled lines with the same
+   * slot label populate this (alternates never raise a parse issue).
+   */
+  slotCandidates: Map<number, WordCluePair[]>;
   /** Unlabeled "WORD | clue" lines — spare suggestions, not tied to a slot. */
   pool: WordCluePair[];
   issues: ParseIssue[];
@@ -335,6 +348,7 @@ export function parseSkeletonFillResponse(
 ): SkeletonFillParse {
   const result: SkeletonFillParse = {
     assignments: new Map(),
+    slotCandidates: new Map(),
     pool: [],
     issues: [],
   };
@@ -488,6 +502,20 @@ export function parseSkeletonFillResponse(
       continue;
     }
 
+    // 4b2 — record this as a per-slot candidate (the word has already passed
+    // length / locked-letter / charset / two-word / clue checks, so it is a
+    // legal answer for this slot). Multiple lines for one slot collect here as
+    // best-first alternates; the solver tries them in order. Dedupe within the
+    // slot by word. Once a slot has its FIRST candidate (the primary), further
+    // lines for it are alternates only: skip the global-dedupe + cross-agreement
+    // + assignment steps below so an alternate never raises a parse issue.
+    const slotCands = result.slotCandidates.get(id) ?? [];
+    if (!slotCands.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+      slotCands.push({ word, clue });
+      result.slotCandidates.set(id, slotCands);
+    }
+    if (result.assignments.has(id)) continue;
+
     // 4c — case-insensitive dedupe (keep the first occurrence)
     if (seen.has(word.toLowerCase())) {
       result.issues.push({
@@ -498,16 +526,14 @@ export function parseSkeletonFillResponse(
       continue;
     }
 
-    // 5 — cross-agreement vs already-accepted assignments: the letters this
-    // word would place at its cells must match anything already committed
-    // there by an earlier accepted slot. On conflict, drop THIS (later) one.
+    // 5 — cross-agreement vs already-accepted PRIMARY assignments: keep the
+    // primary set (one word per slot) internally consistent by not letting a
+    // later primary pick contradict an earlier one at a shared cell. This is NOT
+    // an error, though — the word is already saved as a per-slot candidate, and
+    // the solver resolves crossings by choosing a consistent set of candidates,
+    // so we drop it from `assignments` silently (no misleading issue).
     const conflict = crossingConflict(slot, gridForm, committed);
     if (conflict !== null) {
-      result.issues.push({
-        line: lineNumber,
-        text: truncate(rawLine),
-        message: `Line ${lineNumber}: "${word}" disagrees with a crossing word at the shared letter (position ${conflict + 1} of ${id}-${direction.toUpperCase()}) — skipped`,
-      });
       continue;
     }
 
@@ -629,9 +655,13 @@ export function fillSkeletonFromResponse(options: {
     allowTwoWords,
   });
 
-  // Locked = the AI's accepted picks first, then every already-placed word
-  // (placed overwrites, so a stray AI line can never replace a kept/user word).
-  const locked = new Map<number, { word: string; clue: string }>(parse.assignments);
+  // Hard-locked = only genuinely placed words (must-include user words, or a
+  // blank the user already typed in full — any slot carrying a `.word`). These
+  // must never change. The AI's per-slot picks are NOT hard-locked: they are
+  // passed as SOFT candidates the solver tries first, so a pick that cannot
+  // cross cleanly falls back to one of its alternates (or the pool/bank)
+  // instead of forcing a bad letter onto its crossings.
+  const locked = new Map<number, { word: string; clue: string }>();
   for (const slot of slots) {
     if (slot.word) locked.set(slot.id, { word: slot.word, clue: slot.clue ?? '' });
   }
@@ -641,13 +671,25 @@ export function fillSkeletonFromResponse(options: {
     intersections,
     locked,
     pool: parse.pool,
+    slotCandidates: parse.slotCandidates,
     seed,
   });
+
+  // "From the AI" = blank slots whose final word is one of the AI's candidates
+  // for that slot (placed user words don't count — they were already there).
+  let lockedCount = 0;
+  for (const [slotId, placedWord] of assignments) {
+    if (locked.has(slotId)) continue;
+    const cands = parse.slotCandidates.get(slotId);
+    if (cands && cands.some(c => c.word.toLowerCase() === placedWord.word.toLowerCase())) {
+      lockedCount++;
+    }
+  }
 
   return {
     assignments,
     unfilledSlotIds,
-    lockedCount: parse.assignments.size,
+    lockedCount,
     issues: parse.issues.map(issue => issue.message),
   };
 }

@@ -339,13 +339,12 @@ describe('parseSkeletonFillResponse', () => {
     expect(result.issues).toHaveLength(1);
   });
 
-  it('drops the later of two crossing answers that disagree on the shared letter', () => {
+  it('keeps the primary set consistent when two crossing picks disagree, but logs no issue', () => {
     const { slots, intersections } = plusFixture();
     const across = slots.find(s => s.direction === 'across')!; // crosses down at letter 3 (pos 2)
     const down = slots.find(s => s.direction === 'down')!;
 
-    // PLANT has 'A' at position 2; GRAPE has 'A' at position 2 -> they AGREE.
-    // Use a deliberate disagreement: across PLANT (pos2 'A'), down ZEBRA (pos2 'B').
+    // across PLANT (pos2 'A') disagrees with down ZEBRA (pos2 'B') at the cross.
     const response = [
       '```',
       `${across.id}-ACROSS: PLANT | A green organism.`,
@@ -355,10 +354,13 @@ describe('parseSkeletonFillResponse', () => {
 
     const result = parseSkeletonFillResponse(response, { slots, intersections });
 
-    // First accepted (PLANT) stays; the conflicting later one (ZEBRA) is dropped.
+    // The primary set stays consistent (PLANT kept, the conflicting ZEBRA not
+    // promoted to a primary assignment) — but it is NOT an error: ZEBRA is kept
+    // as a candidate the solver may use, and no misleading issue is logged.
     expect(result.assignments.get(across.id)?.word).toBe('PLANT');
     expect(result.assignments.has(down.id)).toBe(false);
-    expect(result.issues.some(i => i.message.toLowerCase().includes('cross'))).toBe(true);
+    expect(result.slotCandidates.get(down.id)?.map(c => c.word)).toEqual(['ZEBRA']);
+    expect(result.issues).toHaveLength(0);
   });
 
   it('keeps two crossing answers that agree on the shared letter', () => {
@@ -478,7 +480,30 @@ describe('parseSkeletonFillResponse', () => {
     const { slots, intersections } = plusFixture();
     const result = parseSkeletonFillResponse('   ', { slots, intersections });
     expect(result.assignments.size).toBe(0);
+    expect(result.slotCandidates.size).toBe(0);
     expect(result.pool).toHaveLength(0);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('collects multiple options for one slot as best-first candidates, no issue', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!; // length 5
+
+    // Three options for the SAME slot (all length 5) — alternates, not conflicts.
+    const response = [
+      '```',
+      `${across.id}-ACROSS: PLANT | A green organism.`,
+      `${across.id}-ACROSS: PLAZA | An open public square.`,
+      `${across.id}-ACROSS: PLANT | A duplicate, ignored.`,
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    // assignments keeps the first valid pick; candidates keep every option,
+    // deduped within the slot, in order. Alternates raise no issue.
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.slotCandidates.get(across.id)?.map(c => c.word)).toEqual(['PLANT', 'PLAZA']);
     expect(result.issues).toHaveLength(0);
   });
 });
@@ -554,5 +579,33 @@ describe('fillSkeletonFromResponse (shared paste -> placed pipeline)', () => {
     // agree with the placed crossing letter — the solver honors it via the grid.
     const downWord = result.assignments.get(down.id)?.word;
     if (downWord) expect(downWord[2].toLowerCase()).toBe('a');
+  });
+
+  it('falls back to an alternate candidate when the AI\u2019s first pick can\u2019t cross', () => {
+    const { slots, intersections, width, height } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!; // crosses down at pos 2
+    const down = slots.find(s => s.direction === 'down')!;
+
+    // The AI's FIRST across option (ZEBRA, 'B' at the centre) clashes with the
+    // down option (GRAPE, 'A' at the centre). Its SECOND option (PLANT, 'A')
+    // agrees. The multi-candidate solver must discard ZEBRA and use PLANT so the
+    // whole grid is consistent — the headline robustness win of Part B.
+    const response = [
+      '```',
+      `${across.id}-ACROSS: ZEBRA | A striped animal.`,
+      `${across.id}-ACROSS: PLANT | A green organism.`,
+      `${down.id}-DOWN: GRAPE | A small round fruit.`,
+      '```',
+    ].join('\n');
+
+    const result = fillSkeletonFromResponse({ response, slots, intersections, width, height, seed: 1 });
+
+    expect(result.assignments.get(across.id)?.word.toUpperCase()).toBe('PLANT');
+    expect(result.assignments.get(down.id)?.word.toUpperCase()).toBe('GRAPE');
+    expect(result.unfilledSlotIds).toHaveLength(0);
+    // Both final words came from the AI's candidate options.
+    expect(result.lockedCount).toBe(2);
+    // No parse issues: alternates are legal, not errors.
+    expect(result.issues).toHaveLength(0);
   });
 });
