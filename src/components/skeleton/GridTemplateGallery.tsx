@@ -56,7 +56,7 @@ export function GridTemplateGallery({ onLoad }: GridTemplateGalleryProps) {
                        hover:border-rubric/50 hover:bg-card transition-all
                        focus:outline-none focus-visible:border-rubric"
           >
-            <GridPreview rows={template.rows} width={template.width} />
+            <GridPreview rows={template.rows} width={template.width} height={template.height} />
             <span className="text-center">
               <span className="block text-sm font-medium text-ink">{template.name}</span>
               <span className="block text-[11px] leading-tight text-ink-3">{template.blurb}</span>
@@ -88,16 +88,28 @@ export function GridTemplateGallery({ onLoad }: GridTemplateGalleryProps) {
   );
 }
 
-/** A small static black/white render of a grid pattern. */
-function GridPreview({ rows, width }: { rows: string[]; width: number }) {
+/**
+ * A small static print-style render of a grid pattern.
+ *
+ * Every preview fits the SAME fixed box regardless of grid size, so the gallery
+ * reads as an even set instead of tiny-to-huge tiles. The cell size is derived
+ * from the box so a 5×5 and a 15×15 occupy identical footprints.
+ */
+const PREVIEW_BOX = 72; // px — uniform outer size for every tile
+const PREVIEW_GAP = 1; // px — hairline gridlines between cells
+
+function GridPreview({ rows, width, height }: { rows: string[]; width: number; height: number }) {
+  const maxDim = Math.max(width, height);
+  const cell = (PREVIEW_BOX - (maxDim - 1) * PREVIEW_GAP) / maxDim;
   return (
     <div
-      className="rounded-sm border border-line-2/70 bg-line-2/60 shadow-sm overflow-hidden"
+      className="rounded-sm border border-grid-border bg-grid-border shadow-sm overflow-hidden"
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${width}, 0.4rem)`,
-        gridAutoRows: '0.4rem',
-        gap: '1px',
+        gridTemplateColumns: `repeat(${width}, ${cell}px)`,
+        gridAutoRows: `${cell}px`,
+        gap: `${PREVIEW_GAP}px`,
+        width: 'fit-content',
       }}
       aria-hidden="true"
     >
