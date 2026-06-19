@@ -195,6 +195,27 @@ describe('buildSkeletonFillPrompt', () => {
     expect(prompt).not.toContain('No proper nouns');
   });
 
+  it('forbids merging separate words by default and mandates the underscore when phrases are on', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const common = {
+      slots,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    };
+
+    // Default (single-word): no symbol-less concatenation (CARBONDIOXIDE etc.).
+    const single = buildSkeletonFillPrompt(common);
+    expect(single).toContain('not by running them together');
+    expect(single).toContain('CARBONDIOXIDE');
+
+    // Two-word on: the underscore is mandatory so the boundary is detectable.
+    const twoWord = buildSkeletonFillPrompt({ ...common, allowTwoWords: true });
+    expect(twoWord).toContain('MUST keep the underscore');
+  });
+
   it('appends the spare-pool tail only when solverAssist is on', () => {
     const { slots, intersections, width, height } = paneFixture();
     const common = {

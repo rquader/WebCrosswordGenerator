@@ -232,8 +232,23 @@ describe('buildWordListPrompt', () => {
       expect(prompt).toContain('letters A-Z and digits 0-9');
       expect(prompt).toContain('no punctuation, no abbreviations, no other symbols');
       expect(prompt).toContain('accented letters in their plain form');
-      expect(prompt).toContain('choose a different single word instead — never join words with a symbol');
+      expect(prompt).toContain('choose a different single-word term instead');
       expect(prompt).toContain('ALL CAPS using only the letters A-Z and digits');
+    }
+  });
+
+  it('forbids merging separate words (no symbol-less concatenation) by default, in both modes', () => {
+    // Real AI deviation (Session 10 experiment): models satisfy "single word"
+    // by running two words together — CARBONDIOXIDE, GASGIANT, PLANTCELL. The
+    // app has no dictionary to catch this, so the prompt is the only defense.
+    const crossword = buildWordListPrompt(baseOptions);
+    const wordSearch = buildWordListPrompt({ ...baseOptions, puzzleMode: 'wordsearch' });
+
+    for (const prompt of [crossword, wordSearch]) {
+      expect(prompt).toContain('not by running them together');
+      expect(prompt).toContain('CARBONDIOXIDE');
+      // ...but genuine closed compounds must NOT be discouraged.
+      expect(prompt).toContain('genuine single-word compound');
     }
   });
 
@@ -255,6 +270,10 @@ describe('buildWordListPrompt', () => {
     expect(prompt).toContain('one underscore joining the words: "EXTRA_TIME"');
     expect(prompt).toContain('TWO_WORDS');
     expect(prompt).not.toContain('"goalkeeper" is correct');
+    // Even with phrases on, bare concatenation is forbidden — the underscore is
+    // mandatory so the app can detect the two-word boundary and label it.
+    expect(prompt).toContain('MUST keep the underscore');
+    expect(prompt).toContain('never CARBONDIOXIDE');
   });
 
   it('asks for bare words with no clues in word search mode', () => {

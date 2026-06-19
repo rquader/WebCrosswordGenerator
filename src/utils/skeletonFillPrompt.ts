@@ -117,13 +117,14 @@ export function buildSkeletonFillPrompt(options: {
   lines.push('- Where two slots cross, the shared cell is ONE letter — your across word and your down word must use the SAME letter there. Crossings are listed per slot below.');
   lines.push(...charsetLines(language));
   if (allowTwoWords) {
-    // mirrors wordListPrompt.ts:197-198
+    // mirrors the two-word block in wordListPrompt.ts
     lines.push('- Prefer single words. A two-word phrase is allowed when it is the natural term — for at most a third of the entries.');
     lines.push('- Write a two-word phrase with one underscore joining the words: "EXTRA_TIME". No spaces, no hyphens, no other join symbols. The underscore is not a letter — EXTRA_TIME must fit the grid as EXTRATIME (9 letters).');
+    lines.push('- A two-word phrase MUST keep the underscore: write CARBON_DIOXIDE, never CARBONDIOXIDE. Two words run together with no underscore read as one word and get mislabeled — never merge two words without it.');
   } else {
-    // mirrors wordListPrompt.ts:200-201
+    // mirrors the single-word block in wordListPrompt.ts
     lines.push('- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.');
-    lines.push('- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.');
+    lines.push('- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)');
   }
   if (!allowProperNouns) {
     // mirrors wordListPrompt.ts:204

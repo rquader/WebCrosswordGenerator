@@ -75,7 +75,7 @@ REQUIREMENTS
 - Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
 - Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
 - Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
-- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.
+- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
 - No proper nouns unless they are directly relevant to the topic.
 - Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
 
@@ -112,7 +112,7 @@ REQUIREMENTS
 - Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
 - Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
 - Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
-- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.
+- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
 - No proper nouns unless they are directly relevant to the topic.
 - Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
 
@@ -149,7 +149,7 @@ REQUIREMENTS
 - Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
 - Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
 - Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
-- If a term only works as a phrase, choose a different single word instead — never join words with a symbol.
+- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
 - No proper nouns unless they are directly relevant to the topic.
 - Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
 
