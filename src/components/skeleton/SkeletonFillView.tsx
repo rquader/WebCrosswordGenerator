@@ -151,7 +151,29 @@ export function SkeletonFillView({
     return m;
   }, [skeleton.slots]);
 
+  // The words already in the puzzle — the must-include words this skeleton was
+  // built from (or carried over from "build your own grid"). These seed the AI
+  // prompt by DEFAULT so a teacher gets on-theme fill without typing a topic.
+  const placedWords = useMemo(
+    () =>
+      skeleton.slots
+        .filter(s => s.isUserWord && (s.displayWord ?? s.word))
+        .map(s => (s.displayWord ?? s.word)!.toUpperCase()),
+    [skeleton.slots],
+  );
+
+  // When the teacher leaves Topic blank, ask the AI to infer the theme from the
+  // words already placed instead of falling back to generic vocabulary.
+  const defaultAiContext = useMemo(() => {
+    if (placedWords.length === 0) return '';
+    return (
+      `These words are already placed in the puzzle: ${placedWords.join(', ')}. ` +
+      `Infer their shared theme and choose fill words that suit the same theme and audience.`
+    );
+  }, [placedWords]);
+
   // "Fill with AI" panel: copy a slot-aware prompt, paste the reply, place it.
+  const [aiOpen, setAiOpen] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiCopied, setAiCopied] = useState(false);
@@ -223,7 +245,7 @@ export function SkeletonFillView({
         width: skeleton.width,
         height: skeleton.height,
         grid: gridFromPlacedSlots(placed, skeleton.width, skeleton.height),
-        context: aiTopic,
+        context: aiTopic.trim() || defaultAiContext,
         language: 'english',
         allowTwoWords: false,
         allowProperNouns: false,
@@ -527,14 +549,35 @@ export function SkeletonFillView({
         />
       </div>
 
-      {/* Fill with AI — copy a slot-aware prompt, paste the reply, place it.
-          Shares the BYOG pipeline (parse -> lock AI picks + placed words -> solve). */}
+      {/* Fill with AI — a clear toggle button opens an advanced box: set a topic
+          (defaults to the words already in the puzzle), copy a slot-aware prompt,
+          paste the reply, place it. Shares the BYOG pipeline
+          (parse -> lock AI picks + placed words -> solve). */}
       {totalEmpty > 0 && (
-        <details className="warm-card group">
-          <summary className="px-4 py-3 text-sm font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors">
-            Fill with AI &mdash; copy a prompt, paste the reply, place it
-          </summary>
-          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line/50">
+        <div className="warm-card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAiOpen(o => !o)}
+            aria-expanded={aiOpen}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left
+                       hover:bg-well/50 transition-colors"
+          >
+            <span className="flex flex-col">
+              <span className="font-display font-semibold text-ink">Fill with AI</span>
+              <span className="text-xs text-ink-2">
+                Let an AI assistant complete the blanks &mdash; copy a prompt, paste the reply back.
+              </span>
+            </span>
+            <svg
+              viewBox="0 0 20 20" fill="none" aria-hidden="true"
+              className={`h-5 w-5 flex-shrink-0 text-ink-3 transition-transform ${aiOpen ? 'rotate-180' : ''}`}
+            >
+              <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.5"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {aiOpen && (
+          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line/50 animate-fade-in">
             <div>
               <label htmlFor="skel-ai-topic" className="block text-xs font-medium text-ink-2 mb-1">
                 Topic <span className="text-ink-3">(optional &mdash; helps the AI stay on theme)</span>
@@ -544,9 +587,19 @@ export function SkeletonFillView({
                 type="text"
                 value={aiTopic}
                 onChange={e => setAiTopic(e.target.value)}
-                placeholder={'e.g. "the water cycle" — or leave blank'}
+                placeholder={defaultAiContext
+                  ? 'Add a topic to steer it — or leave blank to use your existing words'
+                  : 'e.g. "the water cycle" — or leave blank'}
                 className="field"
               />
+              {!aiTopic.trim() && placedWords.length > 0 && (
+                <p className="mt-1 text-xs text-ink-3">
+                  Using your existing words:{' '}
+                  <span className="font-mono text-ink-2">
+                    {placedWords.slice(0, 6).join(', ')}{placedWords.length > 6 ? '…' : ''}
+                  </span>
+                </p>
+              )}
             </div>
 
             <button onClick={() => void handleCopyFillPrompt()} className="btn-secondary btn-sm">
@@ -607,7 +660,8 @@ export function SkeletonFillView({
               </div>
             )}
           </div>
-        </details>
+          )}
+        </div>
       )}
 
       {/* Slot fill list */}
