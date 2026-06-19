@@ -6,7 +6,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GRID_TEMPLATES, maskFromTemplateRows } from '../../src/logic/gridTemplates';
+import {
+  GRID_TEMPLATES,
+  maskFromTemplateRows,
+  generateCrosswordMaskRows,
+} from '../../src/logic/gridTemplates';
 import { deriveSlotsFromBlockMask } from '../../src/logic/gridSkeleton';
 
 /** Count connected components of open cells (4-neighbour flood fill). */
@@ -104,4 +108,68 @@ describe('GRID_TEMPLATES', () => {
       });
     });
   }
+});
+
+describe('generateCrosswordMaskRows', () => {
+  /** Assert a generated pattern meets the full template contract. */
+  function checkValid(rows: string[], width: number, height: number, label: string) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        expect(rows[y][x], `${label}: asymmetry at (${x},${y})`).toBe(
+          rows[height - 1 - y][width - 1 - x],
+        );
+      }
+    }
+    const mask = maskFromTemplateRows(rows);
+    const { slots } = deriveSlotsFromBlockMask(mask, width, height);
+    for (const s of slots) {
+      expect(
+        s.length,
+        `${label}: slot ${s.id}-${s.direction} is only ${s.length} long`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+    const covered = new Set<string>();
+    for (const s of slots) {
+      for (let i = 0; i < s.length; i++) {
+        const x = s.direction === 'across' ? s.startX + i : s.startX;
+        const y = s.direction === 'across' ? s.startY : s.startY + i;
+        covered.add(`${x},${y}`);
+      }
+    }
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (!mask[y][x]) {
+          expect(covered.has(`${x},${y}`), `${label}: stray cell (${x},${y})`).toBe(true);
+        }
+      }
+    }
+    expect(openComponentCount(mask, width, height), `${label}: components`).toBe(1);
+  }
+
+  for (const size of [7, 9, 11, 13, 15, 21]) {
+    for (const seed of [1, 2, 3, 7, 42, 100]) {
+      it(`produces a valid grid at ${size}x${size} (seed ${seed})`, () => {
+        const rows = generateCrosswordMaskRows(size, size, seed);
+        expect(rows.length).toBe(size);
+        checkValid(rows, size, size, `${size}x${size}#${seed}`);
+      });
+    }
+  }
+
+  it('handles non-square dimensions', () => {
+    const rows = generateCrosswordMaskRows(13, 9, 4);
+    expect(rows.length).toBe(9);
+    expect(rows[0].length).toBe(13);
+    checkValid(rows, 13, 9, '13x9#4');
+  });
+
+  it('is deterministic for a seed and varies across seeds', () => {
+    expect(generateCrosswordMaskRows(15, 15, 5)).toEqual(generateCrosswordMaskRows(15, 15, 5));
+    expect(generateCrosswordMaskRows(15, 15, 5)).not.toEqual(generateCrosswordMaskRows(15, 15, 6));
+  });
+
+  it('places black squares at a standard size', () => {
+    const blacks = generateCrosswordMaskRows(15, 15, 3).join('').split('').filter(c => c === '#').length;
+    expect(blacks).toBeGreaterThan(0);
+  });
 });

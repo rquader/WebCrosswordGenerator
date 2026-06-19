@@ -55,7 +55,6 @@ import { TextImportView } from '../entries/TextImportView';
 import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
 import { GridDesigner, createDefaultGridDraft, type GridDraft } from '../skeleton/GridDesigner';
 import { GridTemplateGallery } from '../skeleton/GridTemplateGallery';
-import { maskFromTemplateRows, type GridTemplate } from '../../logic/gridTemplates';
 import { SkeletonAiFillView } from '../skeleton/SkeletonAiFillView';
 import { MiniGridPreview } from '../grid/MiniGridPreview';
 import { deriveSlotsFromBlockMask, type BlockMask } from '../../logic/gridSkeleton';
@@ -669,16 +668,12 @@ export function GenerateTab({
   }
 
   /**
-   * "Build your own grid" → pick a starter template. Loads the template's
-   * black-square pattern into the (lifted) draft so it appears in the editor
-   * below, fully editable — the user can tweak it, then fill by hand or with AI.
+   * "Build your own grid" → load a starter grid (a curated template or a freshly
+   * generated one). The pattern goes into the (lifted) draft so it appears in
+   * the editor below, fully editable — tweak it, then fill by hand or with AI.
    */
-  function handlePickTemplate(template: GridTemplate) {
-    setGridDraft({
-      mask: maskFromTemplateRows(template.rows),
-      width: template.width,
-      height: template.height,
-    });
+  function handleLoadGrid(mask: BlockMask, width: number, height: number) {
+    setGridDraft({ mask, width, height });
   }
 
   /**
@@ -772,7 +767,7 @@ export function GenerateTab({
           />
         ) : (
           <>
-            <GridTemplateGallery onPick={handlePickTemplate} />
+            <GridTemplateGallery onLoad={handleLoadGrid} />
             <GridDesigner
               draft={gridDraft}
               setDraft={setGridDraft}
