@@ -54,6 +54,8 @@ import { EntryTableEditor } from '../entries/EntryTableEditor';
 import { TextImportView } from '../entries/TextImportView';
 import { SkeletonFillView, type FilledSlotData } from '../skeleton/SkeletonFillView';
 import { GridDesigner, createDefaultGridDraft, type GridDraft } from '../skeleton/GridDesigner';
+import { GridTemplateGallery } from '../skeleton/GridTemplateGallery';
+import { maskFromTemplateRows, type GridTemplate } from '../../logic/gridTemplates';
 import { SkeletonAiFillView } from '../skeleton/SkeletonAiFillView';
 import { MiniGridPreview } from '../grid/MiniGridPreview';
 import { deriveSlotsFromBlockMask, type BlockMask } from '../../logic/gridSkeleton';
@@ -667,6 +669,19 @@ export function GenerateTab({
   }
 
   /**
+   * "Build your own grid" → pick a starter template. Loads the template's
+   * black-square pattern into the (lifted) draft so it appears in the editor
+   * below, fully editable — the user can tweak it, then fill by hand or with AI.
+   */
+  function handlePickTemplate(template: GridTemplate) {
+    setGridDraft({
+      mask: maskFromTemplateRows(template.rows),
+      width: template.width,
+      height: template.height,
+    });
+  }
+
+  /**
    * "Build your own grid" → "Fill with AI". Opens the copy/paste AI-fill
    * workspace for the drawn grid (SkeletonAiFillView reads its geometry from the
    * mask). The drawing stays in gridDraft, so Back returns to the editor intact.
@@ -756,12 +771,15 @@ export function GenerateTab({
             onBack={() => setGridDesignStage('design')}
           />
         ) : (
-          <GridDesigner
-            draft={gridDraft}
-            setDraft={setGridDraft}
-            onFill={handleFillDesignedGrid}
-            onFillWithAI={handleFillDesignedGridWithAI}
-          />
+          <>
+            <GridTemplateGallery onPick={handlePickTemplate} />
+            <GridDesigner
+              draft={gridDraft}
+              setDraft={setGridDraft}
+              onFill={handleFillDesignedGrid}
+              onFillWithAI={handleFillDesignedGridWithAI}
+            />
+          </>
         )}
       </div>
     );
