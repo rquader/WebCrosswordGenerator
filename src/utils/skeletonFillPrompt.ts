@@ -46,6 +46,7 @@ import {
   LIST_MARKER,
   type ParseIssue,
 } from './wordListPrompt';
+import { solveSkeletonFill, gridFromPlacedSlots } from '../logic/skeletonAiFill';
 
 const EMPTY_CELL = '-';
 
@@ -572,4 +573,81 @@ function cleanClue(s: string): string {
 function truncate(s: string): string {
   const t = s.trim();
   return t.length > 60 ? `${t.slice(0, 57)}...` : t;
+}
+
+/* ── Combined fill pipeline (shared by both AI-fill entry points) ─────────── */
+
+export interface SkeletonFillResult {
+  /** slot id -> placed word + clue (includes locked AI picks and placed words). */
+  assignments: Map<number, { word: string; clue: string }>;
+  /** Slots left blank because nothing satisfied their crossings. */
+  unfilledSlotIds: number[];
+  /** How many of the AI's labeled per-slot picks the parser accepted. */
+  lockedCount: number;
+  /** Human-readable parser issues, one per unusable line. */
+  issues: string[];
+}
+
+/**
+ * The full "paste -> placed grid" pipeline, shared by both AI-fill entry points:
+ * BYOG's SkeletonAiFillView and skeleton-first's in-editor "Fill with AI" panel.
+ *
+ * Parses the AI reply, then locks BOTH the AI's per-slot picks AND any words
+ * already placed in the grid (must-include user words, or blanks the user
+ * already typed in full — any slot carrying a `.word`). Placed words always win
+ * over a stray AI line for the same slot. The AI's spare pool + the curated word
+ * bank then complete the remaining slots with valid crossings; a slot that still
+ * can't be satisfied is reported in unfilledSlotIds and left blank.
+ *
+ * BYOG passes all-blank slots, so this reduces to "lock the AI's picks, fill the
+ * rest from pool + bank" — its original behavior, unchanged.
+ *
+ * Pure: same (response, slots, intersections, seed) -> same result.
+ */
+export function fillSkeletonFromResponse(options: {
+  response: string;
+  slots: SkeletonSlot[];
+  intersections: SlotIntersection[];
+  width: number;
+  height: number;
+  language?: PuzzleLanguage;
+  allowTwoWords?: boolean;
+  /** Determinism seed; only breaks ties inside the solver. */
+  seed?: number;
+}): SkeletonFillResult {
+  const { response, slots, intersections, width, height, language, allowTwoWords, seed = 0 } = options;
+
+  // The grid the parser and solver share: placed words written in, the rest
+  // empty. (BYOG: every slot blank -> all-empty grid, same as emptyFillGrid.)
+  const grid = gridFromPlacedSlots(slots, width, height);
+
+  const parse = parseSkeletonFillResponse(response, {
+    slots,
+    intersections,
+    grid,
+    language,
+    allowTwoWords,
+  });
+
+  // Locked = the AI's accepted picks first, then every already-placed word
+  // (placed overwrites, so a stray AI line can never replace a kept/user word).
+  const locked = new Map<number, { word: string; clue: string }>(parse.assignments);
+  for (const slot of slots) {
+    if (slot.word) locked.set(slot.id, { word: slot.word, clue: slot.clue ?? '' });
+  }
+
+  const { assignments, unfilledSlotIds } = solveSkeletonFill({
+    slots,
+    intersections,
+    locked,
+    pool: parse.pool,
+    seed,
+  });
+
+  return {
+    assignments,
+    unfilledSlotIds,
+    lockedCount: parse.assignments.size,
+    issues: parse.issues.map(issue => issue.message),
+  };
 }

@@ -23,6 +23,7 @@ import {
 import {
   buildSkeletonFillPrompt,
   parseSkeletonFillResponse,
+  fillSkeletonFromResponse,
 } from '../../src/utils/skeletonFillPrompt';
 
 /** '#' = block, anything else = open. One row per string. */
@@ -479,5 +480,79 @@ describe('parseSkeletonFillResponse', () => {
     expect(result.assignments.size).toBe(0);
     expect(result.pool).toHaveLength(0);
     expect(result.issues).toHaveLength(0);
+  });
+});
+
+describe('fillSkeletonFromResponse (shared paste -> placed pipeline)', () => {
+  it('locks the AI picks and fills a fresh (BYOG) grid with no pre-placed words', () => {
+    const { slots, intersections, width, height } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+    const down = slots.find(s => s.direction === 'down')!;
+
+    // PLANT (across) and GRAPE (down) agree on 'A' at the shared centre cell.
+    const response = [
+      '```',
+      `${across.id}-ACROSS: PLANT | A green organism.`,
+      `${down.id}-DOWN: GRAPE | A small round fruit.`,
+      '```',
+    ].join('\n');
+
+    const result = fillSkeletonFromResponse({ response, slots, intersections, width, height, seed: 1 });
+
+    expect(result.assignments.get(across.id)?.word.toUpperCase()).toBe('PLANT');
+    expect(result.assignments.get(down.id)?.word.toUpperCase()).toBe('GRAPE');
+    expect(result.lockedCount).toBe(2); // both came from the AI
+    expect(result.unfilledSlotIds).toHaveLength(0);
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('keeps a pre-placed user word locked and crosses an AI answer through it', () => {
+    const { slots, intersections, width, height } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+    const down = slots.find(s => s.direction === 'down')!;
+
+    // Skeleton-first reality: the across slot is a must-include word already
+    // placed; the user only asks the AI to fill the crossing DOWN slot.
+    const withPlaced = slots.map(s =>
+      s.id === across.id ? { ...s, word: 'plant', clue: 'A green organism.', isUserWord: true } : s,
+    );
+
+    const response = ['```', `${down.id}-DOWN: GRAPE | A small round fruit.`, '```'].join('\n');
+
+    const result = fillSkeletonFromResponse({
+      response, slots: withPlaced, intersections, width, height, seed: 1,
+    });
+
+    // The placed word survives verbatim; only the AI's DOWN pick is "locked".
+    expect(result.assignments.get(across.id)?.word.toLowerCase()).toBe('plant');
+    expect(result.assignments.get(down.id)?.word.toUpperCase()).toBe('GRAPE');
+    expect(result.lockedCount).toBe(1);
+    expect(result.unfilledSlotIds).toHaveLength(0);
+  });
+
+  it('rejects an AI answer that contradicts a pre-placed word, never overwriting it', () => {
+    const { slots, intersections, width, height } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+    const down = slots.find(s => s.direction === 'down')!;
+
+    const withPlaced = slots.map(s =>
+      s.id === across.id ? { ...s, word: 'plant', clue: 'A green organism.', isUserWord: true } : s,
+    );
+
+    // ZEBRA has 'B' where PLANT has 'A' at the crossing — must be rejected.
+    const response = ['```', `${down.id}-DOWN: ZEBRA | A striped animal.`, '```'].join('\n');
+
+    const result = fillSkeletonFromResponse({
+      response, slots: withPlaced, intersections, width, height, seed: 1,
+    });
+
+    // Placed word untouched; the conflicting AI pick was not locked; an issue is reported.
+    expect(result.assignments.get(across.id)?.word.toLowerCase()).toBe('plant');
+    expect(result.lockedCount).toBe(0);
+    expect(result.issues.length).toBeGreaterThanOrEqual(1);
+    // Whatever ends up in the DOWN slot (bank fallback or blank) must still
+    // agree with the placed crossing letter — the solver honors it via the grid.
+    const downWord = result.assignments.get(down.id)?.word;
+    if (downWord) expect(downWord[2].toLowerCase()).toBe('a');
   });
 });

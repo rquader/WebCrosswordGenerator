@@ -26,9 +26,9 @@ import {
 } from '../../logic/gridSkeleton';
 import {
   buildSkeletonFillPrompt,
-  parseSkeletonFillResponse,
+  fillSkeletonFromResponse,
 } from '../../utils/skeletonFillPrompt';
-import { emptyFillGrid, solveSkeletonFill } from '../../logic/skeletonAiFill';
+import { emptyFillGrid } from '../../logic/skeletonAiFill';
 import { DEFAULT_LANGUAGE, type PuzzleLanguage } from '../../logic/language';
 
 interface SkeletonAiFillViewProps {
@@ -129,28 +129,26 @@ export function SkeletonAiFillView({
    * slot that still can't be satisfied stays blank for the user to type.
    */
   function handleFill() {
-    const parse = parseSkeletonFillResponse(response, {
+    // Shared pipeline (parse -> lock AI picks -> solve). A freshly drawn BYOG
+    // grid has no pre-placed words, so this locks only the AI's picks and fills
+    // the rest from its spare pool + the word bank.
+    const { assignments, unfilledSlotIds, lockedCount, issues } = fillSkeletonFromResponse({
+      response,
       slots,
       intersections,
-      grid,
+      width,
+      height,
       language,
       allowTwoWords,
-    });
-
-    const { assignments, unfilledSlotIds } = solveSkeletonFill({
-      slots,
-      intersections,
-      locked: parse.assignments,
-      pool: parse.pool,
       // A stable seed keeps the same paste reproducible; ties break the same way.
       seed: 1,
     });
 
     setOutcome({
-      lockedCount: parse.assignments.size,
+      lockedCount,
       filledCount: assignments.size,
       unfilledCount: unfilledSlotIds.length,
-      issues: parse.issues.map(issue => issue.message),
+      issues,
     });
 
     onFilled(skeleton, assignments);

@@ -15,7 +15,10 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { SkeletonResult, SkeletonSlot } from '../../logic/types';
 import { SkeletonGrid } from './SkeletonGrid';
 import { suggestWordsForSlot, planAutoFill } from '../../logic/slotSuggestions';
-import { buildSlotFillPrompt, buildCluePrompt } from '../../utils/aiPromptBuilder';
+import { buildCluePrompt } from '../../utils/aiPromptBuilder';
+import { computeIntersections } from '../../logic/gridSkeleton';
+import { gridFromPlacedSlots } from '../../logic/skeletonAiFill';
+import { buildSkeletonFillPrompt, fillSkeletonFromResponse } from '../../utils/skeletonFillPrompt';
 
 /** Filled slot data passed back on completion. */
 export interface FilledSlotData {
@@ -139,6 +142,26 @@ export function SkeletonFillView({
     return used;
   }, [skeleton.slots, slotEdits]);
 
+  // Geometry + lookups for the "Fill with AI" panel. The grid never changes
+  // here (the skeleton is fixed), so these memoize on the slots.
+  const intersections = useMemo(() => computeIntersections(skeleton.slots), [skeleton.slots]);
+  const slotById = useMemo(() => {
+    const m = new Map<number, SkeletonSlot>();
+    for (const s of skeleton.slots) m.set(s.id, s);
+    return m;
+  }, [skeleton.slots]);
+
+  // "Fill with AI" panel: copy a slot-aware prompt, paste the reply, place it.
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiCopied, setAiCopied] = useState(false);
+  const [aiOutcome, setAiOutcome] = useState<{
+    filledCount: number;
+    lockedCount: number;
+    unfilledCount: number;
+    issues: string[];
+  } | null>(null);
+
   const [promptToast, setPromptToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -167,29 +190,48 @@ export function SkeletonFillView({
   }
 
   /**
-   * Copy an AI helper prompt: word suggestions for remaining blanks, or
-   * clue writing once everything is filled. Clipboard only — the app never
-   * contacts any AI service.
+   * Build a slots array reflecting what's placed RIGHT NOW: must-include user
+   * words, and any blank the user has already typed in FULL, carry a `.word`;
+   * still-empty blanks don't. The prompt, parser, and solver all read this so
+   * the AI is asked to fill only the remaining blanks and to cross the rest.
    */
-  async function handleCopyAiPrompt() {
-    const themeWords = skeleton.slots
-      .filter(s => s.isUserWord && s.word)
-      .map(s => s.word!);
+  function buildPlacedSlots(): SkeletonSlot[] {
+    return skeleton.slots.map(slot => {
+      if (slot.isUserWord) return slot; // already carries its word + clue
+      const edit = slotEdits.get(slot.id);
+      if (edit && edit.word.length === slot.length) {
+        return { ...slot, word: edit.word, clue: edit.clue };
+      }
+      return slot; // still a blank
+    });
+  }
 
-    const unfilled = emptySlots.filter(s => (slotEdits.get(s.id)?.word.length ?? 0) !== s.length);
+  /**
+   * Copy the slot-aware AI prompt for the remaining blanks — the SAME builder
+   * BYOG uses (so the two flows stay in lockstep). Once every blank has a word,
+   * fall back to a clue-writing prompt for any missing clues. Clipboard only.
+   */
+  async function handleCopyFillPrompt() {
+    const placed = buildPlacedSlots();
+    const blanks = placed.filter(s => !s.word);
 
     let prompt: string;
-    if (unfilled.length > 0) {
-      prompt = buildSlotFillPrompt({
-        themeWords,
-        slots: unfilled.map(s => ({
-          label: `${s.id}-${s.direction === 'across' ? 'Across' : 'Down'}`,
-          length: s.length,
-          constraints: liveConstraints.get(s.id) ?? s.constraints,
-        })),
+    if (blanks.length > 0) {
+      prompt = buildSkeletonFillPrompt({
+        slots: placed,
+        intersections,
+        width: skeleton.width,
+        height: skeleton.height,
+        grid: gridFromPlacedSlots(placed, skeleton.width, skeleton.height),
+        context: aiTopic,
+        language: 'english',
+        allowTwoWords: false,
+        allowProperNouns: false,
+        solverAssist: true,
       });
     } else {
-      const missingClues = emptySlots
+      const themeWords = skeleton.slots.filter(s => s.isUserWord && s.word).map(s => s.word!);
+      const missingClues = skeleton.slots
         .filter(s => {
           const edit = slotEdits.get(s.id);
           return edit && edit.word && !edit.clue.trim();
@@ -207,10 +249,58 @@ export function SkeletonFillView({
 
     try {
       await navigator.clipboard.writeText(prompt);
-      showToast('Prompt copied — paste it into ChatGPT, Gemini, or Claude');
+      setAiCopied(true);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setAiCopied(false), 2000);
     } catch {
       showToast('Could not access the clipboard');
     }
+  }
+
+  /**
+   * Place a pasted AI reply into the blanks, reusing the EXACT pipeline BYOG
+   * uses (parse → lock AI picks + already-placed words → solve + word-bank
+   * fallback). Only blank (non user-word) slots are written; all stay editable.
+   */
+  function handlePlaceResponse() {
+    const placed = buildPlacedSlots();
+    const { assignments, unfilledSlotIds, lockedCount, issues } = fillSkeletonFromResponse({
+      response: aiResponse,
+      slots: placed,
+      intersections,
+      width: skeleton.width,
+      height: skeleton.height,
+      language: 'english',
+      allowTwoWords: false,
+      seed: 1,
+    });
+
+    setSlotEdits(prev => {
+      const next = new Map(prev);
+      for (const [slotId, a] of assignments) {
+        const slot = slotById.get(slotId);
+        if (!slot || slot.isUserWord) continue; // user words are shown, not edited here
+        next.set(slotId, {
+          word: a.word.toLowerCase().replace(/[^a-z]/g, '').slice(0, slot.length),
+          clue: a.clue,
+        });
+      }
+      return next;
+    });
+
+    // How many blank slots actually received a word (excludes user words).
+    let blanksFilled = 0;
+    for (const [slotId] of assignments) {
+      const slot = slotById.get(slotId);
+      if (slot && !slot.isUserWord) blanksFilled++;
+    }
+
+    setAiOutcome({
+      filledCount: blanksFilled,
+      lockedCount,
+      unfilledCount: unfilledSlotIds.length,
+      issues,
+    });
   }
 
   const handleWordChange = useCallback((slotId: number, word: string) => {
@@ -437,6 +527,89 @@ export function SkeletonFillView({
         />
       </div>
 
+      {/* Fill with AI — copy a slot-aware prompt, paste the reply, place it.
+          Shares the BYOG pipeline (parse -> lock AI picks + placed words -> solve). */}
+      {totalEmpty > 0 && (
+        <details className="warm-card group">
+          <summary className="px-4 py-3 text-sm font-medium text-ink-2 cursor-pointer select-none hover:text-ink transition-colors">
+            Fill with AI &mdash; copy a prompt, paste the reply, place it
+          </summary>
+          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line/50">
+            <div>
+              <label htmlFor="skel-ai-topic" className="block text-xs font-medium text-ink-2 mb-1">
+                Topic <span className="text-ink-3">(optional &mdash; helps the AI stay on theme)</span>
+              </label>
+              <input
+                id="skel-ai-topic"
+                type="text"
+                value={aiTopic}
+                onChange={e => setAiTopic(e.target.value)}
+                placeholder={'e.g. "the water cycle" — or leave blank'}
+                className="field"
+              />
+            </div>
+
+            <button onClick={() => void handleCopyFillPrompt()} className="btn-secondary btn-sm">
+              {aiCopied ? 'Copied' : 'Copy AI prompt'}
+            </button>
+
+            <textarea
+              value={aiResponse}
+              onChange={e => { setAiResponse(e.target.value); setAiOutcome(null); }}
+              rows={5}
+              placeholder="Paste the AI's reply here, then place it into the grid."
+              aria-label="AI response to fill the skeleton"
+              className="field font-mono placeholder:font-sans leading-relaxed resize-y"
+            />
+
+            <button
+              onClick={handlePlaceResponse}
+              disabled={aiResponse.trim().length === 0}
+              className="btn-primary btn-sm w-full sm:w-auto"
+            >
+              Place the answers
+            </button>
+
+            {aiOutcome && (
+              <div className="space-y-2 animate-fade-in">
+                <div className="note py-2">
+                  <p className="text-sm text-ink-2">
+                    <span className="font-medium text-ink">
+                      Placed {aiOutcome.filledCount} of {totalEmpty} blank{totalEmpty !== 1 ? 's' : ''}
+                    </span>
+                    {aiOutcome.lockedCount > 0 && (
+                      <> &mdash; {aiOutcome.lockedCount} from the AI&rsquo;s answer
+                        {aiOutcome.filledCount > aiOutcome.lockedCount && <>, the rest completed to fit</>}.</>
+                    )}
+                    {' '}Edit anything below.
+                  </p>
+                </div>
+                {aiOutcome.unfilledCount > 0 && (
+                  <div className="note note-warn py-2">
+                    <p className="text-sm text-ink-2">
+                      {aiOutcome.unfilledCount} slot{aiOutcome.unfilledCount !== 1 ? 's' : ''} couldn&rsquo;t be
+                      filled automatically &mdash; type a word into each below.
+                    </p>
+                  </div>
+                )}
+                {aiOutcome.issues.length > 0 && (
+                  <div className="note note-warn py-2">
+                    <p className="text-overline uppercase font-medium text-warn mb-1">
+                      {aiOutcome.issues.length} line{aiOutcome.issues.length !== 1 ? 's' : ''} couldn&rsquo;t be used
+                    </p>
+                    <ul className="space-y-1">
+                      {aiOutcome.issues.map((m, i) => (
+                        <li key={i} className="text-xs text-ink-2">{m}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+
       {/* Slot fill list */}
       <div className="warm-card p-4 space-y-2 max-h-[40vh] overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between gap-2 mb-2">
@@ -454,11 +627,6 @@ export function SkeletonFillView({
                 title="Fill every remaining blank with a common word that fits — you write the clues"
                 className="btn-secondary btn-sm">
                 Auto-fill blanks
-              </button>
-              <button onClick={() => void handleCopyAiPrompt()}
-                title="Copy a ready-made prompt (with each blank's letter pattern) to paste into your AI tool. Nothing is sent anywhere by this app."
-                className="btn-secondary btn-sm">
-                Copy AI prompt
               </button>
             </div>
           )}

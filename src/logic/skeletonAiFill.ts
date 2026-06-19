@@ -42,6 +42,35 @@ export function emptyFillGrid(width: number, height: number): string[][] {
 }
 
 /**
+ * Build a grid with the letters of every PLACED slot written in, all other
+ * cells '-'. A slot counts as placed when it carries a `.word` — a must-include
+ * user word in a skeleton-first grid, or a blank the user already typed in full.
+ *
+ * The skeleton-first AI fill passes these so the prompt, parser, and solver all
+ * see the same locked crossings (the parser's locked-letter check is
+ * case-insensitive, so lowercase here is fine). BYOG passes all-blank slots, so
+ * this returns an all-empty grid — identical to emptyFillGrid. Indexed
+ * [row][col] = [y][x], matching the rest of the codebase.
+ */
+export function gridFromPlacedSlots(
+  slots: SkeletonSlot[],
+  width: number,
+  height: number,
+): string[][] {
+  const grid = emptyFillGrid(width, height);
+  for (const slot of slots) {
+    if (!slot.word) continue;
+    const w = slot.word.toLowerCase();
+    for (let i = 0; i < slot.length && i < w.length; i++) {
+      const x = slot.direction === 'across' ? slot.startX + i : slot.startX;
+      const y = slot.direction === 'across' ? slot.startY : slot.startY + i;
+      grid[y][x] = w[i];
+    }
+  }
+  return grid;
+}
+
+/**
  * Solve a drawn grid from a parsed AI response.
  *
  * The AI's labeled per-slot picks (already validated by the parser) are locked:
