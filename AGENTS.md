@@ -1,7 +1,7 @@
 # CrosswordGen — Puzzle Studio
 
 Fully client-side crossword/word-search generator + player. Ported from a Java Swing app.
-TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~19,000 LOC, 568 tests.
+TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~19,000 LOC, 608 tests.
 
 Target audience: teachers creating puzzles from their own word lists.
 Everything runs in the browser — zero server, zero tracking.
@@ -10,7 +10,7 @@ Everything runs in the browser — zero server, zero tracking.
 ```bash
 npm run dev          # Dev server at http://localhost:5173
 npm run build        # Type-check (tsc) + production build to dist/
-npm run test         # Run all Vitest unit tests (568 currently)
+npm run test         # Run all Vitest unit tests (608 currently)
 npm run test:watch   # Tests in watch mode
 npm run deploy       # Build + push to gh-pages branch (GitHub Pages)
 ```
@@ -32,7 +32,7 @@ src/hooks/         useTheme (dark/light/sepia), usePuzzleState (play state)
 src/utils/         fileParser, exportUtils, pdfExport, printLayout, puzzleUrl, wordListPrompt
 src/data/          blocklist.ts — word search filler profanity filter (standalone)
 src/presets/       6 starter packs (Animals, Solar System, Weather, Ocean Life, Instruments, Kitchen), 83 entries — tuned for dense crosswords + clean word searches
-tests/unit/        Vitest tests (37 test files)
+tests/unit/        Vitest tests (38 test files)
 ```
 
 ### Generation Pipeline (read this — it's the novel part)
@@ -116,7 +116,7 @@ crossword (still emitted for compatibility), v2 = mode + per-word vectors.
 | `src/logic/skeletonGenerator.ts` | Adaptive skeleton (word bank fill + strip to blank slots) |
 | `src/logic/createPuzzle.ts` | High-level API — all entry points, bundles filtering |
 | `src/logic/gridRecommendation.ts` | Grid size recommendation + outlier word detection |
-| `src/logic/wordBank.ts` | Curated word bank for skeleton filler (~300 words, lengths 3-12) |
+| `src/logic/wordBank.ts` | Curated word bank (full a-z, lengths 3-15) — skeleton filler AND the visible AI-fill fallback; `getWordBankSample` caps the generator's pull for speed |
 | `src/logic/types.ts` | All shared type definitions |
 | `src/logic/wordSearchGenerator.ts` | Word search engine (8-direction vectors, filler filter) |
 | `src/data/blocklist.ts` | Profanity blocklist for word search filler (update needs no engine knowledge) |
