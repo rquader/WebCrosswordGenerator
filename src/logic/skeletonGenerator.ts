@@ -23,7 +23,7 @@ import type {
   CrosswordResult,
 } from './types';
 import { generateCrosswordWithPriority } from './priorityGenerator';
-import { getWordBankByMaxLength } from './wordBank';
+import { getWordBankSample } from './wordBank';
 
 const EMPTY_CELL = '-';
 
@@ -257,9 +257,13 @@ function generateSkeletonAtSize(
     );
   }
 
-  // Step 4: Fill gaps with word bank words as additional can-include
+  // Step 4: Fill gaps with word bank words as additional can-include.
+  // Sample the bank (capped per length) rather than pulling all of it: these
+  // words are placed only to build the grid and are then stripped to blank
+  // slots, so a varied subset interlocks just as well while keeping placement
+  // fast. (The full bank still backs the visible AI-fill fallback elsewhere.)
   const maxDim = Math.max(width, height);
-  const bankWords = getWordBankByMaxLength(maxDim);
+  const bankWords = getWordBankSample(maxDim, 40);
 
   // Exclude words the user already used (avoid duplicates in the grid)
   const usedWords = new Set<string>();
