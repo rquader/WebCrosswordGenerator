@@ -77,6 +77,9 @@ export function SkeletonAiFillView({
   const [topic, setTopic] = useState('');
   const [response, setResponse] = useState('');
   const [copied, setCopied] = useState(false);
+  // Set when the Clipboard API is unavailable/denied — reveals a manual-copy
+  // fallback so the prompt is never lost (e.g. insecure context, permissions).
+  const [copyFailed, setCopyFailed] = useState(false);
   const [outcome, setOutcome] = useState<FillOutcome | null>(null);
 
   // The drawn grid's geometry. Recomputed only when the drawing changes — the
@@ -115,10 +118,16 @@ export function SkeletonAiFillView({
   );
 
   function handleCopyPrompt() {
-    navigator.clipboard.writeText(prompt).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(prompt).then(
+      () => {
+        setCopied(true);
+        setCopyFailed(false);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      // Clipboard blocked (insecure context / denied permission). Don't lose
+      // the prompt — reveal it in a selectable box for manual copy.
+      () => setCopyFailed(true),
+    );
   }
 
   /**
@@ -216,6 +225,22 @@ export function SkeletonAiFillView({
             <p className="mt-2 text-sm text-rubric animate-fade-in">
               Now paste it into ChatGPT, Gemini, Claude, or any AI &rarr;
             </p>
+          )}
+          {copyFailed && (
+            <div className="note note-warn py-2.5 mt-2 space-y-2 animate-fade-in">
+              <p className="text-sm text-ink-2">
+                <span className="font-medium text-warn">Couldn&rsquo;t copy automatically.</span>{' '}
+                Select the prompt below and copy it (Ctrl/Cmd + C), then paste it into your AI.
+              </p>
+              <textarea
+                readOnly
+                value={prompt}
+                rows={4}
+                onFocus={e => e.currentTarget.select()}
+                aria-label="Prompt to copy manually"
+                className="field font-mono text-[11px] leading-relaxed resize-y"
+              />
+            </div>
           )}
         </div>
       </section>

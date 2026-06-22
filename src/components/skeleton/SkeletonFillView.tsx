@@ -177,6 +177,9 @@ export function SkeletonFillView({
   const [aiTopic, setAiTopic] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiCopied, setAiCopied] = useState(false);
+  // Holds the prompt text when the Clipboard API fails, so we can reveal it
+  // for manual copy instead of silently losing it.
+  const [aiCopyFallback, setAiCopyFallback] = useState<string | null>(null);
   const [aiOutcome, setAiOutcome] = useState<{
     filledCount: number;
     lockedCount: number;
@@ -272,9 +275,12 @@ export function SkeletonFillView({
     try {
       await navigator.clipboard.writeText(prompt);
       setAiCopied(true);
+      setAiCopyFallback(null);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setAiCopied(false), 2000);
     } catch {
+      // Clipboard blocked — reveal the prompt for manual copy so it isn't lost.
+      setAiCopyFallback(prompt);
       showToast('Could not access the clipboard');
     }
   }
@@ -615,6 +621,23 @@ export function SkeletonFillView({
             <button onClick={() => void handleCopyFillPrompt()} className="btn-secondary btn-sm">
               {aiCopied ? 'Copied' : 'Copy AI prompt'}
             </button>
+
+            {aiCopyFallback && (
+              <div className="note note-warn py-2 space-y-2 animate-fade-in">
+                <p className="text-xs text-ink-2">
+                  <span className="font-medium text-warn">Couldn&rsquo;t copy automatically.</span>{' '}
+                  Select the prompt below and copy it (Ctrl/Cmd + C).
+                </p>
+                <textarea
+                  readOnly
+                  value={aiCopyFallback}
+                  rows={4}
+                  onFocus={e => e.currentTarget.select()}
+                  aria-label="Prompt to copy manually"
+                  className="field font-mono text-[11px] leading-relaxed resize-y"
+                />
+              </div>
+            )}
 
             <textarea
               value={aiResponse}
