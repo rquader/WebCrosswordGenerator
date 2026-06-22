@@ -1,78 +1,64 @@
-# AI Prompt Test — Optimized word-list generation
+# Prompt experiment — crossing representation (Session 14, issue G)
 
-**What this is.** A structured back-and-forth to measure how well our AI word-list prompt
-performs across LLMs (Claude / ChatGPT / Gemini), so we can improve it with evidence instead
-of guesses. The prompt is the upstream quality lever: better word lists → denser, more
-interesting crosswords from our engine.
+> Prior experiment (Session 10, flat word-list) is archived in the Obsidian vault:
+> "Prompt Experiment Results - Session 10.md" + "Prompt Experiment Findings - Session 10.md".
+> This file now holds the CURRENT experiment.
 
-**Workflow.**
-1. You run the prompt blocks below through each LLM and paste the raw responses into the
-   "Responses" section.
-2. You send this file back to the next Claude Code session.
-3. Claude scores every response on the rubric **and runs each returned word list through the
-   real crossword engine** to get an objective fill % — then recommends prompt changes.
+**Question:** does stating each crossing as a *fully-resolved shared-cell fact* make a
+weaker model honor crossings better than today's implicit "crosses X at letter N"?
 
----
+This is the #1 untested lever for the constrained AI-fill flows (skeleton-first + BYOG).
+The flat word-list task is model-agnostic (Session 10: 1 issue in 54 runs), but the
+slot-fill task is much harder, and weak/free models break length + crossing constraints.
 
-## How to run it (please read — this keeps the data clean)
+## How to run (interactive — needs a human + a real model)
 
-- **Fresh chat for EVERY run.** A second prompt in the same chat is contaminated (the model
-  anchors on the previous topic/output). One run = one brand-new chat.
-- **Paste the prompt block verbatim** — the whole thing, from "Generate a word list…" through
-  "Respond with the code block only."
-- **Paste the response RAW.** Do *not* tidy it, fix formatting, or delete junk. I need to see
-  exactly what the model returned (preamble, numbering, dupes, off-theme words, count misses).
-- **Label each run**: which LLM + exact model/version (e.g. "Claude Opus 4.x", "GPT-5",
-  "Gemini 2.5 Pro") and the date.
-- **Suggested matrix** (scale to your energy): **V1 first**, all 3 LLMs, the 3 cases,
-  **2 iterations** each (LLMs are stochastic — repeats show consistency). Then **V2** if you're
-  up for it. Minimum useful pass: V1 × 3 LLMs × 1 case × 1 iteration = 3 runs.
+1. Paste **Variant A** into the target model, save the raw reply under "A response".
+2. Paste **Variant B** into the SAME model (fresh chat), save under "B response".
+3. Repeat per model. The key case is a WEAK/free model — **Gemini 2.x Flash** or a
+   small/mini tier. Also try one strong model as a control.
+4. Report the raw replies back; they'll be run through the real `parseSkeletonFillResponse`
+   + the crossing check below to score each variant.
 
----
+**Both variants use the identical output contract** (fenced `{id}-{DIR}: WORD | Clue`,
+2-3 options/slot), so the only variable is how the grid/crossings are described — a fair A/B.
 
-## Scoring rubric (how Claude will evaluate each response)
-
-| Dimension | What it measures | Scale |
-|---|---|---|
-| **Format / parseability** | Fenced code block, `WORD | Clue` lines, no numbering/preamble, A–Z only | 0–5 (a gate: 0 ⇒ unusable) |
-| **Count adherence** | Returned ≈ the asked count (about 40 / 32) | 0–5 |
-| **Theme fit** | Genuinely on-topic, classroom-appropriate | 0–5 |
-| **Word quality / interest** | Recognizable + interesting, not obscure padding | 0–5 |
-| **Crossing-friendliness** | Mostly 5–8 letters, vowel/common-letter rich, few rare letters | 0–5 |
-| **Clean entries** | No duplicates, no multi-word/hyphen/proper-noun violations, clues don't leak the answer | 0–5 |
-| **Best-first ordering** | Are the *top* words actually the strongest (interesting AND interlock-friendly)? | 0–5 |
-| **Objective fill %** | *Claude computes this* — runs the list through the real engine at the case's grid | measured |
-
-The first dimension is a gate: a list that doesn't parse is useless no matter how good the
-words are. Theme/quality/crossing are the substance; ordering matters because rank = the
-quality signal our subset selector uses.
+## Scoring (what to measure per response)
+- **Parse rate:** lines the parser accepts vs total (uses the real parser).
+- **Crossing agreement:** of the parsed picks, what fraction actually share the SAME letter
+  at each crossing (the whole point — a word can be the right length yet break the cross).
+- **Length compliance** and **coverage** (all 6 slots, best-first options each).
 
 ---
 
-## Test cases
+## The sample grid (same for both variants)
 
-| Case | Topic | Grid | Target words | Why it's here |
-|---|---|---|---|---|
-| **A** | Solar System (5th grade) | 13×13 | 11 | Concrete, easy — the happy path |
-| **B** | Photosynthesis (7th grade) | 15×15 | 14 | Abstract/process — fewer obvious nouns |
-| **C** | Ancient Egypt (6th grade) | 11×11 | 8 | Proper-noun-prone + small grid (4× pool bites here) |
+A 5×5 "window-pane". `#` = block, `.` = fill, a letter = already fixed. The centre is
+locked to **A** (simulates a placed crossing letter). 6 slots, all length 5, 9 crossings —
+crossing-dense on purpose so a model that ignores crossings is exposed.
+
+```
+. . . . .
+. # . # .
+. . A . .
+. # . # .
+. . . . .
+```
+
+Slots: `1-ACROSS` (row 1), `5-ACROSS` (row 3, locked A at pos 3), `6-ACROSS` (row 5);
+`2-DOWN` (col 1), `3-DOWN` (col 3, locked A at pos 3), `4-DOWN` (col 5).
 
 ---
 
-## Prompt V1 — the shipping prompt (paste verbatim)
+## Variant A — CURRENT prompt (verbatim from `buildSkeletonFillPrompt`)
 
-> This is exactly what the app generates today (Optimized mode, default "Densest grid" bias).
-
-### V1 · Case A — Solar System · 13×13 · target 11
-````
-Generate a word list with clues for a crossword puzzle on the topic described below.
+```
+I am building a crossword from a grid I already laid out. Fill the blank slots below with words and clues that fit the grid exactly.
 
 REQUIREMENTS
 - Language: English. Every word and every clue must be written in English.
-- Number of words: about 40 — give your BEST, most interesting on-topic words, and LIST THEM STRONGEST FIRST. Only the best-fitting subset is used to build the puzzle, so favor quality and variety over hitting an exact number.
-- Grid size: 13x13 — no word may be longer than 13 letters.
-- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).
-- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
+- Each word must fit its slot EXACTLY: the right number of letters, and every locked letter (a capital letter already shown in the pattern) must stay in place.
+- Where two slots cross, the shared cell is ONE letter — your across word and your down word must use the SAME letter there. Crossings are listed per slot below.
 - Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
 - Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
 - Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
@@ -80,148 +66,106 @@ REQUIREMENTS
 - Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
 
 ===BEGIN TOPIC CONTEXT===
-Solar System — planets, moons, and exploring space, for a 5th-grade class.
+Animals
 ===END TOPIC CONTEXT===
 
-OUTPUT FORMAT
-Respond with ONLY a fenced code block. Inside it, one entry per line:
+THE GRID
+Legend: # = blocked square (not part of any word), . = empty cell to fill, a letter = already fixed.
 
-WORD | Clue text
+.....
+.#.#.
+..A..
+.#.#.
+.....
 
-Rules: WORD in ALL CAPS using only the letters A-Z and digits, a single pipe (|) as the separator, clue in sentence case.
-About 40 lines, strongest word first. No blank lines, no numbering, no text outside the code block.
+SLOTS TO FILL
+Patterns: each symbol is one cell — an underscore is any letter, a capital letter is already fixed and must stay. Positions are counted from the start, so letter 1 is the first cell.
 
-Example format (do not copy these words):
-```
-EXAMPLE | A thing that shows what the format looks like.
-SAMPLE | A small part that represents the whole.
-```
-
-Respond with the code block only. Nothing else.
-````
-
-### V1 · Case B — Photosynthesis · 15×15 · target 14
-````
-Generate a word list with clues for a crossword puzzle on the topic described below.
-
-REQUIREMENTS
-- Language: English. Every word and every clue must be written in English.
-- Number of words: about 40 — give your BEST, most interesting on-topic words, and LIST THEM STRONGEST FIRST. Only the best-fitting subset is used to build the puzzle, so favor quality and variety over hitting an exact number.
-- Grid size: 15x15 — no word may be longer than 15 letters.
-- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).
-- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
-- Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
-- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
-- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
-- No proper nouns unless they are directly relevant to the topic.
-- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
-
-===BEGIN TOPIC CONTEXT===
-Photosynthesis and plant biology for 7th grade.
-===END TOPIC CONTEXT===
+1-ACROSS: 5 letters, pattern _ _ _ _ _ — crosses 2-DOWN at letter 1 — crosses 3-DOWN at letter 3 — crosses 4-DOWN at letter 5
+2-DOWN: 5 letters, pattern _ _ _ _ _ — crosses 1-ACROSS at letter 1 — crosses 5-ACROSS at letter 3 — crosses 6-ACROSS at letter 5
+3-DOWN: 5 letters, pattern _ _ A _ _ — crosses 1-ACROSS at letter 1 — crosses 5-ACROSS at letter 3 — crosses 6-ACROSS at letter 5
+4-DOWN: 5 letters, pattern _ _ _ _ _ — crosses 1-ACROSS at letter 1 — crosses 5-ACROSS at letter 3 — crosses 6-ACROSS at letter 5
+5-ACROSS: 5 letters, pattern _ _ A _ _ — crosses 2-DOWN at letter 1 — crosses 3-DOWN at letter 3 — crosses 4-DOWN at letter 5
+6-ACROSS: 5 letters, pattern _ _ _ _ _ — crosses 2-DOWN at letter 1 — crosses 3-DOWN at letter 3 — crosses 4-DOWN at letter 5
 
 OUTPUT FORMAT
-Respond with ONLY a fenced code block. Inside it, one entry per line:
+Respond with ONLY a fenced code block. Each line is:
 
-WORD | Clue text
+{id}-{ACROSS or DOWN}: WORD | Clue text
 
-Rules: WORD in ALL CAPS using only the letters A-Z and digits, a single pipe (|) as the separator, clue in sentence case.
-About 40 lines, strongest word first. No blank lines, no numbering, no text outside the code block.
-
-Example format (do not copy these words):
-```
-EXAMPLE | A thing that shows what the format looks like.
-SAMPLE | A small part that represents the whole.
-```
-
-Respond with the code block only. Nothing else.
-````
-
-### V1 · Case C — Ancient Egypt · 11×11 · target 8
-````
-Generate a word list with clues for a crossword puzzle on the topic described below.
-
-REQUIREMENTS
-- Language: English. Every word and every clue must be written in English.
-- Number of words: about 32 — give your BEST, most interesting on-topic words, and LIST THEM STRONGEST FIRST. Only the best-fitting subset is used to build the puzzle, so favor quality and variety over hitting an exact number.
-- Grid size: 11x11 — no word may be longer than 11 letters.
-- Word length: most words 5 to 8 letters. Avoid 3-letter words (they barely cross), and avoid making one word much longer than the rest (it forces an oversized, mostly empty grid).
-- Crossing-friendly: favor words rich in vowels and common letters (E, A, R, I, O, T, N, S, L) so they interlock. Avoid words that lean on rare letters (J, Q, X, Z) or are vowel-poor (like "rhythm") — they are hard to cross.
-- Use only the letters A-Z and digits 0-9: no punctuation, no abbreviations, no other symbols. Write accented letters in their plain form ("ELEVE", not "ÉLÈVE").
-- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.
-- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)
-- No proper nouns unless they are directly relevant to the topic.
-- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.
-
-===BEGIN TOPIC CONTEXT===
-Ancient Egypt — pharaohs, pyramids, gods, and daily life, for a 6th-grade unit.
-===END TOPIC CONTEXT===
-
-OUTPUT FORMAT
-Respond with ONLY a fenced code block. Inside it, one entry per line:
-
-WORD | Clue text
-
-Rules: WORD in ALL CAPS using only the letters A-Z and digits, a single pipe (|) as the separator, clue in sentence case.
-About 32 lines, strongest word first. No blank lines, no numbering, no text outside the code block.
+Rules: the label must match a slot above, WORD in ALL CAPS using only the letters A-Z and digits, a single pipe (|) before the clue, clue in sentence case.
+Give 2 or 3 DIFFERENT options for EACH blank slot, best first — one option per line, all reusing that slot's label (same id and direction). Every option must be the right length and respect the slot's locked letters and crossings. List a slot's options together (best first), then move to the next slot. Cover all 6 blank slots. No blank lines, no numbering, no text outside the code block.
 
 Example format (do not copy these words):
-```
-EXAMPLE | A thing that shows what the format looks like.
-SAMPLE | A small part that represents the whole.
-```
+3-ACROSS: PLANET | A world that orbits a star.
+3-ACROSS: PLASMA | A hot, charged state of matter.
+5-DOWN: ORBIT | The path one body takes around another.
 
 Respond with the code block only. Nothing else.
-````
+```
 
 ---
 
-## Prompt V2 — explicit-ranking variant (the hypothesis we're testing)
+## Variant B — REDESIGNED (fully-resolved crossings, list-only, locked letters inline)
 
-**Hypothesis:** the shipping prompt says "LIST THEM STRONGEST FIRST" but never says what
-"strongest" means — so the rank order (which our subset selector trusts as the quality signal)
-may be arbitrary. V2 tells the model the *actual* ranking criteria. Question: does this produce
-a better-ordered list (top words both interesting **and** interlock-friendly) without hurting
-variety?
+Under test: (1) every crossing names BOTH positions + the shared letter — no cross-line
+positional arithmetic; (2) the ASCII grid is dropped (one authoritative source, not three
+coordinate systems); (3) locked letters restated inline.
 
-**To make V2 from any V1 case above:** keep everything identical, but **replace the single
-"Number of words:" bullet** with the two bullets below (same word count — use 40 for A/B, 32 for C):
+**When running B, keep Variant A's header + REQUIREMENTS + TOPIC CONTEXT + OUTPUT FORMAT
+blocks verbatim** — replace ONLY the "THE GRID" + "SLOTS TO FILL" sections with the block below.
 
 ```
-- Number of words: about <N> on-topic words. Give your BEST, most interesting ones.
-- Ranking (important): LIST THEM STRONGEST FIRST, where "strongest" means a word that is BOTH (a) interesting/recognizable to a student AND (b) easy to interlock (5-8 letters, rich in vowels and common letters E A R I O T N S L). Put words that score high on BOTH at the very top; trail off into more niche or harder-to-cross words. Only the best-fitting subset is used to build the puzzle.
+SLOTS TO FILL
+Each slot lists its length, any letters already fixed, and the exact shared cell for every
+crossing. "position 3 = A" means the 3rd letter is already A and must stay. "position 1 is
+the SAME letter as 2-DOWN position 1" means your two words must use ONE identical letter there.
+
+1-ACROSS (5 letters):
+  - position 1 is the SAME letter as 2-DOWN position 1
+  - position 3 is the SAME letter as 3-DOWN position 1
+  - position 5 is the SAME letter as 4-DOWN position 1
+2-DOWN (5 letters):
+  - position 1 is the SAME letter as 1-ACROSS position 1
+  - position 3 is the SAME letter as 5-ACROSS position 1
+  - position 5 is the SAME letter as 6-ACROSS position 1
+3-DOWN (5 letters), position 3 = A (fixed):
+  - position 1 is the SAME letter as 1-ACROSS position 3
+  - position 5 is the SAME letter as 6-ACROSS position 3
+4-DOWN (5 letters):
+  - position 1 is the SAME letter as 1-ACROSS position 5
+  - position 3 is the SAME letter as 5-ACROSS position 5
+  - position 5 is the SAME letter as 6-ACROSS position 5
+5-ACROSS (5 letters), position 3 = A (fixed):
+  - position 1 is the SAME letter as 2-DOWN position 3
+  - position 5 is the SAME letter as 4-DOWN position 3
+6-ACROSS (5 letters):
+  - position 1 is the SAME letter as 2-DOWN position 5
+  - position 3 is the SAME letter as 3-DOWN position 5
+  - position 5 is the SAME letter as 4-DOWN position 5
 ```
 
-Everything else (grid size, length guidance, charset, output format) stays exactly as V1.
+> The crossing facts are written by hand for this sample to show the format. If B wins,
+> implement it in `buildSkeletonFillPrompt`: for each intersection emit both the slot's own
+> position AND the partner's position (already in `intersections`: `acrossPos`/`downPos`),
+> restate locked letters inline, and gate the ASCII grid behind a flag so it can be ablated.
 
 ---
 
-## Responses (paste raw — duplicate this block per run)
+## Results (fill in as models are run)
 
-> Copy the template once per run. Fill the header, paste the **entire raw response** in the
-> fenced block. Leave Claude's columns blank — those get filled on evaluation.
-
+### Model: _______  ·  Variant A
 ```
-### RUN — Variant: [V1/V2] · Case: [A/B/C] · LLM: [Claude/ChatGPT/Gemini] · Model: [exact version] · Iter: [1/2] · Date: [YYYY-MM-DD]
-
-<paste the raw response here, verbatim>
-
---- (Claude fills below) ---
-Scores: format _/5 · count _/5 · theme _/5 · quality _/5 · crossing _/5 · clean _/5 · ordering _/5
-Engine fill %: __
-Notes:
+(paste raw response)
 ```
+Parse rate: __ / __ · Crossings agree: __ / 9 · All 6 slots covered? __
 
-<!-- ↓↓↓ paste your runs below this line ↓↓↓ -->
+### Model: _______  ·  Variant B
+```
+(paste raw response)
+```
+Parse rate: __ / __ · Crossings agree: __ / 9 · All 6 slots covered? __
 
-
-<!-- ↑↑↑ paste your runs above this line ↑↑↑ -->
-
----
-
-## When you're done
-
-Save this file (it stays at `tests/prompt-experiments/current-test.md`) and tell the next
-Claude Code session "evaluate the prompt experiment." Claude will score every run, compute the
-objective fill % per list through the real engine, compare V1 vs V2 and LLM-vs-LLM, and
-recommend concrete prompt changes (or confirm the current prompt holds up).
+### Verdict
+(A vs B per model — does explicit crossing representation raise parse rate / crossing
+agreement on the weak model? Decision: implement B in the builder / iterate / keep A.)
