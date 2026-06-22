@@ -84,6 +84,32 @@ export function SkeletonFillView({
     return initial;
   });
 
+  // Blanks that were auto-completed with a generic word-bank word rather than
+  // an AI/topic word. Bank fills arrive with an empty clue (the AI's own picks
+  // and spares always carry a clue), so an empty-clue seed is the signal. We
+  // flag these in the list as "review" — they fit the crossings but aren't
+  // chosen for the teacher's topic — and clear the flag once the slot is edited.
+  const [bankFilledIds, setBankFilledIds] = useState<Set<number>>(() => {
+    const ids = new Set<number>();
+    for (const slot of skeleton.slots) {
+      if (slot.isUserWord) continue;
+      const seed = initialAssignments?.get(slot.id);
+      if (seed && seed.word && !seed.clue.trim()) ids.add(slot.id);
+    }
+    return ids;
+  });
+
+  // Drop a slot's "from word bank" flag — called whenever the user edits it,
+  // since an edited slot is now the teacher's deliberate choice, not filler.
+  const clearBankFlag = useCallback((slotId: number) => {
+    setBankFilledIds(prev => {
+      if (!prev.has(slotId)) return prev;
+      const next = new Set(prev);
+      next.delete(slotId);
+      return next;
+    });
+  }, []);
+
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(() => {
     // Prefer the first blank slot that still has no seeded word, so a partly
     // pre-filled grid lands the user on the next thing to do; otherwise the
@@ -211,6 +237,12 @@ export function SkeletonFillView({
       }
       return next;
     });
+    // These are generic word-bank fills — flag them for review.
+    setBankFilledIds(prev => {
+      const next = new Set(prev);
+      for (const [slotId] of planned) next.add(slotId);
+      return next;
+    });
     showToast(`Filled ${planned.size} slot${planned.size !== 1 ? 's' : ''} — add clues to finish`);
   }
 
@@ -316,6 +348,20 @@ export function SkeletonFillView({
       return next;
     });
 
+    // Track provenance: an assignment with no clue came from the generic word
+    // bank (the AI's own picks + spares always carry a clue), so flag it for
+    // review; a clued word is the AI's own, so clear any stale flag.
+    setBankFilledIds(prev => {
+      const next = new Set(prev);
+      for (const [slotId, a] of assignments) {
+        const slot = slotById.get(slotId);
+        if (!slot || slot.isUserWord) continue;
+        if (a.word && !a.clue.trim()) next.add(slotId);
+        else next.delete(slotId);
+      }
+      return next;
+    });
+
     // How many blank slots actually received a word (excludes user words).
     let blanksFilled = 0;
     for (const [slotId] of assignments) {
@@ -338,7 +384,8 @@ export function SkeletonFillView({
       next.set(slotId, { ...current, word: word.toLowerCase().replace(/[^a-z]/g, '') });
       return next;
     });
-  }, []);
+    clearBankFlag(slotId);
+  }, [clearBankFlag]);
 
   const handleClueChange = useCallback((slotId: number, clue: string) => {
     setSlotEdits(prev => {
@@ -347,7 +394,8 @@ export function SkeletonFillView({
       next.set(slotId, { ...current, clue });
       return next;
     });
-  }, []);
+    clearBankFlag(slotId);
+  }, [clearBankFlag]);
 
   // Detect crossing cells that just became matched → trigger green flash
   const prevCrossingRef = useRef<Map<string, string>>(new Map());
@@ -697,6 +745,20 @@ export function SkeletonFillView({
         </div>
       )}
 
+      {/* Generic-fill review prompt — say how many slots are off-topic filler. */}
+      {bankFilledIds.size > 0 && (
+        <div className="note py-2">
+          <p className="text-sm text-ink-2">
+            <span className="font-medium text-ink">
+              {bankFilledIds.size} slot{bankFilledIds.size !== 1 ? 's' : ''} filled from the word bank
+            </span>{' '}
+            &mdash; common words that fit the crossings but weren&rsquo;t chosen for your topic, tagged
+            {' '}<span className="text-warn font-medium">word bank</span> below. Replace any that don&rsquo;t
+            suit your puzzle, or keep them and add a clue.
+          </p>
+        </div>
+      )}
+
       {/* Slot fill list */}
       <div className="warm-card p-4 space-y-2 max-h-[40vh] overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between gap-2 mb-2">
@@ -743,6 +805,7 @@ export function SkeletonFillView({
               constraints={constraints}
               hasConflict={hasConflict}
               isSelected={isSelected}
+              isBankFilled={bankFilledIds.has(slot.id)}
               suggestions={suggestions}
               onSelect={() => setSelectedSlotId(slot.id)}
               onWordChange={(w) => handleWordChange(slot.id, w)}
@@ -792,13 +855,14 @@ function FilledSlotRow({ slot }: { slot: SkeletonSlot }) {
 }
 
 function EmptySlotRow({
-  slot, edit, constraints, hasConflict, isSelected, suggestions, onSelect, onWordChange, onClueChange,
+  slot, edit, constraints, hasConflict, isSelected, isBankFilled, suggestions, onSelect, onWordChange, onClueChange,
 }: {
   slot: SkeletonSlot;
   edit: { word: string; clue: string };
   constraints: Map<number, string>;
   hasConflict: boolean;
   isSelected: boolean;
+  isBankFilled: boolean;
   suggestions: string[];
   onSelect: () => void;
   onWordChange: (word: string) => void;
@@ -822,9 +886,17 @@ function EmptySlotRow({
         <span className="text-sm font-mono tracking-widest text-ink-2">
           {pattern}
         </span>
-        <span className="text-xs text-ink-3 ml-auto">
-          {slot.length} letters
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {isBankFilled && (
+            <span
+              title="Generic filler from the word bank — replace it if it doesn't fit your topic"
+              className="px-1.5 py-0.5 rounded-btn text-[10px] uppercase tracking-wide font-medium
+                         bg-warn/10 text-warn border border-warn/25 whitespace-nowrap">
+              word bank
+            </span>
+          )}
+          <span className="text-xs text-ink-3">{slot.length} letters</span>
+        </div>
       </div>
       <div className="flex gap-2">
         <input type="text" value={edit.word} onChange={(e) => onWordChange(e.target.value)}
