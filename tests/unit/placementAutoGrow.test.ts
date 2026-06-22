@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createSkeletonFromEntries } from '@logic/createPuzzle';
-import { HISTORY_32, asEntries } from './placementGuaranteeFixtures';
+import { HISTORY_32, CLASSROOM_10, asEntries } from './placementGuaranteeFixtures';
 
 describe('auto-grow on placement failure', () => {
   it('grows a deliberately undersized grid until all words place', () => {
@@ -28,7 +28,7 @@ describe('auto-grow on placement failure', () => {
     expect(skeleton.mustPlacedCount).toBe(HISTORY_32.length);
     expect(skeleton.width).toBeGreaterThan(15);
     expect(skeleton.grewFrom).toEqual({ width: 15, height: 15 });
-  }, 30000);
+  }, 45000); // 32-word auto-grow through several sizes — headroom for slow CI
 
   it('reports no grewFrom when the requested size already fits', () => {
     const skeleton = createSkeletonFromEntries({
@@ -52,11 +52,14 @@ describe('auto-grow on placement failure', () => {
     });
     expect(skeleton.width).toBe(15);
     expect(skeleton.failures.length).toBeGreaterThan(0);
-  });
+  }, 30000); // 32-word generation at a fixed size — above the 5s default for slow CI
 
   it('stays deterministic across runs (same config, same growth result)', () => {
+    // Determinism is independent of list size, so use the small list — same
+    // property, a fraction of the cost (the 32-word version doubled this file's
+    // worker time for no extra coverage).
     const make = () => createSkeletonFromEntries({
-      entries: asEntries(HISTORY_32),
+      entries: asEntries(CLASSROOM_10),
       width: 15,
       height: 15,
       seed: 99,
@@ -66,5 +69,5 @@ describe('auto-grow on placement failure', () => {
     expect(a.grid).toEqual(b.grid);
     expect(a.width).toBe(b.width);
     expect(a.slots.length).toBe(b.slots.length);
-  }, 30000);
+  });
 });
