@@ -156,6 +156,14 @@ export function SkeletonFillView({
   // and no crossing-letter conflicts.
   const canFinalize = filledCount === totalEmpty && conflictCount === 0;
 
+  // Filled blanks that still have no clue. Clues are how a crossword is solved,
+  // so we nudge (without blocking) before the puzzle is created — this catches
+  // word-bank fills and any answer typed without a clue.
+  const slotsNeedingClues = emptySlots.filter(s => {
+    const e = slotEdits.get(s.id);
+    return e && e.word.length === s.length && !e.clue.trim();
+  }).length;
+
   // Words already used anywhere in the puzzle — suggestions must avoid these.
   const usedWords = useMemo(() => {
     const used = new Set<string>();
@@ -814,6 +822,20 @@ export function SkeletonFillView({
           );
         })}
       </div>
+
+      {/* Clue nudge — ready to create, but some answers have no clue yet. */}
+      {canFinalize && slotsNeedingClues > 0 && (
+        <div className="note note-warn py-2">
+          <p className="text-sm text-ink-2">
+            <span className="font-medium text-warn">
+              {slotsNeedingClues} answer{slotsNeedingClues !== 1 ? 's' : ''} still
+              need{slotsNeedingClues !== 1 ? '' : 's'} a clue.
+            </span>{' '}
+            Players solve a crossword from its clues &mdash; add them above. You can also create the
+            puzzle now and fill clues in later.
+          </p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between gap-3">
