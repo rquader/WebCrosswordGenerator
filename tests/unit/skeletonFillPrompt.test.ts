@@ -485,6 +485,141 @@ describe('parseSkeletonFillResponse', () => {
     expect(result.issues).toHaveLength(0);
   });
 
+  /* ── Parser robustness: alternate separators, length hints, label drift ── */
+
+  it('accepts an em-dash as the word/clue separator on a labeled line', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!; // length 5
+
+    const response = ['```', `${across.id}-ACROSS: PLANT — A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('accepts an en-dash as the word/clue separator on a labeled line', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `${across.id}-ACROSS: PLANT – A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('accepts a spaced hyphen as the word/clue separator on a labeled line', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `${across.id}-ACROSS: PLANT - A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('accepts a colon as the word/clue separator, not mistaking the label colon', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    // Label colon (after ACROSS) must be parsed first; the SECOND colon is the
+    // word/clue separator. WORD = PLANT, CLUE = "A green organism."
+    const response = ['```', `${across.id}-ACROSS: PLANT: A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('strips a trailing (5) length hint from the word before length-checking', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!; // length 5
+
+    const response = ['```', `${across.id}-ACROSS: PLANT (5) | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('strips a trailing [5] length hint from the word before length-checking', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `${across.id}-ACROSS: PLANT [5] | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe('A green organism.');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('tolerates the label drift "Across 2:" (direction before number)', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `Across ${across.id}: PLANT | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('tolerates the label drift "2 Across:" (space, no hyphen)', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `${across.id} Across: PLANT | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('tolerates the label drift "{2}-ACROSS:" (braces around the number)', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `{${across.id}}-ACROSS: PLANT | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('tolerates the label drift "(2) ACROSS:" (parens around the number)', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    const response = ['```', `(${across.id}) ACROSS: PLANT | A green organism.`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('does NOT truncate a clue that contains a dash or colon after the real separator', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+
+    // The canonical pipe separates word from clue; an em-dash and a colon LATER
+    // in the clue must survive verbatim (split on the FIRST separator only).
+    const clue = 'A green organism — found in gardens: leafy.';
+    const response = ['```', `${across.id}-ACROSS: PLANT | ${clue}`, '```'].join('\n');
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.assignments.get(across.id)?.word).toBe('PLANT');
+    expect(result.assignments.get(across.id)?.clue).toBe(clue);
+    expect(result.issues).toHaveLength(0);
+  });
+
   it('collects multiple options for one slot as best-first candidates, no issue', () => {
     const { slots, intersections } = plusFixture();
     const across = slots.find(s => s.direction === 'across')!; // length 5

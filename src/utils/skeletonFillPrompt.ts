@@ -332,8 +332,91 @@ export interface SkeletonFillParse {
   issues: ParseIssue[];
 }
 
-/** A line that begins with a slot label, e.g. "4-DOWN: WORD | clue". */
-const SLOT_LABEL = /^\**\s*(\d{1,4})\s*-\s*(across|down)\**\s*:\s*/i;
+/**
+ * A line that begins with a slot label, e.g. "4-DOWN: WORD | clue".
+ *
+ * The canonical form is "{id}-{ACROSS|DOWN}:" but models drift, so this
+ * tolerates the common variants. The id and direction land in named groups
+ * (n1/d1 for number-first, n2/d2 for direction-first); readSlotLabel coalesces
+ * whichever ordering matched. Accepted drift:
+ *   - either order: "2-ACROSS:" / "ACROSS 2:" / "2 ACROSS:" / "Across 2:"
+ *   - the number optionally wrapped: "{2}-ACROSS:" / "(2) ACROSS:"
+ *   - "-" OR whitespace between number and direction (or just the wrap)
+ *   - any case for ACROSS / DOWN (the `i` flag)
+ * The label always ends in a colon, so the FIRST colon terminates it; the
+ * word/clue separator is found in the remainder after this is stripped.
+ */
+const SLOT_LABEL = new RegExp(
+  '^\\**\\s*(?:' +
+    // number first: "2-ACROSS", "2 ACROSS", "{2}-ACROSS", "(2) ACROSS"
+    '[{(]?\\s*(?<n1>\\d{1,4})\\s*[)}]?\\s*[-\\s]\\s*(?<d1>across|down)' +
+    '|' +
+    // direction first: "ACROSS 2", "Across 2"
+    '(?<d2>across|down)\\s*[-\\s]\\s*[{(]?\\s*(?<n2>\\d{1,4})\\s*[)}]?' +
+    ')\\**\\s*:\\s*',
+  'i',
+);
+
+/** Pull the slot id + direction out of a SLOT_LABEL match (either ordering). */
+function readSlotLabel(match: RegExpMatchArray): { id: number; direction: 'across' | 'down' } {
+  const groups = match.groups ?? {};
+  const id = parseInt(groups.n1 ?? groups.n2 ?? '', 10);
+  const dirWord = (groups.d1 ?? groups.d2 ?? '').toLowerCase();
+  return { id, direction: dirWord === 'across' ? 'across' : 'down' };
+}
+
+/**
+ * The characters/strings a model may use as the word↔clue separator. The prompt
+ * still asks for "|"; this is purely additive tolerance. We split on the FIRST
+ * separator that appears AFTER the first whitespace-delimited word token, so a
+ * dash/colon LATER inside the clue is never mistaken for the separator. (Words
+ * here are single tokens with no internal spaces, so "first separator after the
+ * first token" is safe.)
+ *
+ * Returns { word, clue } — clue is everything after that first separator — or
+ * null when no separator is found (the caller reports "missing clue").
+ */
+function splitWordClue(rest: string): { word: string; clue: string } | null {
+  // Skip the leading word token, then look for the first separator at or after
+  // its end (a spaced hyphen is " - "). The token is the leading run of chars
+  // that are neither whitespace nor a single-char separator, so a separator
+  // glued to the word with no space (e.g. "PLANT:") is still found.
+  const wordTokenMatch = rest.match(/^\s*[^\s|—–:]+/);
+  const searchFrom = wordTokenMatch ? wordTokenMatch[0].length : 0;
+
+  let bestIndex = -1;
+  let sepLength = 1;
+  // Single-char separators: pipe, em-dash, en-dash, colon.
+  for (const sep of ['|', '—', '–', ':']) {
+    const idx = rest.indexOf(sep, searchFrom);
+    if (idx !== -1 && (bestIndex === -1 || idx < bestIndex)) {
+      bestIndex = idx;
+      sepLength = 1;
+    }
+  }
+  // Spaced hyphen " - " (a bare "-" is left alone so hyphenated words survive).
+  const spacedHyphen = rest.indexOf(' - ', searchFrom);
+  if (spacedHyphen !== -1 && (bestIndex === -1 || spacedHyphen < bestIndex)) {
+    bestIndex = spacedHyphen;
+    sepLength = 3;
+  }
+
+  if (bestIndex === -1) return null;
+  return {
+    word: rest.slice(0, bestIndex),
+    clue: rest.slice(bestIndex + sepLength),
+  };
+}
+
+/**
+ * Strip a trailing length hint — "(5)" or "[5]" — that crossword-trained models
+ * append to the answer, e.g. "PLANT (5)" -> "PLANT". Only a PURELY numeric
+ * parenthetical at the very END of the word token is removed; parentheses
+ * elsewhere are left intact.
+ */
+function stripLengthHint(wordToken: string): string {
+  return wordToken.replace(/\s*[([]\d+[)\]]\s*$/, '').trim();
+}
 
 export function parseSkeletonFillResponse(
   text: string,
@@ -402,7 +485,7 @@ export function parseSkeletonFillResponse(
         }
         continue;
       }
-      const word = cleanWord(line.slice(0, pipeIndex), allowTwoWords);
+      const word = cleanWord(stripLengthHint(line.slice(0, pipeIndex)), allowTwoWords);
       const clue = cleanClue(line.slice(pipeIndex + 1));
       if (!charset.test(word) || toGridWord(word).length < 2) {
         if (!lenient) {
@@ -420,9 +503,8 @@ export function parseSkeletonFillResponse(
       continue;
     }
 
-    // Labeled line: parse id + direction.
-    const id = parseInt(labelMatch[1], 10);
-    const direction = labelMatch[2].toLowerCase() === 'across' ? 'across' : 'down';
+    // Labeled line: parse id + direction (tolerating label drift).
+    const { id, direction } = readSlotLabel(labelMatch);
     const rest = line.slice(labelMatch[0].length);
 
     const slot = slotsById.get(id);
@@ -435,8 +517,11 @@ export function parseSkeletonFillResponse(
       continue;
     }
 
-    const pipeIndex = rest.indexOf('|');
-    if (pipeIndex === -1) {
+    // Split WORD from clue on the first separator after the word token. The
+    // prompt asks for "|"; we also accept em/en-dash, a spaced hyphen, and a
+    // colon (the label's own colon was already consumed above).
+    const split = splitWordClue(rest);
+    if (split === null) {
       result.issues.push({
         line: lineNumber,
         text: truncate(rawLine),
@@ -444,8 +529,8 @@ export function parseSkeletonFillResponse(
       });
       continue;
     }
-    const word = cleanWord(rest.slice(0, pipeIndex), allowTwoWords);
-    const clue = cleanClue(rest.slice(pipeIndex + 1));
+    const word = cleanWord(stripLengthHint(split.word), allowTwoWords);
+    const clue = cleanClue(split.clue);
     const gridForm = toGridWord(word);
 
     // Validation order (per design §8): length -> locked grid letters ->
