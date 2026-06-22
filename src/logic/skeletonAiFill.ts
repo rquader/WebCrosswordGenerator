@@ -98,19 +98,25 @@ export function solveSkeletonFill(options: {
    * a bad letter onto its crossings.
    */
   slotCandidates?: Map<number, WordCluePair[]>;
+  /**
+   * Topic-relevant words to prefer when the bank fills a slot (soft bias, never
+   * excludes). Lets generic filler lean toward the puzzle's theme.
+   */
+  preferredWords?: Set<string>;
   /** Determinism seed; only breaks ties inside the solver. */
   seed?: number;
 }): {
   assignments: Map<number, { word: string; clue: string }>;
   unfilledSlotIds: number[];
 } {
-  const { slots, intersections, locked, pool, slotCandidates, seed = 0 } = options;
+  const { slots, intersections, locked, pool, slotCandidates, preferredWords, seed = 0 } = options;
   return fillGrid({
     slots,
     intersections,
     pool,
     locked,
     slotCandidates,
+    preferredWords,
     // Always complete the grid with the curated bank so the user lands on a
     // plausible, fully filled puzzle to edit (unfillable slots stay blank).
     includeWordBank: true,

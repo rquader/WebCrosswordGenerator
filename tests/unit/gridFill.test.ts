@@ -359,3 +359,48 @@ describe('fillGrid - edge cases', () => {
     expect(result.unfilledSlotIds).toEqual(slots.map(s => s.id).sort((a, b) => a - b));
   });
 });
+
+describe('fillGrid - preferredWords (topic-aware soft bias)', () => {
+  it('places a preferred word over equally-fitting alternatives', () => {
+    // One 5-cell across slot, no crossings: any 5-letter word fits.
+    const { slots, intersections } = fixture(['.....']);
+    expect(slots).toHaveLength(1);
+    const words = ['table', 'house', 'plant', 'tiger', 'zebra'];
+    const result = fillGrid({
+      slots,
+      intersections,
+      pool: pool(words),
+      preferredWords: new Set(['zebra']),
+      seed: 3,
+    });
+    expect(result.assignments.get(slots[0].id)?.word).toBe('zebra');
+    expect(result.unfilledSlotIds).toEqual([]);
+  });
+
+  it('never excludes: a preferred word that cannot fit is ignored, slot still fills', () => {
+    const { slots, intersections } = fixture(['...']); // 3-cell slot
+    const result = fillGrid({
+      slots,
+      intersections,
+      pool: pool(['cat', 'dog', 'pen']),
+      preferredWords: new Set(['zebra']), // length 5 — cannot fit a 3-slot
+      seed: 1,
+    });
+    expect(result.unfilledSlotIds).toEqual([]);
+    expect(result.assignments.size).toBe(1);
+    expect(result.assignments.get(slots[0].id)?.word.length).toBe(3);
+  });
+
+  it('does not change the fill when no preferred word is given (matches default)', () => {
+    const { slots, intersections } = fixture(['.....']);
+    const base = fillGrid({ slots, intersections, pool: pool(['table', 'house', 'plant']), seed: 3 });
+    const empty = fillGrid({
+      slots,
+      intersections,
+      pool: pool(['table', 'house', 'plant']),
+      preferredWords: new Set<string>(),
+      seed: 3,
+    });
+    expect(empty.assignments.get(slots[0].id)?.word).toBe(base.assignments.get(slots[0].id)?.word);
+  });
+});

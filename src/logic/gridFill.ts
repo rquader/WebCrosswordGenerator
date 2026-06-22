@@ -60,6 +60,14 @@ export function fillGrid(options: {
   slotCandidates?: Map<number, WordCluePair[]>;
   /** Append the curated word bank as clue-less fallback fill when true. */
   includeWordBank?: boolean;
+  /**
+   * Topic-relevant words to PREFER as filler (e.g. bank words matching the
+   * puzzle's theme). A SOFT bias only: within each slot's fitting candidates,
+   * preferred words float to the front but nothing is excluded, so the fill
+   * rate is unchanged — only the choice of filler shifts toward the topic when
+   * an on-topic word fits the crossings. Lowercased to match candidate words.
+   */
+  preferredWords?: Set<string>;
   /** Determinism seed; only breaks ties (perturbs per-slot candidate order). */
   seed?: number;
 }): {
@@ -68,7 +76,7 @@ export function fillGrid(options: {
   /** Slots left blank because the pool/bank could not satisfy their crossings. */
   unfilledSlotIds: number[];
 } {
-  const { slots, pool, locked, includeWordBank = false, seed = 0 } = options;
+  const { slots, pool, locked, includeWordBank = false, preferredWords, seed = 0 } = options;
   // intersections is part of the contract; crossings are enforced cell-by-cell
   // through the shared virtual grid below, so we do not need to index it here.
   void options.intersections;
@@ -171,19 +179,32 @@ export function fillGrid(options: {
   // base list keeps best-first pool order; a per-slot seeded shuffle then breaks
   // ties reproducibly so fills do not all cluster on the same early words while
   // staying deterministic for a given seed.
+  // Float topic-preferred words to the front of a candidate list, preserving
+  // order within the preferred and non-preferred groups. A soft bias only: it
+  // reorders, never drops, so the fill rate is untouched — it just steers the
+  // generic filler toward the topic when an on-topic word also fits.
+  const floatPreferred = (list: Candidate[]): Candidate[] => {
+    if (!preferredWords || preferredWords.size === 0) return list;
+    const pref: Candidate[] = [];
+    const other: Candidate[] = [];
+    for (const c of list) (preferredWords.has(c.word) ? pref : other).push(c);
+    return pref.length === 0 ? list : [...pref, ...other];
+  };
+
   const matchingCandidates = (slot: SkeletonSlot): Candidate[] => {
     const base = candidatesByLength.get(slot.length) ?? [];
     const prefs = prefsBySlot.get(slot.id);
 
     if (!prefs || prefs.length === 0) {
-      // No per-slot preferences: original behavior, unchanged (seeded shuffle).
+      // No per-slot preferences: original behavior (seeded shuffle), then float
+      // any topic-preferred words to the front.
       const fitting = base.filter(c => !usedWords.has(c.word) && candidateFits(slot, c.word));
       if (seed !== 0 && fitting.length > 1) {
         // Stable, slot-scoped perturbation: same seed + slot id => same order.
         const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
         rng.shuffle(fitting);
       }
-      return fitting;
+      return floatPreferred(fitting);
     }
 
     // Preferences first, IN ORDER (best-first, never shuffled), then the rest of
@@ -204,7 +225,9 @@ export function fillGrid(options: {
       const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
       rng.shuffle(rest);
     }
-    return [...front, ...rest];
+    // AI per-slot picks stay first (they're already on-topic); topic-preferred
+    // words float to the front of the remaining pool/bank fill.
+    return [...front, ...floatPreferred(rest)];
   };
 
   // How constrained a slot is right now: fewer fitting candidates = fill sooner.

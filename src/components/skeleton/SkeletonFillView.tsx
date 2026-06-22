@@ -19,6 +19,7 @@ import { buildCluePrompt } from '../../utils/aiPromptBuilder';
 import { computeIntersections } from '../../logic/gridSkeleton';
 import { gridFromPlacedSlots } from '../../logic/skeletonAiFill';
 import { buildSkeletonFillPrompt, fillSkeletonFromResponse } from '../../utils/skeletonFillPrompt';
+import { topicPreferredWords } from '../../logic/wordCategories';
 
 /** Filled slot data passed back on completion. */
 export interface FilledSlotData {
@@ -340,6 +341,9 @@ export function SkeletonFillView({
       height: skeleton.height,
       language: 'english',
       allowTwoWords: false,
+      // Steer generic bank filler toward the puzzle's theme (topic + the words
+      // already placed). Soft preference — no effect on which slots get filled.
+      preferredWords: topicPreferredWords(aiTopic.trim(), placedWords),
       seed: 1,
     });
 

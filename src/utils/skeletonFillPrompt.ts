@@ -723,10 +723,16 @@ export function fillSkeletonFromResponse(options: {
   height: number;
   language?: PuzzleLanguage;
   allowTwoWords?: boolean;
+  /**
+   * Topic-relevant words to prefer when the bank fills a slot (soft bias). Pass
+   * `topicPreferredWords(topic, placedWords)` to steer generic filler toward the
+   * puzzle's theme; omit for the original (unbiased) fill.
+   */
+  preferredWords?: Set<string>;
   /** Determinism seed; only breaks ties inside the solver. */
   seed?: number;
 }): SkeletonFillResult {
-  const { response, slots, intersections, width, height, language, allowTwoWords, seed = 0 } = options;
+  const { response, slots, intersections, width, height, language, allowTwoWords, preferredWords, seed = 0 } = options;
 
   // The grid the parser and solver share: placed words written in, the rest
   // empty. (BYOG: every slot blank -> all-empty grid, same as emptyFillGrid.)
@@ -757,6 +763,7 @@ export function fillSkeletonFromResponse(options: {
     locked,
     pool: parse.pool,
     slotCandidates: parse.slotCandidates,
+    preferredWords,
     seed,
   });
 

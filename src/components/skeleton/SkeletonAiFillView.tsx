@@ -29,6 +29,7 @@ import {
   fillSkeletonFromResponse,
 } from '../../utils/skeletonFillPrompt';
 import { emptyFillGrid } from '../../logic/skeletonAiFill';
+import { topicPreferredWords } from '../../logic/wordCategories';
 import { DEFAULT_LANGUAGE, type PuzzleLanguage } from '../../logic/language';
 
 interface SkeletonAiFillViewProps {
@@ -149,6 +150,9 @@ export function SkeletonAiFillView({
       height,
       language,
       allowTwoWords,
+      // Steer generic bank filler toward the topic the teacher described (the
+      // drawn grid has no placed words yet). Soft preference — fill rate is unchanged.
+      preferredWords: topicPreferredWords(topic),
       // A stable seed keeps the same paste reproducible; ties break the same way.
       seed: 1,
     });
