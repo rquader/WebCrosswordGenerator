@@ -196,6 +196,18 @@ export function SkeletonAiFillView({
           </pre>
         </details>
 
+        {/* Model guidance — filling a fixed grid is a hard task (exact lengths +
+            shared crossing letters), and stronger models honor it far better. */}
+        <div className="note py-2">
+          <p className="text-sm text-ink-2">
+            <span className="font-medium text-rubric">Tip</span> &mdash; every word
+            has to match an exact length and share its crossing letters, so paste this
+            into the most capable AI you have. Lighter &ldquo;mini&rdquo; or
+            &ldquo;flash&rdquo; models often miscount letters or break crossings, which
+            leaves more blanks for you to finish by hand.
+          </p>
+        </div>
+
         <div>
           <button onClick={handleCopyPrompt} className="btn-primary btn-lg w-full sm:w-auto">
             {copied ? 'Copied' : 'Copy AI prompt'}

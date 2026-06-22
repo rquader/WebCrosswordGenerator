@@ -602,6 +602,16 @@ export function SkeletonFillView({
               )}
             </div>
 
+            {/* Model guidance — completing a fixed grid rewards a strong model. */}
+            <div className="note py-2">
+              <p className="text-xs text-ink-2">
+                <span className="font-medium text-rubric">Tip</span> &mdash; each answer
+                must fit an exact length and share its crossing letters, so use the most
+                capable AI you have. Lighter &ldquo;mini&rdquo; or &ldquo;flash&rdquo; models
+                often miscount or break crossings, leaving more for you to fix by hand.
+              </p>
+            </div>
+
             <button onClick={() => void handleCopyFillPrompt()} className="btn-secondary btn-sm">
               {aiCopied ? 'Copied' : 'Copy AI prompt'}
             </button>
