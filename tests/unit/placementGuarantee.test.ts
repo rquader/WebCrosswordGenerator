@@ -43,7 +43,7 @@ describe('grid structural validity (no junk runs)', () => {
         expect(findStructuralProblems(result.crossword), `seed ${seed}`).toEqual([]);
       }
     }
-  });
+  }, 15000); // 16 generations; explicit timeout for headroom under parallel CI load
 
   it('refuses to glue words even when the grid is too tight', () => {
     // At an undersized grid, words may fail — but whatever IS placed

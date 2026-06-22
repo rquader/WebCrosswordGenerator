@@ -263,7 +263,10 @@ function generateSkeletonAtSize(
   // slots, so a varied subset interlocks just as well while keeping placement
   // fast. (The full bank still backs the visible AI-fill fallback elsewhere.)
   const maxDim = Math.max(width, height);
-  const bankWords = getWordBankSample(maxDim, 40);
+  // Cap ~25/length (≈270 words total for a large grid) — at/under the pre-expansion
+  // bank size, so skeleton generation stays as fast as it was before the bank grew
+  // to full a-z coverage. The full bank still backs the visible AI-fill fallback.
+  const bankWords = getWordBankSample(maxDim, 25);
 
   // Exclude words the user already used (avoid duplicates in the grid)
   const usedWords = new Set<string>();
