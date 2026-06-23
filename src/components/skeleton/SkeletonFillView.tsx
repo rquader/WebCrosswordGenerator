@@ -220,6 +220,10 @@ export function SkeletonFillView({
     lockedCount: number;
     unfilledCount: number;
     issues: string[];
+    /** Lengths the AI flagged (NOTES SHORT_LENGTHS) as having few/no real words. */
+    shortLengths: number[];
+    /** The AI's NOTES COMMENT, if any. */
+    comment: string;
   } | null>(null);
 
   const [promptToast, setPromptToast] = useState<string | null>(null);
@@ -332,7 +336,7 @@ export function SkeletonFillView({
    */
   function handlePlaceResponse() {
     const placed = buildPlacedSlots();
-    const { assignments, unfilledSlotIds, lockedCount, issues } = fillSkeletonFromResponse({
+    const { assignments, unfilledSlotIds, lockedCount, issues, shortLengths, comment } = fillSkeletonFromResponse({
       response: aiResponse,
       slots: placed,
       intersections,
@@ -385,6 +389,8 @@ export function SkeletonFillView({
       lockedCount,
       unfilledCount: unfilledSlotIds.length,
       issues,
+      shortLengths,
+      comment,
     });
   }
 
@@ -667,13 +673,15 @@ export function SkeletonFillView({
               )}
             </div>
 
-            {/* Model guidance — completing a fixed grid rewards a strong model. */}
+            {/* Model guidance — a top-tier "thinking" model fabricates far less
+                on a specific topic (Phase 17 Session 14 data). No model names —
+                they date. */}
             <div className="note py-2">
               <p className="text-xs text-ink-2">
-                <span className="font-medium text-rubric">Tip</span> &mdash; each answer
-                must fit an exact length and share its crossing letters, so use the most
-                capable AI you have. Lighter &ldquo;mini&rdquo; or &ldquo;flash&rdquo; models
-                often miscount or break crossings, leaving more for you to fix by hand.
+                <span className="font-medium text-rubric">Tip</span> &mdash; paste this
+                into the most capable AI you have, a top-tier &ldquo;thinking&rdquo; model.
+                Lighter or faster models sometimes invent or misspell words on a specific
+                topic, which you&rsquo;d then have to fix.
               </p>
             </div>
 
@@ -747,6 +755,21 @@ export function SkeletonFillView({
                         <li key={i} className="text-xs text-ink-2">{m}</li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                {/* Earned, calm nudge: the AI itself reported it had few real words
+                    for some lengths (NOTES SHORT_LENGTHS), so those slots leaned on
+                    the word bank — ties to the "word bank" badges below. */}
+                {aiOutcome.shortLengths.length > 0 && (
+                  <div className="note py-2">
+                    <p className="text-sm text-ink-2">
+                      <span className="font-medium text-ink">
+                        The AI had few real words for some lengths
+                      </span>{' '}
+                      ({aiOutcome.shortLengths.join(', ')} letters), so some answers came from
+                      the word bank (tagged <span className="text-warn font-medium">word bank</span> below)
+                      &mdash; worth a quick review. A more capable AI may do better.
+                    </p>
                   </div>
                 )}
               </div>

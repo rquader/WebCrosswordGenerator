@@ -64,6 +64,10 @@ interface FillOutcome {
   unfilledCount: number;
   /** Lines in the response the parser couldn't use. */
   issues: string[];
+  /** Lengths the AI flagged (NOTES SHORT_LENGTHS) as having few/no real words. */
+  shortLengths: number[];
+  /** The AI's NOTES COMMENT, if any (currently informational only). */
+  comment: string;
 }
 
 export function SkeletonAiFillView({
@@ -142,7 +146,7 @@ export function SkeletonAiFillView({
     // Shared pipeline (parse -> lock AI picks -> solve). A freshly drawn BYOG
     // grid has no pre-placed words, so this locks only the AI's picks and fills
     // the rest from its spare pool + the word bank.
-    const { assignments, unfilledSlotIds, lockedCount, issues } = fillSkeletonFromResponse({
+    const { assignments, unfilledSlotIds, lockedCount, issues, shortLengths, comment } = fillSkeletonFromResponse({
       response,
       slots,
       intersections,
@@ -162,6 +166,8 @@ export function SkeletonAiFillView({
       filledCount: assignments.size,
       unfilledCount: unfilledSlotIds.length,
       issues,
+      shortLengths,
+      comment,
     });
 
     onFilled(skeleton, assignments);
@@ -209,15 +215,14 @@ export function SkeletonAiFillView({
           </pre>
         </details>
 
-        {/* Model guidance — filling a fixed grid is a hard task (exact lengths +
-            shared crossing letters), and stronger models honor it far better. */}
+        {/* Model guidance — a top-tier "thinking" model fabricates far less on a
+            specific topic (Phase 17 Session 14 data). No model names — they date. */}
         <div className="note py-2">
           <p className="text-sm text-ink-2">
-            <span className="font-medium text-rubric">Tip</span> &mdash; every word
-            has to match an exact length and share its crossing letters, so paste this
-            into the most capable AI you have. Lighter &ldquo;mini&rdquo; or
-            &ldquo;flash&rdquo; models often miscount letters or break crossings, which
-            leaves more blanks for you to finish by hand.
+            <span className="font-medium text-rubric">Tip</span> &mdash; paste this into
+            the most capable AI you have, a top-tier &ldquo;thinking&rdquo; model. Lighter
+            or faster models sometimes invent or misspell words on a specific topic, which
+            you&rsquo;d then have to fix.
           </p>
         </div>
 
@@ -325,6 +330,22 @@ export function SkeletonAiFillView({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Earned, calm nudge: the AI itself reported it had few real words for
+                some lengths (NOTES SHORT_LENGTHS), so those slots leaned on the word
+                bank — the editor tags those answers "word bank" for review. */}
+            {outcome.shortLengths.length > 0 && (
+              <div className="note py-2.5">
+                <p className="text-sm text-ink-2">
+                  <span className="font-medium text-ink">
+                    The AI had few real words for some lengths
+                  </span>{' '}
+                  ({outcome.shortLengths.join(', ')} letters), so some answers came from the
+                  word bank &mdash; the editor tags them <span className="text-warn font-medium">word bank</span> for
+                  a quick review. A more capable AI may do better.
+                </p>
               </div>
             )}
           </div>
