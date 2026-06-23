@@ -359,14 +359,42 @@ export interface SkeletonFillParse {
 export function isDiscardedClue(clue: string): boolean {
   const c = clue.trim().toLowerCase();
   if (c.length === 0) return true; // empty / whitespace-only clue
+  // Anchored markers: every observed cruft clue STARTS with its marker, so a
+  // real descriptive sentence (which starts with the actual clue text) is safe.
   if (c === 'none') return true; // exactly "none"
   if (c.startsWith('none')) return true; // "none — ...", "none-...", "none ..."
   if (c.startsWith('not a real word')) return true;
   if (/^not \d+ letters/.test(c)) return true; // "not 7 letters ..."
   if (c.startsWith('too long') || c.startsWith('too short')) return true;
-  // Discard markers anywhere in the clue.
-  if (c.includes('omitted') || c.includes('removed') || c.includes('moved below')) return true;
+  // The bare substrings "omitted" / "removed" / "moved below" / "crossed out"
+  // are discard signals ONLY in a SHORT meta line ("None — omitted", "removed").
+  // A full descriptive sentence (e.g. "A fish often removed from nets.") merely
+  // CONTAINS the word and is a real clue — never dropped. The length gate is the
+  // whole false-positive fix: with no dictionary, dropping a real word loses
+  // content, but admitting a fake word is worse, so we drop only when the line
+  // is too short to be a genuine clue AND carries a discard word.
+  if (c.length <= 24 && /\b(?:omitted|removed|crossed out|moved below)\b/.test(c)) {
+    return true;
+  }
   return false;
+}
+
+/**
+ * Mine a single NOTES-block line for `SHORT_LENGTHS:` / `COMMENT:` and write it
+ * into the result. The key match is case-insensitive; the COMMENT value keeps
+ * its ORIGINAL case (only an exact `none` collapses to ''). Used both inside
+ * NOTES mode and for header-less metadata lines. Pure; never throws.
+ */
+function mineNotesLine(line: string, result: SkeletonFillParse): void {
+  const colon = line.indexOf(':');
+  if (colon === -1) return;
+  const key = line.slice(0, colon).trim().toLowerCase();
+  const value = line.slice(colon + 1).trim();
+  if (key === 'short_lengths') {
+    result.shortLengths = parseShortLengths(value);
+  } else if (key === 'comment') {
+    result.comment = /^none$/i.test(value) ? '' : value;
+  }
 }
 
 /**
@@ -416,6 +444,103 @@ const SLOT_LABEL = new RegExp(
  * an ordinary section header (e.g. `# 5 letters`) and is simply skipped.
  */
 const NOTES_HEADER = /^#\s*notes\b/i;
+
+/**
+ * Leading list markers / enumerators a model may prepend, BEYOND the shared
+ * LIST_MARKER (`- * • 1. 2)`). Stripping is FAIL-SAFE only when the marker is
+ * clearly separated from the content, so a real word is never eaten:
+ *   - a bullet glyph (`+ – — ‣ ▪ ◦ →`) must be followed by whitespace;
+ *   - an enumerator (`a) a. (1) i.`) must be followed by whitespace.
+ * Only a LEADING run is removed; the word itself is untouched. Anchored, applied
+ * AFTER LIST_MARKER, and idempotent via the loop in stripLeadingMarkers.
+ */
+const EXTRA_MARKER = /^\s*(?:[+–—‣▪◦→]|\([0-9a-z]{1,3}\)|[0-9a-z]{1,3}[.)])\s+/i;
+
+/**
+ * Strip every leading list marker / bullet / enumerator from a line, leaving the
+ * real content. Applies the shared LIST_MARKER and the extended EXTRA_MARKER
+ * repeatedly (a model may stack "- •" etc.), but stops the moment nothing more
+ * is stripped, so it can never loop or consume the word. Pure; no throw.
+ *
+ * IMPORTANT: a slot label like "(2) ACROSS:" / "1) 2-DOWN:" looks like an
+ * enumerator bullet, so before each extended-strip pass we check whether the
+ * CURRENT remainder is already a slot label — if so we stop, never eating the
+ * label's own number. (LIST_MARKER alone is safe: it can't match "(2)".)
+ */
+function stripLeadingMarkers(line: string): string {
+  let out = line;
+  // Bounded: each pass strips ≥ 1 char or we break; cap defends against any
+  // pathological no-progress case (cannot happen, but cheap insurance).
+  for (let i = 0; i < 8; i++) {
+    // Light markers (-, *, •, 1., 2)) never collide with a slot label, so strip
+    // them first; then only strip an extended marker (bullet glyph / paren /
+    // enumerator) if what remains is NOT itself a slot label.
+    let next = out.replace(LIST_MARKER, '');
+    if (!SLOT_LABEL.test(next)) next = next.replace(EXTRA_MARKER, '');
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+/**
+ * The "core" of a line for metadata/header classification: leading markers, a
+ * leading `#`/`*`/`=` run, and surrounding whitespace removed, then lowercased.
+ * Used to recognize `short_lengths:` / `comment:` and `notes` / length-group
+ * headers WHEREVER they appear (a model may drop or reformat the `# NOTES`
+ * header), without those classifications depending on the exact decoration.
+ */
+function metadataCore(line: string): string {
+  return stripLeadingMarkers(line)
+    .replace(/^[#*=\s]+/, '')
+    .replace(/[*=\s]+$/, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** A NOTES-section header in any decoration: bare `notes` / `notes:`. */
+function isNotesHeader(line: string): boolean {
+  return /^notes\b\s*:?\s*$/.test(metadataCore(line));
+}
+
+/**
+ * A length-group header — the flat-pool format's "N letters" divider in any
+ * shape: `# 5 letters`, `## 5 letters`, `**5 letters**`, `5 letters:`,
+ * `5 LETTERS`, `[5 letters]`. These never carry an answer. Anchored on the core
+ * so it can't match a real `WORD | clue` line (which has a separator + clue).
+ */
+function isLengthGroupHeader(line: string): boolean {
+  const core = metadataCore(line).replace(/^\[|\]$/g, '').trim();
+  return /^\d{1,3}\s*letters?\s*:?$/.test(core);
+}
+
+/**
+ * A placeholder / punctuation-only clue means the model had NO real clue, so its
+ * word is suspect → drop. Matches (case-insensitive, trimmed) an exact
+ * placeholder token, OR a clue with no alphabetic character at all. A real
+ * descriptive clue always has letters and is never one of these tokens.
+ */
+const PLACEHOLDER_CLUES = new Set([
+  '-', '—', '–', '.', '..', '...', '…', '?', '??', '???',
+  'n/a', 'na', 'tbd', 'todo', 'skip', 'x', 'none.',
+]);
+function isPlaceholderClue(clue: string): boolean {
+  const c = clue.trim().toLowerCase();
+  if (c.length === 0) return true;
+  if (PLACEHOLDER_CLUES.has(c)) return true;
+  if (!/[a-zÀ-ɏ]/i.test(c)) return true; // wholly non-alphabetic
+  return false;
+}
+
+/**
+ * Does a cleaned word token carry at least one letter? A token of only digits /
+ * symbols (`123`, `***`, `###`, empty) is not a real answer → drop. The charset
+ * alone admits an all-digit token, so this is the explicit guard. Covers the
+ * language's extra letters (accents, Ñ) via the broad Unicode-letter class.
+ */
+function hasLetter(word: string): boolean {
+  return /[a-zÀ-ɏñ]/i.test(word);
+}
 
 /** Pull the slot id + direction out of a SLOT_LABEL match (either ordering). */
 function readSlotLabel(match: RegExpMatchArray): { id: number; direction: 'across' | 'down' } {
@@ -532,30 +657,47 @@ export function parseSkeletonFillResponse(
   for (let i = 0; i < linesArr.length; i++) {
     const lineNumber = lineOffset + i + 1;
     const rawLine = linesArr[i];
-    const line = rawLine.replace(LIST_MARKER, '').trim();
+    // Exception safety: a single malformed line must never abort the whole
+    // parse. Any unexpected throw inside one iteration is swallowed; the line is
+    // dropped (fail safe) and parsing continues with the next line.
+    try {
+    // Strip leading list markers / bullets / enumerators (shared LIST_MARKER +
+    // the extended set) so the word itself starts the remainder.
+    const line = stripLeadingMarkers(rawLine).trim();
     if (line.length === 0) continue;
 
     // NOTES mode (flat-pool footer): never a word. Pull SHORT_LENGTHS / COMMENT;
     // ignore everything else (including a stray `WORD | clue` after the footer).
+    // Strip any leading `#`/`*` decoration off the key while keeping value case.
     if (notesMode) {
-      const colon = line.indexOf(':');
-      if (colon !== -1) {
-        const key = line.slice(0, colon).trim().toLowerCase();
-        const value = line.slice(colon + 1).trim();
-        if (key === 'short_lengths') {
-          result.shortLengths = parseShortLengths(value);
-        } else if (key === 'comment') {
-          result.comment = /^none$/i.test(value) ? '' : value;
-        }
-      }
+      mineNotesLine(line.replace(/^[#*=\s]+/, ''), result);
       continue;
     }
 
-    // A `#`-prefixed line is a section header, not a word. The NOTES header
-    // switches us into NOTES mode; any other header (e.g. `# 5 letters`) is
-    // skipped. (LIST_MARKER never strips `#`, so this `#` is the real lead.)
-    if (line.startsWith('#')) {
-      if (NOTES_HEADER.test(line)) notesMode = true;
+    // Metadata WHEREVER it appears (a model may drop/reformat the `# NOTES`
+    // header): a `short_lengths:` / `comment:` line is ALWAYS metadata, never a
+    // word. Parse it in place and move on — this eliminates the leak where
+    // header-less `COMMENT: ...` became the word "COMMENT" and `SHORT_LENGTHS: 3`
+    // became "SHORTLENGTHS". Mine from a decoration-stripped (but case-PRESERVING)
+    // form so a mixed-case COMMENT value survives.
+    if (/^(?:short_lengths|comment)\s*:/.test(metadataCore(line))) {
+      mineNotesLine(line.replace(/^[#*=\s]+/, ''), result);
+      continue;
+    }
+
+    // Section / length-group headers in any decoration — never a word. The
+    // NOTES header (any spelling) also switches us into NOTES mode.
+    if (isNotesHeader(line)) {
+      notesMode = true;
+      continue;
+    }
+    if (line.startsWith('#') && NOTES_HEADER.test(line)) {
+      notesMode = true;
+      continue;
+    }
+    if (line.startsWith('#') || isLengthGroupHeader(line)) {
+      // Any other `#`-prefixed line (e.g. `# 5 letters`) or a bare length-group
+      // header (`5 letters:`, `**5 letters**`, `[5 letters]`) is skipped.
       continue;
     }
 
@@ -576,12 +718,17 @@ export function parseSkeletonFillResponse(
         continue;
       }
       const rawClue = line.slice(pipeIndex + 1);
-      // Omission cruft: the model marked this word as discarded (empty clue,
-      // "None — omitted.", "Not 7 letters", etc.). Drop it silently — it is an
-      // intentional omission, not a usable word and not a parse error.
-      if (isDiscardedClue(rawClue)) continue;
+      // Omission cruft / placeholder: the model marked this word as discarded
+      // (empty clue, "None — omitted.", "Not 7 letters", etc.) or gave a
+      // placeholder clue ("-", "tbd", "...", a non-alphabetic clue) — meaning it
+      // had no real clue, so the word is suspect. Drop silently — an intentional
+      // omission, not a usable word and not a parse error.
+      if (isDiscardedClue(rawClue) || isPlaceholderClue(rawClue)) continue;
       const word = cleanWord(stripLengthHint(line.slice(0, pipeIndex)), allowTwoWords);
       const clue = cleanClue(rawClue);
+      // Empty / non-letter word token (`| clue`, `123 | clue`, `*** | clue`): no
+      // real answer here. Drop silently — never an issue, never a throw.
+      if (!hasLetter(word)) continue;
       if (!charset.test(word) || toGridWord(word).length < 2) {
         if (!lenient) {
           result.issues.push({
@@ -627,6 +774,14 @@ export function parseSkeletonFillResponse(
     const word = cleanWord(stripLengthHint(split.word), allowTwoWords);
     const clue = cleanClue(split.clue);
     const gridForm = toGridWord(word);
+
+    // Fail-safe drops (BEFORE the validation chain, silent — these are suspect
+    // content, not parse errors): an empty / non-letter word token (`| clue`,
+    // `### | clue`), a discard annotation, or a placeholder clue ("-", "tbd",
+    // "...", a non-alphabetic clue) all mean "no real answer here" — drop the
+    // line and do not record it as a candidate or an issue.
+    if (!hasLetter(word)) continue;
+    if (isDiscardedClue(split.clue) || isPlaceholderClue(split.clue)) continue;
 
     // Validation order (per design §8): length -> locked grid letters ->
     // charset -> two-word -> cross-agreement with already-accepted slots.
@@ -721,6 +876,12 @@ export function parseSkeletonFillResponse(
     commitLetters(slot, gridForm, committed);
     seen.add(word.toLowerCase());
     result.assignments.set(id, { word, clue });
+    } catch {
+      // A malformed line threw unexpectedly — drop it (fail safe) and keep
+      // going. The parser must NEVER throw on any input; a bad line costs at
+      // most that one line, never the whole paste.
+      continue;
+    }
   }
 
   return result;

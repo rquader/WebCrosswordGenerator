@@ -24,6 +24,7 @@ import {
   buildSkeletonFillPrompt,
   parseSkeletonFillResponse,
   fillSkeletonFromResponse,
+  isDiscardedClue,
 } from '../../src/utils/skeletonFillPrompt';
 
 /** '#' = block, anything else = open. One row per string. */
@@ -840,6 +841,205 @@ describe('parseSkeletonFillResponse — flat-pool NOTES format', () => {
     const result = fillSkeletonFromResponse({ response, slots, intersections, width, height, seed: 1 });
     expect(result.shortLengths).toEqual([3, 9]);
     expect(result.comment).toBe('Sparse topic.');
+  });
+});
+
+/* ── Adversarial robustness: unseen LLM output (correctness-critical) ────────
+ *
+ * The app has NO dictionary, so this parser is the ONLY guard against a fake /
+ * garbage word reaching a student's puzzle. These tests pin the FAIL-SAFE
+ * contract: drop anything that is clearly metadata, a header, a placeholder, or
+ * a discard annotation — but NEVER drop a line that could be a real answer with
+ * a real descriptive clue, and NEVER throw on any input. */
+describe('parseSkeletonFillResponse — adversarial / unseen LLM output', () => {
+  function poolWords(text: string): string[] {
+    const { slots, intersections } = paneFixture();
+    const result = parseSkeletonFillResponse(text, { slots, intersections });
+    return result.pool.map(p => p.word.toUpperCase());
+  }
+
+  /* 1 — FALSE-POSITIVE GUARDS: real clues that merely CONTAIN a trigger word
+   * must be KEPT. The bare includes('omitted'|'removed'|'moved below') was the
+   * danger — a full descriptive sentence is never a discard. */
+  it('keeps a real clue that contains "removed" inside a full sentence', () => {
+    const words = poolWords(['```', 'OTTER | A fish often removed from nets.', '```'].join('\n'));
+    expect(words).toContain('OTTER');
+  });
+
+  it('keeps a real clue that contains "moved below" inside a full sentence', () => {
+    const words = poolWords(['```', 'LEDGE | A bird whose nest was moved below the roof.', '```'].join('\n'));
+    expect(words).toContain('LEDGE');
+  });
+
+  it('keeps a real clue with "not" + comparison (resembles a trigger but is descriptive)', () => {
+    const words = poolWords(['```', 'TIGER | A big cat, not a small one.', '```'].join('\n'));
+    expect(words).toContain('TIGER');
+  });
+
+  it('still drops the SHORT meta discard "None — omitted" but keeps a long real sentence', () => {
+    // isDiscardedClue: short ⇒ "omitted"/"removed"/"moved below" are discard
+    // signals; a long descriptive sentence is never one.
+    expect(isDiscardedClue('None — omitted')).toBe(true);
+    expect(isDiscardedClue('removed')).toBe(true);
+    expect(isDiscardedClue('moved below')).toBe(true);
+    expect(isDiscardedClue('A fish often removed from nets.')).toBe(false);
+    expect(isDiscardedClue('A bird whose nest was moved below the roof.')).toBe(false);
+  });
+
+  /* 2 — Metadata WITHOUT a "# NOTES" header: SHORT_LENGTHS / COMMENT recognized
+   * anywhere; they must parse into the result and NEVER become pool words. */
+  it('recognizes SHORT_LENGTHS + COMMENT as metadata even with no NOTES header', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      'CAT | A small pet that purrs.',
+      'SHORT_LENGTHS: 3, 8',
+      'COMMENT: few long words',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    expect(result.shortLengths).toEqual([3, 8]);
+    expect(result.comment).toBe('few long words');
+    const words = result.pool.map(p => p.word.toUpperCase());
+    expect(words).not.toContain('COMMENT');
+    expect(words).not.toContain('SHORTLENGTHS');
+    expect(words).not.toContain('SHORT_LENGTHS');
+    expect(words).not.toContain('SHORT');
+    expect(words).toContain('CAT');
+  });
+
+  it('recognizes header-less metadata even with a leading bullet/marker', () => {
+    const words = poolWords(['```', '- COMMENT: a stray note', '* SHORT_LENGTHS: 4', '```'].join('\n'));
+    expect(words).not.toContain('COMMENT');
+    expect(words).not.toContain('SHORT_LENGTHS');
+    expect(words).not.toContain('SHORTLENGTHS');
+  });
+
+  /* 3 — Broadened NOTES + length-group header tolerance: never a word. */
+  it('skips length-group headers in many shapes (## / **bold** / colon / bare / brackets)', () => {
+    for (const header of ['## 5 letters', '**5 letters**', '5 letters:', '5 LETTERS', '[5 letters]']) {
+      const words = poolWords(['```', header, 'TIGER | A striped big cat.', '```'].join('\n'));
+      expect(words).toEqual(['TIGER']);
+    }
+  });
+
+  it('skips a bare "notes" / "**notes**" / "=== notes" line (no word, switches NOTES mode)', () => {
+    const { slots, intersections } = paneFixture();
+    for (const header of ['notes', 'notes:', '**notes**', '=== notes ===']) {
+      const response = [
+        '```',
+        'CAT | A small pet that purrs.',
+        header,
+        'COMMENT: a note',
+        '```',
+      ].join('\n');
+      const result = parseSkeletonFillResponse(response, { slots, intersections });
+      const words = result.pool.map(p => p.word.toUpperCase());
+      expect(words).not.toContain('NOTES');
+      expect(words).not.toContain('COMMENT');
+      expect(result.comment).toBe('a note');
+    }
+  });
+
+  /* 4 — Placeholder / punctuation-only clues ⇒ drop (word is suspect). */
+  it('drops a labeled answer whose clue is a placeholder (-, skip, ..., ?, n/a, tbd)', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!; // length 5
+    for (const clue of ['-', '—', '...', '…', '?', '??', 'n/a', 'na', 'tbd', 'todo', 'skip', 'x', 'none.']) {
+      const response = ['```', `${across.id}-ACROSS: PLANT | ${clue}`, '```'].join('\n');
+      const result = parseSkeletonFillResponse(response, { slots, intersections });
+      expect(result.assignments.has(across.id)).toBe(false);
+      expect(result.slotCandidates.has(across.id)).toBe(false);
+    }
+  });
+
+  it('drops a pool word whose clue is a placeholder', () => {
+    const words = poolWords(['```', 'TIGER | A striped big cat.', 'OTTER | tbd', 'CAMEL | ...', '```'].join('\n'));
+    expect(words).toContain('TIGER');
+    expect(words).not.toContain('OTTER');
+    expect(words).not.toContain('CAMEL');
+  });
+
+  it('drops a clue that is wholly non-alphabetic', () => {
+    const words = poolWords(['```', 'TIGER | A striped big cat.', 'OTTER | 12345 !!!', '```'].join('\n'));
+    expect(words).toContain('TIGER');
+    expect(words).not.toContain('OTTER');
+  });
+
+  /* 5 — Empty / non-letter WORD token ⇒ drop (no throw). */
+  it('drops a line whose word token has no letters (| clue, 123 | clue, *** | clue)', () => {
+    const { slots, intersections } = paneFixture();
+    for (const line of ['| A clue with no word.', '  | A clue with no word.', '123 | A numeric token.', '*** | A symbol token.']) {
+      const result = parseSkeletonFillResponse(['```', line, '```'].join('\n'), { slots, intersections });
+      expect(result.pool).toHaveLength(0);
+    }
+  });
+
+  it('drops an empty/garbage WORD on a labeled line without throwing', () => {
+    const { slots, intersections } = plusFixture();
+    const across = slots.find(s => s.direction === 'across')!;
+    for (const line of [`${across.id}-ACROSS: | A clue.`, `${across.id}-ACROSS: ### | A clue.`]) {
+      const result = parseSkeletonFillResponse(['```', line, '```'].join('\n'), { slots, intersections });
+      expect(result.assignments.has(across.id)).toBe(false);
+    }
+  });
+
+  /* 6 — Broader list markers / bullets stripped from line starts; word intact. */
+  it('strips assorted bullets (•, ‣, ▪, ◦, →, +, em/en dash) and keeps the word', () => {
+    const { slots, intersections } = paneFixture();
+    const lines = [
+      '• CAMEL | A desert mammal.',
+      '‣ OTTER | A river mammal.',
+      '▪ ZEBRA | A striped horse.',
+      '◦ HORSE | A farm animal.',
+      '+ LLAMA | A woolly animal.',
+      '— BISON | A large bovine.',
+      '– MOOSE | A large deer.',
+    ];
+    const result = parseSkeletonFillResponse(['```', ...lines, '```'].join('\n'), { slots, intersections });
+    const words = result.pool.map(p => p.word.toUpperCase());
+    expect(words).toEqual(['CAMEL', 'OTTER', 'ZEBRA', 'HORSE', 'LLAMA', 'BISON', 'MOOSE']);
+  });
+
+  it('strips enumerators a) a. (1) i. from the line start, keeping the word', () => {
+    const { slots, intersections } = paneFixture();
+    const lines = [
+      'a) CAMEL | A desert mammal.',
+      'b. OTTER | A river mammal.',
+      '(1) ZEBRA | A striped horse.',
+      'i. HORSE | A farm animal.',
+    ];
+    const result = parseSkeletonFillResponse(['```', ...lines, '```'].join('\n'), { slots, intersections });
+    expect(result.pool.map(p => p.word.toUpperCase())).toEqual(['CAMEL', 'OTTER', 'ZEBRA', 'HORSE']);
+  });
+
+  /* 7 — Exception safety / pure garbage: a valid result, NEVER a throw. */
+  it('never throws on pure-garbage / pathological input', () => {
+    const { slots, intersections } = paneFixture();
+    const inputs = [
+      ' \u{1F4A9}�​ random ✺◊∆ unicode ⟟⏧',
+      'X'.repeat(50000) + ' | ' + 'y'.repeat(50000),
+      '```\n```',
+      '```\n# NOTES\n```',
+      '# NOTES',
+      '||||',
+      '\n\n\n',
+      '- \n— \n• \n',
+    ];
+    for (const input of inputs) {
+      expect(() => parseSkeletonFillResponse(input, { slots, intersections })).not.toThrow();
+      const result = parseSkeletonFillResponse(input, { slots, intersections });
+      expect(result.assignments).toBeInstanceOf(Map);
+      expect(Array.isArray(result.pool)).toBe(true);
+      expect(Array.isArray(result.issues)).toBe(true);
+    }
+  });
+
+  it('a 50k-char single line is handled (kept or dropped) without throwing', () => {
+    const { slots, intersections } = paneFixture();
+    const huge = 'WORD | ' + 'a'.repeat(50000) + ' clue.';
+    expect(() => parseSkeletonFillResponse(['```', huge, '```'].join('\n'), { slots, intersections })).not.toThrow();
   });
 });
 
