@@ -1,13 +1,20 @@
 /**
- * Tests for the slot-aware AI fill prompt builder and response parser used by
- * the skeleton-first ("build your own grid") flow.
+ * Tests for the AI fill prompt builder and response parser used by the
+ * skeleton-first ("build your own grid") + BYOG flows.
  *
- * Unlike the AI Words tab (a flat word list), this flow has FIXED geometry:
- * the user drew the grid, so every answer must fit an exact slot — right
- * length, agreeing with locked cells and with the letters its crossings
- * impose. The prompt addresses each empty slot by its crossword number and
- * direction; the parser maps labeled lines back to those slots and validates
- * length / locked letters / charset / cross-agreement.
+ * The prompt (buildSkeletonFillPrompt) is the "Variant J" flat-pool design
+ * (see Obsidian "Phase 17 - Session 14 Prompt Experiment (A-J)"): it asks the
+ * AI for a POOL of real words grouped by the DISTINCT lengths of the empty
+ * slots, our local solver places them, and the AI is steered hard AWAY from
+ * fabrication (the dominant risk, since the app has no dictionary). It does NOT
+ * ask the AI to interlock or target individual slots — the prior per-slot
+ * design provably triggered fabrication on weaker models and never helped.
+ *
+ * The parser (parseSkeletonFillResponse) routes the resulting unlabeled
+ * "WORD | clue" lines to a flat `pool`, skips "# N letters" headers, parses the
+ * machine-readable "# NOTES" footer (SHORT_LENGTHS / COMMENT), and drops the
+ * "omission cruft" real models emit. It still tolerates legacy labeled lines for
+ * robustness, so those parser tests remain.
  *
  * Fixtures are built from REAL geometry via deriveSlotsFromBlockMask +
  * computeIntersections (no hand-authored slot objects), so the tests exercise
@@ -53,11 +60,38 @@ const PLUS_ROWS = [
   '##.##',
 ];
 
+/**
+ * A 7×7 grid with slots of several DISTINCT lengths (3, 4, 5, 7), so the
+ * "LENGTHS NEEDED" header has something interesting to compute. (The pane/plus
+ * fixtures are all length 5.)
+ */
+const MIXED_ROWS = [
+  '.......',  // 7-across
+  '.#.#.#.',
+  '.....##',  // 5-across
+  '.#.#.#.',
+  '....###',  // 4-across
+  '.#.####',
+  '...####',  // 3-across
+];
+
 function paneFixture() {
   const { mask, width, height } = maskFromRows(PANE_ROWS);
   const { slots } = deriveSlotsFromBlockMask(mask, width, height);
   const intersections = computeIntersections(slots);
   return { slots, intersections, width, height };
+}
+
+function mixedFixture() {
+  const { mask, width, height } = maskFromRows(MIXED_ROWS);
+  const { slots } = deriveSlotsFromBlockMask(mask, width, height);
+  const intersections = computeIntersections(slots);
+  return { slots, intersections, width, height };
+}
+
+/** The distinct lengths of a fixture's empty (no-word) slots, ascending. */
+function emptySlotLengths(slots: { word?: string; length: number }[]): number[] {
+  return [...new Set(slots.filter(s => !s.word).map(s => s.length))].sort((a, b) => a - b);
 }
 
 function plusFixture() {
@@ -74,8 +108,8 @@ function emptyGrid(width: number, height: number): string[][] {
 
 const baseContext = 'Unit 3: photosynthesis and plant biology for 7th grade.';
 
-describe('buildSkeletonFillPrompt', () => {
-  it('emits a labeled line with length and pattern for every empty slot', () => {
+describe('buildSkeletonFillPrompt (Variant J flat-pool)', () => {
+  it('asks for a flat pool, NOT a per-slot interlock, and tells the AI our software places the words', () => {
     const { slots, intersections, width, height } = paneFixture();
     const prompt = buildSkeletonFillPrompt({
       slots,
@@ -86,39 +120,26 @@ describe('buildSkeletonFillPrompt', () => {
       context: baseContext,
     });
 
-    // Every empty slot (all of them here) must appear as "{id}-{DIR}: N letters".
+    // The reframe that is the whole point of Variant J: the model recalls words;
+    // OUR software arranges them. The model must NOT be asked to cross/order them.
+    expect(prompt.toLowerCase()).toContain('pool of words');
+    expect(prompt.toLowerCase()).toContain('my software places the words');
+    expect(prompt.toLowerCase()).toContain('you do not need to arrange them');
+
+    // The old per-slot scaffolding must be GONE — no slot labels, no ASCII grid,
+    // no "crosses X at letter N", no per-slot pattern lines.
+    expect(prompt).not.toContain('SLOTS TO FILL');
+    expect(prompt).not.toContain('THE GRID');
+    expect(prompt).not.toContain('crosses ');
+    expect(prompt).not.toContain('pattern _');
     for (const slot of slots) {
       const dir = slot.direction === 'across' ? 'ACROSS' : 'DOWN';
-      expect(prompt).toContain(`${slot.id}-${dir}: ${slot.length} letters`);
+      expect(prompt).not.toContain(`${slot.id}-${dir}:`);
     }
-    // Patterns use the slotPattern format (all underscores for a blank slot).
-    expect(prompt).toContain('pattern _ _ _ _ _');
   });
 
-  it('renders locked-letter patterns from the grid', () => {
-    const { slots, intersections, width, height } = plusFixture();
-    const grid = emptyGrid(width, height);
-    // Lock the center cell (2,2) to E — shared by the across and down slot.
-    grid[2][2] = 'E';
-
-    const prompt = buildSkeletonFillPrompt({
-      slots,
-      intersections,
-      width,
-      height,
-      grid,
-      context: baseContext,
-    });
-
-    // The across slot spans cols 0-4 of row 2; locked at position 2 -> _ _ E _ _
-    expect(prompt).toContain('pattern _ _ E _ _');
-    // The grid ASCII must show the locked letter and use '.' for open slot cells.
-    expect(prompt).toContain('THE GRID');
-    expect(prompt).toContain('SLOTS TO FILL');
-  });
-
-  it('describes each crossing with a 1-based letter index and documents the convention', () => {
-    const { slots, intersections, width, height } = plusFixture();
+  it('computes LENGTHS NEEDED from the DISTINCT lengths of the empty slots', () => {
+    const { slots, intersections, width, height } = mixedFixture();
     const prompt = buildSkeletonFillPrompt({
       slots,
       intersections,
@@ -128,17 +149,64 @@ describe('buildSkeletonFillPrompt', () => {
       context: baseContext,
     });
 
-    // Plus: across id2 crosses down id1 at the center. acrossPos 2 / downPos 2
-    // -> 1-based letter 3 on both sides.
-    const across = slots.find(s => s.direction === 'across')!;
-    const down = slots.find(s => s.direction === 'down')!;
-    expect(prompt).toContain(`crosses ${down.id}-DOWN at letter 3`);
-    expect(prompt).toContain(`crosses ${across.id}-ACROSS at letter 3`);
-    // The convention (letters counted from 1) must be stated for the human.
-    expect(prompt.toLowerCase()).toContain('letter 1');
+    // The mixed fixture has empty slots of lengths {3,4,5,7}. The header must
+    // list exactly those distinct lengths, ascending, comma-separated.
+    const lengths = emptySlotLengths(slots);
+    expect(lengths).toContain(3);
+    expect(lengths).toContain(7);
+    // "3, 4, 5, and 7 letters." — last item joined with "and".
+    expect(prompt).toContain('LENGTHS NEEDED:');
+    expect(prompt).toContain(`${lengths.slice(0, -1).join(', ')}, and ${lengths[lengths.length - 1]} letters.`);
   });
 
-  it('includes the REQUIREMENTS rules, charset, topic context, and output format', () => {
+  it('uses a single-item LENGTHS NEEDED line cleanly when every slot is one length', () => {
+    const { slots, intersections, width, height } = paneFixture(); // all length 5
+    const prompt = buildSkeletonFillPrompt({
+      slots,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    });
+
+    // No "and" / no comma list for a single length.
+    expect(prompt).toContain('LENGTHS NEEDED: 5 letters.');
+  });
+
+  it('states the anti-fabrication rule and names the observed failure modes verbatim', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const prompt = buildSkeletonFillPrompt({
+      slots,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    });
+
+    // The headline rule.
+    expect(prompt).toContain('THE RULE THAT MATTERS MOST');
+    expect(prompt).toContain('real, correctly-spelled English word');
+    expect(prompt).toContain('better to give FEWER words');
+
+    // The named failure modes (the exact examples from the experiment).
+    expect(prompt).toContain('REAL WORDS ONLY');
+    expect(prompt).toContain('"referee"'); // truncation example
+    expect(prompt).toContain('"glacier"'); // misspelling example
+    expect(prompt).toContain('GLACER');
+    expect(prompt).toContain('FREEKKICK'); // run-together example
+    expect(prompt).toContain('OFFSTRIKE'); // invented-word example
+    expect(prompt).toContain('OMIT'); // "OMIT, never reshape it to fit"
+
+    // Count is not a goal; broader subject is OK; final re-read pass.
+    expect(prompt).toContain('COUNT IS NOT A GOAL');
+    expect(prompt).toContain('BROADER subject');
+    expect(prompt.toLowerCase()).toContain('re-read');
+    expect(prompt.toLowerCase()).toContain('silently delete');
+  });
+
+  it('includes the charset, topic context fenced verbatim, and a code-block-only closing', () => {
     const { slots, intersections, width, height } = paneFixture();
     const prompt = buildSkeletonFillPrompt({
       slots,
@@ -150,22 +218,18 @@ describe('buildSkeletonFillPrompt', () => {
     });
 
     expect(prompt).toContain('REQUIREMENTS');
-    expect(prompt).toContain('Language: English');
     expect(prompt).toContain('letters A-Z and digits 0-9'); // charsetLines reuse
-    // The fit/cross rules (the whole point of slot-aware fill).
-    expect(prompt.toLowerCase()).toContain('exactly');
-    expect(prompt.toLowerCase()).toContain('cross');
     // Topic context, fenced verbatim.
     expect(prompt).toContain('===BEGIN TOPIC CONTEXT===');
     expect(prompt).toContain(baseContext);
     expect(prompt).toContain('===END TOPIC CONTEXT===');
-    // Output format: labeled lines.
+    // Code-block-only contract.
     expect(prompt).toContain('OUTPUT FORMAT');
-    expect(prompt).toContain('| Clue');
-    expect(prompt).toContain('Respond with the code block only.');
+    expect(prompt.toLowerCase()).toContain('fenced code block');
+    expect(prompt).toContain('Nothing outside the code block.');
   });
 
-  it('mirrors the single-word and no-proper-noun rules by default', () => {
+  it('specifies the grouped-by-length output format with "# N letters" headers and "WORD | clue" lines', () => {
     const { slots, intersections, width, height } = paneFixture();
     const prompt = buildSkeletonFillPrompt({
       slots,
@@ -176,11 +240,49 @@ describe('buildSkeletonFillPrompt', () => {
       context: baseContext,
     });
 
-    expect(prompt).toContain('must be a single word');
-    expect(prompt).toContain('No proper nouns');
+    // The exact shapes the hardened parser expects.
+    expect(prompt).toContain('# 5 letters'); // header example
+    expect(prompt).toContain('WORD | Clue text');
+    // No inline notes on word lines (the Sonnet cruft hazard the prompt fights).
+    expect(prompt.toLowerCase()).toContain('never write a note');
   });
 
-  it('switches to two-word phrasing and drops the proper-noun ban when allowed', () => {
+  it('specifies the machine-readable "# NOTES" block with SHORT_LENGTHS and COMMENT', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const prompt = buildSkeletonFillPrompt({
+      slots,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    });
+
+    expect(prompt).toContain('# NOTES');
+    expect(prompt).toContain('SHORT_LENGTHS:');
+    expect(prompt).toContain('COMMENT:');
+    // SHORT_LENGTHS is framed as HELPFUL, not a failure (Variant J's reframe).
+    expect(prompt.toLowerCase()).toContain('helpful');
+  });
+
+  it('uses single-word rules and the no-proper-noun rule by default', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const prompt = buildSkeletonFillPrompt({
+      slots,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    });
+
+    expect(prompt).toContain('SINGLE WORDS ONLY');
+    expect(prompt).toContain('No proper nouns');
+    // The single-word branch forbids running two words together.
+    expect(prompt).toContain('FREEKKICK');
+  });
+
+  it('switches to two-word phrasing (underscore convention) and drops the proper-noun ban when allowed', () => {
     const { slots, intersections, width, height } = paneFixture();
     const prompt = buildSkeletonFillPrompt({
       slots,
@@ -193,74 +295,15 @@ describe('buildSkeletonFillPrompt', () => {
       allowProperNouns: true,
     });
 
+    // The two-word branch keeps the app's underscore convention...
     expect(prompt).toContain('EXTRA_TIME');
+    expect(prompt).toContain('MUST keep the underscore');
+    // ...still forbids bare concatenation...
+    expect(prompt).toContain('FREEKKICK');
+    // ...and the single-word rule is replaced (not "SINGLE WORDS ONLY").
+    expect(prompt).not.toContain('SINGLE WORDS ONLY');
+    // Proper nouns now allowed → that ban is dropped.
     expect(prompt).not.toContain('No proper nouns');
-  });
-
-  it('forbids merging separate words by default and mandates the underscore when phrases are on', () => {
-    const { slots, intersections, width, height } = paneFixture();
-    const common = {
-      slots,
-      intersections,
-      width,
-      height,
-      grid: emptyGrid(width, height),
-      context: baseContext,
-    };
-
-    // Default (single-word): no symbol-less concatenation (CARBONDIOXIDE etc.).
-    const single = buildSkeletonFillPrompt(common);
-    expect(single).toContain('not by running them together');
-    expect(single).toContain('CARBONDIOXIDE');
-
-    // Two-word on: the underscore is mandatory so the boundary is detectable.
-    const twoWord = buildSkeletonFillPrompt({ ...common, allowTwoWords: true });
-    expect(twoWord).toContain('MUST keep the underscore');
-  });
-
-  it('appends the spare-pool tail only when solverAssist is on', () => {
-    const { slots, intersections, width, height } = paneFixture();
-    const common = {
-      slots,
-      intersections,
-      width,
-      height,
-      grid: emptyGrid(width, height),
-      context: baseContext,
-    };
-
-    const without = buildSkeletonFillPrompt({ ...common, solverAssist: false });
-    const withTail = buildSkeletonFillPrompt({ ...common, solverAssist: true });
-
-    expect(without).not.toContain('EXTRA');
-    expect(withTail).toContain('EXTRA');
-    // Tail lists the distinct slot lengths so spares are useful (all len 5 here).
-    expect(withTail).toContain('5');
-  });
-
-  it('lists already-placed (filled) slots under a do-not-change heading', () => {
-    const { slots, intersections, width, height } = plusFixture();
-    const across = slots.find(s => s.direction === 'across')!;
-    // Mark the across slot as already filled.
-    const filled = slots.map(s =>
-      s === across ? { ...s, word: 'apple', clue: 'A common fruit.', isUserWord: true } : s
-    );
-
-    const prompt = buildSkeletonFillPrompt({
-      slots: filled,
-      intersections,
-      width,
-      height,
-      grid: emptyGrid(width, height),
-      context: baseContext,
-    });
-
-    expect(prompt).toContain('ALREADY PLACED');
-    expect(prompt).toContain('APPLE');
-    // The filled slot must NOT appear in the SLOTS TO FILL list as an empty slot.
-    const fillSection = prompt.slice(prompt.indexOf('SLOTS TO FILL'), prompt.indexOf('ALREADY PLACED'));
-    const dir = across.direction === 'across' ? 'ACROSS' : 'DOWN';
-    expect(fillSection).not.toContain(`${across.id}-${dir}: ${across.length} letters`);
   });
 
   it('honors the Spanish charset', () => {
@@ -275,8 +318,30 @@ describe('buildSkeletonFillPrompt', () => {
       language: 'spanish',
     });
 
-    expect(prompt).toContain('Language: Spanish');
     expect(prompt).toContain('Á É Í Ó Ú Ü Ñ');
+  });
+
+  it('only asks for the lengths of EMPTY slots, ignoring already-placed ones', () => {
+    const { slots, intersections, width, height } = mixedFixture();
+    // Mark every length-7 slot as already placed; LENGTHS NEEDED must drop 7.
+    const placed = slots.map(s =>
+      s.length === 7 ? { ...s, word: 'abcdefg', clue: 'Seven.', isUserWord: true } : s,
+    );
+
+    const prompt = buildSkeletonFillPrompt({
+      slots: placed,
+      intersections,
+      width,
+      height,
+      grid: emptyGrid(width, height),
+      context: baseContext,
+    });
+
+    const remaining = emptySlotLengths(placed); // no 7 now
+    expect(remaining).not.toContain(7);
+    // The LENGTHS NEEDED header reflects only the remaining empty-slot lengths.
+    const headerLine = prompt.split('\n').find(l => l.startsWith('LENGTHS NEEDED:'))!;
+    expect(headerLine).not.toContain('7');
   });
 });
 
@@ -1142,5 +1207,278 @@ describe('fillSkeletonFromResponse (shared paste -> placed pipeline)', () => {
     expect(result.lockedCount).toBe(2);
     // No parse issues: alternates are legal, not errors.
     expect(result.issues).toHaveLength(0);
+  });
+});
+
+/* ── End-to-end proof: REAL Variant J model replies → grid (correctness-critical)
+ *
+ * These are VERBATIM saved outputs from the prompt experiment
+ * (Obsidian "**Variant J** Test Results.md"), pasted exactly as the model
+ * produced them — including the "# N letters" headers, the "# NOTES" footer, and
+ * (for Sonnet) the real "omission cruft" it emits. They run through the ACTUAL
+ * parser + solver on a grid built from a real block mask, proving the new
+ * flat-pool prompt's real-world output flows end-to-end with no fabricated /
+ * cruft word leaking into a placed answer. The app has no dictionary, so this is
+ * the regression guard the vault plan (Step 1) calls for. */
+describe('end-to-end: real Variant J replies through parse → solve', () => {
+  // A real block mask whose empty slots span lengths 3-8 — matching the length
+  // groups the saved replies produce. 20 slots, well-crossed, so the solver
+  // places pool words and completes the rest from the word bank.
+  const E2E_ROWS = [
+    '........',
+    '.#.#.#.#',
+    '.......#',
+    '#.#.#.#.',
+    '......##',
+    '.#.#.###',
+    '.....###',
+    '#.#.####',
+    '....####',
+    '.#.#####',
+    '...#####',
+  ];
+
+  function e2eFixture() {
+    const { mask, width, height } = maskFromRows(E2E_ROWS);
+    const { slots } = deriveSlotsFromBlockMask(mask, width, height);
+    const intersections = computeIntersections(slots);
+    return { slots, intersections, width, height };
+  }
+
+  // Claude Sonnet 4.6 (High) — "the water cycle", iteration 1. CHOSEN because it
+  // is the cruft hazard: it caught its would-be fakes ("omit, don't fix") but
+  // wrote them out as lines like `TRICKEL | None — misspelled, omitted.`,
+  // `DRIZZLE| None — 7 letters, moved below.`, `EVAPORATE| None — 9 letters,
+  // omitted.`, and an empty-clue `EVAP | `. A naive parser would resurrect those
+  // fakes. It also honestly reports `SHORT_LENGTHS: 3`. (Abridged to the
+  // representative groups; verbatim line shapes preserved.)
+  const SONNET_WATER_CYCLE = `Here is a pool of words for your crossword.
+\`\`\`
+# 3 letters
+DEW | Tiny water droplets that form on cool surfaces overnight.
+ICE | Water in its frozen solid state.
+FOG | A thick cloud of tiny water droplets close to the ground.
+SEA | A large body of salt water on Earth's surface.
+
+# 5 letters
+CLOUD | A mass of tiny water droplets floating high in the sky.
+VAPOR | Water in its invisible gaseous form in the air.
+EVADE | None — removed to stay on topic.
+RUNOF | None — omitted.
+SHORE | The land along the edge of a body of water.
+
+# 6 letters
+CLOUDS | Masses of tiny water droplets floating high in the atmosphere.
+FROZEN | Changed into solid ice by very cold temperatures.
+DRIZZLE| None — 7 letters, moved below.
+ICECAP | None — two words joined, omitted.
+
+# 7 letters
+DRIZZLE | Light, fine rain falling in very small drops.
+GLACIER | A large, slow-moving mass of ice formed from compacted snow.
+TRICKEL | None — misspelled, omitted.
+
+# 8 letters
+RAINFALL | The amount of rain that falls in a given area.
+EVAPORATE| None — 9 letters, omitted.
+PRECIPIT | None — truncated, omitted.
+
+# NOTES
+SHORT_LENGTHS: 3
+COMMENT: A few candidate words were omitted at each length to ensure all survivors are real.
+\`\`\``;
+
+  // Claude Sonnet 4.6 (Low) — "the water cycle". A DIFFERENT cruft shape at the
+  // low effort level: discarded words get a BLANK clue (`EVAP | `, `RUNOF |`,
+  // `CLOUDS |`, `GLACIR |`) rather than a "None — ..." note. Same hazard, must
+  // also be dropped. (Abridged; verbatim shapes preserved.)
+  const SONNET_WATER_CYCLE_LOW = `\`\`\`
+# 4 letters
+RAIN | Water that falls from clouds as liquid drops.
+SNOW | Frozen precipitation that falls as white flakes.
+EVAP |
+POOL | A small body of standing water.
+
+# 5 letters
+CLOUD | A visible mass of water droplets floating in the sky.
+RIVER | A large natural stream of water flowing to the sea.
+RUNOF |
+STORM | A violent disturbance with heavy rain and strong winds.
+
+# 6 letters
+CLOUDS |
+FROZEN | Turned to ice by very cold temperatures.
+GLACIR |
+SHOWER | A brief fall of rain from passing clouds.
+
+# 7 letters
+DRIZZLE | Light, fine rain falling in very small drops.
+GLACIER | A large, slow-moving mass of ice formed from snow.
+RAINDROP |
+WETLAND | Low-lying land that is saturated with water.
+
+# NOTES
+SHORT_LENGTHS: none
+COMMENT: Removed all words that were misspelled, wrong length, or multi-word compounds during final review.
+\`\`\``;
+
+  // Opus 4.8 (High) — "the French Revolution". The flawless case: zero
+  // fabrication, rich on-topic vocab across every length, `SHORT_LENGTHS: none`.
+  // (Abridged to the groups that fit our fixture's lengths.)
+  const OPUS_FRENCH_REVOLUTION = `\`\`\`
+# 3 letters
+MOB | An unruly, angry crowd of people.
+WAR | Armed conflict between nations or groups.
+TAX | Money citizens must pay the government.
+LAW | A rule enforced by authority.
+
+# 4 letters
+KING | A male hereditary ruler.
+RIOT | A violent public disturbance.
+DUKE | A high-ranking noble.
+OATH | A solemn promise or vow.
+
+# 5 letters
+QUEEN | A female monarch.
+NOBLE | A member of the aristocracy.
+CROWD | A large gathering of people.
+REIGN | The period a ruler holds power.
+
+# 6 letters
+REVOLT | An uprising against authority.
+TYRANT | A cruel and oppressive ruler.
+PALACE | A grand royal residence.
+FAMINE | A severe shortage of food.
+
+# 7 letters
+LIBERTY | The state of being free.
+JUSTICE | Fair treatment under the law.
+TYRANNY | Cruel and unjust use of power.
+TREASON | The crime of betraying one's country.
+
+# 8 letters
+REPUBLIC | A state with no monarch.
+MONARCHY | Government ruled by a king or queen.
+EQUALITY | The state of being equal.
+UPRISING | A rebellion against authority.
+
+# NOTES
+SHORT_LENGTHS: none
+COMMENT: Words drawn from revolution, monarchy, and broader political and social vocabulary.
+\`\`\``;
+
+  // Words that must NEVER appear in a placed answer: the omission cruft from the
+  // Sonnet replies + any leaked NOTES token. (TRICKEL/GLACIR are the misspellings;
+  // RUNOF/EVAP truncations; EVAPORATE/PRECIPIT/RAINDROP wrong-length; ICECAP a
+  // joined phrase; EVADE off-topic; COMMENT/SHORT/NOTES are footer tokens.)
+  const FORBIDDEN = [
+    'TRICKEL', 'GLACIR', 'RUNOF', 'EVAP', 'EVAPORATE', 'PRECIPIT', 'RAINDROP',
+    'ICECAP', 'EVADE', 'COMMENT', 'SHORT', 'SHORTLENGTHS', 'SHORT_LENGTHS', 'NOTES',
+  ];
+
+  it('parses the Sonnet (High) reply without throwing and extracts NOTES, dropping all cruft', () => {
+    const { slots, intersections } = e2eFixture();
+
+    let parse!: ReturnType<typeof parseSkeletonFillResponse>;
+    expect(() => {
+      parse = parseSkeletonFillResponse(SONNET_WATER_CYCLE, { slots, intersections });
+    }).not.toThrow();
+
+    // NOTES mined.
+    expect(parse.shortLengths).toEqual([3]);
+    expect(parse.comment).toContain('omitted at each length');
+
+    // The real words made it into the pool...
+    const pool = parse.pool.map(p => p.word.toUpperCase());
+    expect(pool).toContain('DEW');
+    expect(pool).toContain('CLOUD');
+    expect(pool).toContain('GLACIER');
+    expect(pool).toContain('RAINFALL');
+    // ...and NONE of the cruft / footer tokens did.
+    for (const bad of FORBIDDEN) expect(pool).not.toContain(bad);
+    // DRIZZLE appears once as a real 7-letter word and once as 6-letter cruft;
+    // the cruft line is dropped, the real one kept (deduped to a single entry).
+    expect(pool.filter(w => w === 'DRIZZLE')).toHaveLength(1);
+  });
+
+  it('places the Sonnet (High) reply onto a real grid with no cruft leaking into any answer', () => {
+    const { slots, intersections, width, height } = e2eFixture();
+
+    let result!: ReturnType<typeof fillSkeletonFromResponse>;
+    expect(() => {
+      result = fillSkeletonFromResponse({
+        response: SONNET_WATER_CYCLE, slots, intersections, width, height, seed: 1,
+      });
+    }).not.toThrow();
+
+    // Slots actually fill (from pool + word bank). The bulk of a 20-slot grid
+    // lands; a few hard-crossing slots may stay blank, which is by design.
+    expect(result.assignments.size).toBeGreaterThanOrEqual(14);
+
+    // The NOTES signal threads through the fill result.
+    expect(result.shortLengths).toEqual([3]);
+    expect(result.comment).toContain('omitted at each length');
+
+    // The headline guarantee: NO fabricated / cruft word in ANY placed answer.
+    const placed = [...result.assignments.values()].map(a => a.word.toUpperCase());
+    for (const bad of FORBIDDEN) expect(placed).not.toContain(bad);
+
+    // At least one of the AI's real pool words was actually placed (DEW, SEA and
+    // CLOUD all fit short slots) — the pool genuinely contributes, not just the bank.
+    const realPoolWords = ['DEW', 'ICE', 'FOG', 'SEA', 'CLOUD', 'VAPOR', 'FROZEN'];
+    expect(placed.some(w => realPoolWords.includes(w))).toBe(true);
+  });
+
+  it('handles the Sonnet (Low) blank-clue cruft shape end-to-end without leaking it', () => {
+    const { slots, intersections, width, height } = e2eFixture();
+
+    const parse = parseSkeletonFillResponse(SONNET_WATER_CYCLE_LOW, { slots, intersections });
+    const pool = parse.pool.map(p => p.word.toUpperCase());
+    // Blank-clue discards (EVAP, RUNOF, CLOUDS, GLACIR, RAINDROP) are dropped...
+    expect(pool).not.toContain('EVAP');
+    expect(pool).not.toContain('RUNOF');
+    expect(pool).not.toContain('GLACIR');
+    expect(pool).not.toContain('RAINDROP');
+    expect(pool).not.toContain('CLOUDS'); // had a blank clue in this reply
+    // ...while the clued real words survive.
+    expect(pool).toContain('RAIN');
+    expect(pool).toContain('CLOUD');
+    expect(pool).toContain('GLACIER');
+
+    const result = fillSkeletonFromResponse({
+      response: SONNET_WATER_CYCLE_LOW, slots, intersections, width, height, seed: 1,
+    });
+    const placed = [...result.assignments.values()].map(a => a.word.toUpperCase());
+    for (const bad of FORBIDDEN) expect(placed).not.toContain(bad);
+    // The bulk of the 20-slot grid fills (pool + bank); a few hard-crossing slots
+    // may stay blank, which is by design. ~70%+ proves the fill pipeline works.
+    expect(result.assignments.size).toBeGreaterThanOrEqual(14);
+  });
+
+  it('places the flawless Opus reply with rich on-topic words and SHORT_LENGTHS none', () => {
+    const { slots, intersections, width, height } = e2eFixture();
+
+    const parse = parseSkeletonFillResponse(OPUS_FRENCH_REVOLUTION, { slots, intersections });
+    expect(parse.shortLengths).toEqual([]); // "none"
+    expect(parse.comment).toContain('broader political');
+    // The full rich pool parses (24 real, on-topic words across every length)...
+    const pool = parse.pool.map(p => p.word.toUpperCase());
+    expect(pool).toHaveLength(24);
+    for (const w of ['MOB', 'KING', 'QUEEN', 'REVOLT', 'LIBERTY', 'REPUBLIC']) {
+      expect(pool).toContain(w);
+    }
+    // ...with NO footer token leaking in as a word.
+    for (const bad of ['COMMENT', 'NOTES', 'SHORT', 'SHORT_LENGTHS']) {
+      expect(pool).not.toContain(bad);
+    }
+
+    const result = fillSkeletonFromResponse({
+      response: OPUS_FRENCH_REVOLUTION, slots, intersections, width, height, seed: 1,
+    });
+    // A clean, rich reply fills the bulk of the grid (pool + bank complete it),
+    // and the NOTES signal threads through.
+    expect(result.assignments.size).toBeGreaterThanOrEqual(14);
+    expect(result.shortLengths).toEqual([]);
+    expect(result.issues).toHaveLength(0); // a clean reply produces no parser issues
   });
 });

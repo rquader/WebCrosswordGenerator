@@ -293,7 +293,6 @@ export function SkeletonFillView({
         language: 'english',
         allowTwoWords: false,
         allowProperNouns: false,
-        solverAssist: true,
       });
     } else {
       const themeWords = skeleton.slots.filter(s => s.isUserWord && s.word).map(s => s.word!);

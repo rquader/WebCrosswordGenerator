@@ -99,8 +99,9 @@ export function SkeletonAiFillView({
 
   const slotCount = slots.length;
 
-  // The slot-aware prompt. solverAssist asks the AI for a few spare words too,
-  // so the solver has fallbacks if a labeled pick doesn't cross cleanly.
+  // The flat-pool prompt (Variant J): it asks for a pool of real words bucketed
+  // by the grid's distinct slot lengths; our solver places them + fills the rest
+  // from the word bank, so the AI is never asked to interlock.
   const prompt = useMemo(
     () =>
       buildSkeletonFillPrompt({
@@ -113,7 +114,6 @@ export function SkeletonAiFillView({
         language,
         allowTwoWords,
         allowProperNouns: false,
-        solverAssist: true,
       }),
     [slots, intersections, width, height, grid, topic, language, allowTwoWords],
   );

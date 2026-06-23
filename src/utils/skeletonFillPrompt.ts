@@ -1,32 +1,41 @@
 /**
- * Slot-aware AI fill prompt + parser for the skeleton-first ("build your own
- * grid") flow.
+ * AI fill prompt + parser for the skeleton-first ("build your own grid") and
+ * BYOG flows.
  *
- * The AI Words tab (src/utils/wordListPrompt.ts) asks for a FLAT list of words
- * — the generator then decides where they go. This flow is the opposite: the
- * user already drew the grid, so the geometry is FIXED. Every answer must fit
- * one specific slot exactly (right length, agreeing with any locked cells and
- * with the letters its crossings impose). So this prompt addresses each empty
- * slot by its crossword number + direction ("4-DOWN: ...") and the parser maps
- * labeled answer lines back onto those slots, validating the fit.
+ * THE DESIGN (Variant J — see Obsidian "Phase 17 - Session 14 Prompt Experiment
+ * (A-J)"): the user has drawn the grid, but we do NOT ask the AI to interlock
+ * words into it. A 10-variant × 5-model × 5-topic experiment was conclusive on
+ * two points:
+ *   1. Telling a model the crossing geometry (per-slot length / pattern /
+ *      "crosses X at letter N") does not help — weak models can't do the
+ *      interlock, and on a dense grid our solver fills from the word bank
+ *      regardless. Prompt FORMAT was a negative result.
+ *   2. Asking a model to satisfy a POSITION constraint is the very thing that
+ *      TRIGGERS fabrication — a fake/misspelled/truncated/concatenated word that
+ *      passes our (dictionary-less) parser and can land in a student's puzzle.
+ *
+ * So this prompt instead asks for a flat POOL of real words bucketed by the
+ * DISTINCT lengths of the empty slots, and our local solver
+ * (solveSkeletonFill) places them + completes the rest from the word bank. That
+ * plays to the model's one reliable strength (topical word recall) and attacks
+ * fabrication at its root (the "completion drive"): a headline anti-fabrication
+ * rule, the exact observed failure modes named with real examples + "OMIT,
+ * never reshape it to fit", "COUNT IS NOT A GOAL", a "broader subject is OK"
+ * release valve, and a final "re-read and silently delete" pass.
  *
  * Like the rest of the AI helpers this is pure copy-paste: it builds a prompt
  * the teacher pastes into any AI assistant, and parses what comes back. Zero
  * network calls. Pure TypeScript — no DOM, no React.
  *
- * The prompt and parser are two halves of one contract (mirroring the
- * wordListPrompt design): the prompt demands a fenced block of
- * "{id}-{ACROSS|DOWN}: WORD | Clue" lines; the parser targets exactly that
- * while tolerating the usual AI deviations (numbering, bullets, bold, missing
- * fences). Shared building blocks (charset wording, fence finder, word
- * cleaner, list-marker regex) are reused from wordListPrompt.ts so the two
- * stay in lockstep; rules that live inline inside buildWordListPrompt are
- * replicated verbatim here with `// mirrors wordListPrompt.ts:NN` markers.
- *
- * Letter-index convention: crossings are described to the human with 1-based
- * letter positions ("at letter 3" = the third letter). Internally SkeletonSlot
- * constraints and SlotIntersection positions are 0-based; the +1 happens only
- * in the emitted text.
+ * Prompt ↔ parser contract: the prompt demands a fenced block where words are
+ * grouped under "# N letters" headers as unlabeled "WORD | Clue" lines, ended by
+ * a machine-readable "# NOTES" footer ("SHORT_LENGTHS:" / "COMMENT:"). The
+ * parser routes the word lines into a flat `pool`, skips the headers, mines the
+ * NOTES, and drops the "omission cruft" real models emit — while still
+ * tolerating legacy labeled "{id}-{DIR}: WORD | clue" lines and the usual AI
+ * deviations (numbering, bullets, bold, missing fences). Shared building blocks
+ * (charset wording, fence finder, word cleaner, list-marker regex) are reused
+ * from wordListPrompt.ts so the two stay in lockstep.
  */
 
 import type { SkeletonSlot, WordCluePair } from '../logic/types';
@@ -38,7 +47,6 @@ import {
   wordCharsetRegex,
   type PuzzleLanguage,
 } from '../logic/language';
-import { slotPattern } from './aiPromptBuilder';
 import {
   charsetLines,
   findBestFencedBlock,
@@ -50,25 +58,6 @@ import { solveSkeletonFill, gridFromPlacedSlots } from '../logic/skeletonAiFill'
 
 const EMPTY_CELL = '-';
 
-/** ACROSS / DOWN as it appears in labels, from a slot direction. */
-function dirLabel(direction: 'across' | 'down'): 'ACROSS' | 'DOWN' {
-  return direction === 'across' ? 'ACROSS' : 'DOWN';
-}
-
-/** Build a slot's locked-letter constraint map by reading the grid cells. */
-function constraintsFromGrid(slot: SkeletonSlot, grid: string[][]): Map<number, string> {
-  const constraints = new Map<number, string>();
-  for (let pos = 0; pos < slot.length; pos++) {
-    const x = slot.direction === 'across' ? slot.startX + pos : slot.startX;
-    const y = slot.direction === 'across' ? slot.startY : slot.startY + pos;
-    const cell = grid[y]?.[x];
-    if (cell && cell !== EMPTY_CELL) {
-      constraints.set(pos, cell.toLowerCase());
-    }
-  }
-  return constraints;
-}
-
 /* ── Prompt builder ───────────────────────────────────────────────────── */
 
 export function buildSkeletonFillPrompt(options: {
@@ -76,240 +65,133 @@ export function buildSkeletonFillPrompt(options: {
   intersections: SlotIntersection[];
   width: number;
   height: number;
-  /** '-' = empty cell; a letter = locked (a crossing) or kept (already placed). */
+  /**
+   * '-' = empty cell; a letter = locked (a crossing) or kept (already placed).
+   * Kept in the signature so callers can pass the live grid uniformly; the
+   * flat-pool prompt only reads slot lengths, not the grid contents.
+   */
   grid: string[][];
   context: string;
   language?: PuzzleLanguage;
   allowTwoWords?: boolean;
   allowProperNouns?: boolean;
-  /** Append the optional spare-pool tail so the human/solver has fallbacks. */
-  solverAssist?: boolean;
 }): string {
-  const {
-    slots,
-    intersections,
-    width,
-    height,
-    grid,
-    context,
-  } = options;
+  const { slots, context } = options;
   const language = options.language ?? DEFAULT_LANGUAGE;
   const allowTwoWords = options.allowTwoWords ?? false;
   const allowProperNouns = options.allowProperNouns ?? false;
-  const solverAssist = options.solverAssist ?? false;
   const languageLabel = getLanguageInfo(language).label;
 
-  // An empty slot is one with no placed word — these are what we ask for.
-  // A slot's word can be set even if its cells aren't all written into the
-  // grid yet, so split on slot.word, not on grid contents.
+  // We ask only for the lengths the grid still NEEDS — the distinct lengths of
+  // its empty (no-word) slots. A slot's word can be set even if its cells aren't
+  // all written into the grid yet, so split on slot.word, not on grid contents.
   const emptySlots = slots.filter(slot => !slot.word);
-  const filledSlots = slots.filter(slot => slot.word);
+  const lengths = distinctSlotLengths(emptySlots);
 
   const lines: string[] = [];
 
-  // 1 — Parameters / requirements block
-  lines.push('I am building a crossword from a grid I already laid out. Fill the blank slots below with words and clues that fit the grid exactly.');
-  lines.push('');
-  lines.push('REQUIREMENTS');
-  lines.push(`- Language: ${languageLabel}. Every word and every clue must be written in ${languageLabel}.`);
-  // The two fit rules are the whole point of slot-aware fill: exact length
-  // (including pre-filled locked letters) and correct crossings.
-  lines.push('- Each word must fit its slot EXACTLY: the right number of letters, and every locked letter (a capital letter already shown in the pattern) must stay in place.');
-  lines.push('- Where two slots cross, the shared cell is ONE letter — your across word and your down word must use the SAME letter there. Crossings are listed per slot below.');
-  lines.push(...charsetLines(language));
-  if (allowTwoWords) {
-    // mirrors the two-word block in wordListPrompt.ts
-    lines.push('- Prefer single words. A two-word phrase is allowed when it is the natural term — for at most a third of the entries.');
-    lines.push('- Write a two-word phrase with one underscore joining the words: "EXTRA_TIME". No spaces, no hyphens, no other join symbols. The underscore is not a letter — EXTRA_TIME must fit the grid as EXTRATIME (9 letters).');
-    lines.push('- A two-word phrase MUST keep the underscore: write CARBON_DIOXIDE, never CARBONDIOXIDE. Two words run together with no underscore read as one word and get mislabeled — never merge two words without it.');
-  } else {
-    // mirrors the single-word block in wordListPrompt.ts
-    lines.push('- Each entry must be a single word — no spaces, no hyphens, no underscores, no multi-word phrases. "goalkeeper" is correct; "goal keeper", "goal-keeper", and "goal_keeper" are not.');
-    lines.push('- Never combine two separate words into one entry — not with a symbol and not by running them together. "carbon dioxide" must not become CARBONDIOXIDE, "ice cream" must not become ICECREAM, "gas giant" must not become GASGIANT. If a term only works as a phrase, choose a different single-word term instead. (A genuine single-word compound like "sunflower" or "rainbow" is still fine.)');
-  }
-  if (!allowProperNouns) {
-    // mirrors wordListPrompt.ts:204
-    lines.push('- No proper nouns unless they are directly relevant to the topic.');
-  }
-  // mirrors wordListPrompt.ts:207
-  lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, and it must not contain the answer word or any form of it.');
+  // 1 — The reframe: the model recalls words; OUR software places them. This is
+  // the core of Variant J — it removes the position constraint that triggers
+  // fabrication on weaker models.
+  lines.push('I am building a crossword and need a pool of words to fill it. My software places the words and fills any gaps — you do NOT need to arrange them, order them, or make them cross.');
   lines.push('');
 
-  // 2 — Topic context (verbatim, fenced) — mirrors wordListPrompt.ts:214-216
+  // 2 — The headline anti-fabrication rule. The app has no dictionary, so a fake
+  // word passes straight through; FEWER real words always beats one fake.
+  lines.push(`THE RULE THAT MATTERS MOST: every word must be a real, correctly-spelled ${languageLabel} word. It is always better to give FEWER words than to include even one that is invented, misspelled, truncated, or two words stuck together.`);
+  lines.push('');
+
+  // 3 — Requirements. The REAL-WORDS-ONLY list names the EXACT failure modes the
+  // experiment observed (referee→REFERE, glacier→GLACER, free kick→FREEKKICK,
+  // OFFSTRIKE), each with "omit, never reshape".
+  lines.push('REQUIREMENTS');
+  lines.push(`- ${languageLabel} words and clues.`);
+  // Charset rule reused verbatim from the flat-list builder so the two prompts
+  // stay in lockstep (and so non-English accents are spelled out correctly).
+  lines.push(...charsetLines(language));
+  lines.push('- REAL WORDS ONLY. Do NOT:');
+  lines.push('   - truncate a longer word to fit ("referee" -> "REFERE" is wrong),');
+  lines.push('   - misspell a word to fit ("glacier" -> "GLACER" is wrong),');
+  if (allowTwoWords) {
+    // Two-word setting: the app's underscore convention is the ONLY legal way to
+    // write a phrase; bare concatenation is still a fabrication.
+    lines.push('   - run two words together with no underscore ("free kick" -> "FREEKKICK", "guinea pig" -> "GUINEAPIG", "ice cream" -> "ICECREAM" are wrong — see the two-word rule below),');
+  } else {
+    lines.push('   - run two words together ("free kick" -> "FREEKKICK", "guinea pig" -> "GUINEAPIG", "ice cream" -> "ICECREAM" are wrong),');
+  }
+  lines.push('   - invent a plausible-sounding word ("OFFSTRIKE" is wrong).');
+  lines.push('  If you catch yourself about to do any of these, OMIT that word — never reshape it to fit.');
+  if (allowTwoWords) {
+    // The two-word branch REPLACES "SINGLE WORDS ONLY" with the underscore
+    // convention (mirrors wordListPrompt.ts), still forbidding bare merges.
+    lines.push('- Prefer single words. A two-word phrase is allowed when it is the natural term — for at most a third of the entries.');
+    lines.push('- Write a two-word phrase with one underscore joining the words: "EXTRA_TIME". No spaces, no hyphens, no other join symbols. The underscore is not a letter — EXTRA_TIME fills the grid as EXTRATIME (9 letters).');
+    lines.push('- A two-word phrase MUST keep the underscore: write CARBON_DIOXIDE, never CARBONDIOXIDE. Two words run together with no underscore read as one word and get mislabeled — never merge two words without it.');
+  } else {
+    lines.push('- SINGLE WORDS ONLY (a true one-word compound like "sunflower" is fine).');
+  }
+  if (!allowProperNouns) {
+    lines.push('- No proper nouns (specific people, places, brands, teams).');
+  }
+  // COUNT IS NOT A GOAL — fixed quotas on constrained lengths were the proven
+  // fabrication trigger (Variant D). Listing few/zero for a length is correct.
+  lines.push('- COUNT IS NOT A GOAL. Do not try to fill each length to any number. Some lengths will have many real words for this topic; others will have few or none — both outcomes are correct. List only words you are sure of.');
+  // Broader-subject release valve: real-and-related beats narrow-but-fake.
+  lines.push('- You MAY use words from the BROADER subject, not only the narrowest sense of the topic (for "World Cup": general football and sport words; for a science topic: related general terms). Real-and-related beats narrow-but-fake.');
+  lines.push('- Each clue: one sentence, at most 12 words, classroom-appropriate, not containing the answer word.');
+  // The final completion-drive defense: re-read and silently delete.
+  lines.push('- BEFORE FINISHING: re-read every word and silently delete any you are not fully certain is a real, correctly-spelled single word of the right length. Output only the survivors.');
+  lines.push('');
+
+  // 4 — The lengths the grid needs (distinct empty-slot lengths, ascending).
+  lines.push(`LENGTHS NEEDED: ${formatLengthsNeeded(lengths)}`);
+  lines.push('');
+
+  // 5 — Topic context (verbatim, fenced) — mirrors wordListPrompt.ts.
   lines.push('===BEGIN TOPIC CONTEXT===');
   lines.push(context.trim() || '(no specific topic — choose useful general-vocabulary words)');
   lines.push('===END TOPIC CONTEXT===');
   lines.push('');
 
-  // 3 — The grid as ASCII: '#' = block (a cell in no slot), '.' = empty slot
-  // cell, a letter = locked/kept. Lets the AI see the shape at a glance.
-  lines.push('THE GRID');
-  lines.push('Legend: # = blocked square (not part of any word), . = empty cell to fill, a letter = already fixed.');
-  lines.push('');
-  for (const row of asciiGrid(slots, grid, width, height)) {
-    lines.push(row);
-  }
-  lines.push('');
-
-  // 4 — Slots to fill. One line per empty slot, with its pattern and every
-  // crossing it makes (1-based letter index, for a human).
-  lines.push('SLOTS TO FILL');
-  lines.push('Patterns: each symbol is one cell — an underscore is any letter, a capital letter is already fixed and must stay. Positions are counted from the start, so letter 1 is the first cell.');
-  lines.push('');
-  for (const slot of emptySlots) {
-    const constraints = constraintsFromGrid(slot, grid);
-    let line = `${slot.id}-${dirLabel(slot.direction)}: ${slot.length} letters, pattern ${slotPattern(slot, constraints)}`;
-    const crossings = crossingsForSlot(slot, slots, intersections);
-    for (const c of crossings) {
-      // 1-based letter index for the human (myPos is 0-based).
-      line += ` — crosses ${c.otherId}-${c.otherDir} at letter ${c.myPos + 1}`;
-    }
-    lines.push(line);
-  }
-  lines.push('');
-
-  // 5 — Already placed slots (do not change). Only emitted when some exist.
-  if (filledSlots.length > 0) {
-    lines.push('ALREADY PLACED');
-    lines.push('These slots are already filled — do not change them; just make your words cross them correctly.');
-    lines.push('');
-    for (const slot of filledSlots) {
-      const display = (slot.displayWord ?? slot.word ?? '').toUpperCase();
-      lines.push(`${slot.id}-${dirLabel(slot.direction)}: ${display}`);
-    }
-    lines.push('');
-  }
-
-  // 6 — Output format (the parser targets this exactly).
+  // 6 — Output format: a fenced block, grouped by "# N letters", unlabeled
+  // "WORD | clue" lines, NO inline notes (the Sonnet cruft hazard), then a
+  // machine-readable "# NOTES" footer the parser mines.
   const caps = language === 'spanish'
-    ? 'ALL CAPS using only the letters A-Z, Á É Í Ó Ú Ü Ñ, and digits'
-    : 'ALL CAPS using only the letters A-Z and digits';
-  lines.push('OUTPUT FORMAT');
-  lines.push('Respond with ONLY a fenced code block. Each line is:');
-  lines.push('');
-  lines.push('{id}-{ACROSS or DOWN}: WORD | Clue text');
-  lines.push('');
-  lines.push(`Rules: the label must match a slot above, WORD in ${caps}, a single pipe (|) before the clue, clue in sentence case.`);
-  // Multiple candidates per slot: the parser collects every valid labeled line,
-  // and a fallback solver picks whichever set crosses cleanly — so a single bad
-  // pick can be swapped for an alternate instead of breaking its crossings.
-  lines.push(`Give 2 or 3 DIFFERENT options for EACH blank slot, best first — one option per line, all reusing that slot's label (same id and direction). Every option must be the right length and respect the slot's locked letters and crossings. List a slot's options together (best first), then move to the next slot. Cover all ${emptySlots.length} blank slots. No blank lines, no numbering, no text outside the code block.`);
-
-  if (solverAssist) {
-    // Optional spare pool: a few extra unlabeled words of the lengths that
-    // appear in the grid, so a fallback solver has alternatives if a labeled
-    // pick conflicts. Listed AFTER the labeled lines, with no slot label.
-    const lengths = distinctSlotLengths(emptySlots);
-    lines.push(`Then you MAY add up to 12 EXTRA spare words (no slot label, just WORD | Clue) with lengths among {${lengths.join(', ')}}, in case one of the picks above does not cross cleanly.`);
-  }
-  lines.push('');
-
-  // 7 — Worked example: two options per slot (same label), best first.
-  lines.push('Example format (do not copy these words):');
-  lines.push('```');
-  lines.push('3-ACROSS: PLANET | A world that orbits a star.');
-  lines.push('3-ACROSS: PLASMA | A hot, charged state of matter.');
-  lines.push('5-DOWN: ORBIT | The path one body takes around another.');
-  lines.push('5-DOWN: COMET | An icy body with a glowing tail.');
-  if (allowTwoWords) {
-    lines.push('7-ACROSS: SOLAR_FLARE | A burst of energy from the sun.');
-  }
-  if (solverAssist) {
-    lines.push('NEBULA | A vast cloud of gas and dust.');
-  }
-  lines.push('```');
-  lines.push('');
-
-  // 8 — Closing — mirrors wordListPrompt.ts:286
-  lines.push('Respond with the code block only. Nothing else.');
+    ? 'ALL CAPS using only A-Z, Á É Í Ó Ú Ü Ñ, and digits'
+    : 'ALL CAPS';
+  lines.push('OUTPUT FORMAT — parsed literally by software; follow exactly.');
+  lines.push('Respond with ONLY a fenced code block.');
+  lines.push('Group words by length, each group preceded by a header line exactly like "# 5 letters".');
+  lines.push('Inside a group, each line is ONLY a word and its clue, nothing else:');
+  lines.push('WORD | Clue text');
+  lines.push(`(${caps}, exactly the group's length, one pipe, sentence-case clue.)`);
+  lines.push('Never write a note, count, or "removed"/"moved" remark on any line — if a word is the wrong length, just place it correctly or omit it.');
+  lines.push('End with a section that begins with the line "# NOTES" followed by EXACTLY these two lines:');
+  lines.push('SHORT_LENGTHS: <comma-separated lengths where you had few or no real words — listing a length here is HELPFUL, not a failure; or the single word none>');
+  lines.push('COMMENT: <one short plain sentence, or the single word none>');
+  lines.push('Nothing outside the code block.');
 
   return lines.join('\n');
 }
 
 /**
- * Render the grid as ASCII rows. A cell is:
- *  - a letter, if the grid holds one (locked crossing / already-placed word);
- *  - '.', if it's an empty cell that belongs to at least one slot;
- *  - '#', otherwise (a block / stray — not part of any word).
+ * Format the "LENGTHS NEEDED" value as a human sentence fragment ending in
+ * "letters.":
+ *   - []        -> "(none — every slot is already filled)."
+ *   - [5]       -> "5 letters."
+ *   - [3,4]     -> "3 and 4 letters."
+ *   - [3,4,5,7] -> "3, 4, 5, and 7 letters."
  */
-function asciiGrid(
-  slots: SkeletonSlot[],
-  grid: string[][],
-  width: number,
-  height: number,
-): string[] {
-  // Mark every cell that any slot covers, so non-slot cells render as blocks.
-  const inSlot: boolean[][] = Array.from({ length: height }, () =>
-    new Array<boolean>(width).fill(false),
-  );
-  for (const slot of slots) {
-    for (let pos = 0; pos < slot.length; pos++) {
-      const x = slot.direction === 'across' ? slot.startX + pos : slot.startX;
-      const y = slot.direction === 'across' ? slot.startY : slot.startY + pos;
-      if (y >= 0 && y < height && x >= 0 && x < width) inSlot[y][x] = true;
-    }
-  }
-
-  const rows: string[] = [];
-  for (let y = 0; y < height; y++) {
-    let row = '';
-    for (let x = 0; x < width; x++) {
-      const cell = grid[y]?.[x];
-      if (cell && cell !== EMPTY_CELL) {
-        row += cell.toUpperCase();
-      } else if (inSlot[y][x]) {
-        row += '.';
-      } else {
-        row += '#';
-      }
-    }
-    rows.push(row);
-  }
-  return rows;
+function formatLengthsNeeded(lengths: number[]): string {
+  if (lengths.length === 0) return '(none — every slot is already filled).';
+  if (lengths.length === 1) return `${lengths[0]} letters.`;
+  if (lengths.length === 2) return `${lengths[0]} and ${lengths[1]} letters.`;
+  const head = lengths.slice(0, -1).join(', ');
+  const last = lengths[lengths.length - 1];
+  return `${head}, and ${last} letters.`;
 }
 
-/**
- * For a slot, the crossings it participates in, described from ITS point of
- * view: the partner slot's id + direction, this slot's 0-based letter position
- * at the shared cell, and the partner's 0-based position there.
- */
-interface SlotCrossing {
-  otherId: number;
-  otherDir: 'ACROSS' | 'DOWN';
-  myPos: number;
-  otherPos: number;
-}
-
-function crossingsForSlot(
-  slot: SkeletonSlot,
-  slots: SkeletonSlot[],
-  intersections: SlotIntersection[],
-): SlotCrossing[] {
-  const out: SlotCrossing[] = [];
-  for (const cross of intersections) {
-    if (slot.direction === 'across' && cross.acrossSlotId === slot.id) {
-      out.push({
-        otherId: cross.downSlotId,
-        otherDir: 'DOWN',
-        myPos: cross.acrossPos,
-        otherPos: cross.downPos,
-      });
-    } else if (slot.direction === 'down' && cross.downSlotId === slot.id) {
-      out.push({
-        otherId: cross.acrossSlotId,
-        otherDir: 'ACROSS',
-        myPos: cross.downPos,
-        otherPos: cross.acrossPos,
-      });
-    }
-  }
-  // `slots` is accepted for symmetry / future per-partner detail; not needed
-  // beyond the ids the intersection already carries.
-  void slots;
-  return out;
-}
-
-/** Distinct slot lengths, ascending — used by the solver-assist tail. */
+/** Distinct slot lengths, ascending — drives the "LENGTHS NEEDED" header. */
 function distinctSlotLengths(slots: SkeletonSlot[]): number[] {
   return [...new Set(slots.map(s => s.length))].sort((a, b) => a - b);
 }
