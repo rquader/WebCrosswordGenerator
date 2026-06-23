@@ -643,6 +643,206 @@ describe('parseSkeletonFillResponse', () => {
   });
 });
 
+/* ── Flat-pool "grouped by length + NOTES" format (parser hardening) ─────────
+ *
+ * A separate task moves the AI grid-fill prompt to a flat word pool grouped by
+ * "# N letters" headers, followed by a machine-readable "# NOTES" block. Real
+ * models (Claude Sonnet especially) also emit "omission cruft" — lines for words
+ * they decided to discard ("WORD | None — omitted."). The parser must:
+ *   - skip '#' header lines (never a word),
+ *   - switch to NOTES mode at "# NOTES" so nothing after becomes a word,
+ *   - parse SHORT_LENGTHS / COMMENT out of the NOTES block,
+ *   - drop omission-cruft word lines silently (no pool entry, no issue),
+ *   - dedupe pool words case-insensitively,
+ * while keeping every real "WORD | clue" line a pool entry.
+ *
+ * The app has no dictionary, so this parser is the ONLY guard against a fake
+ * word leaking into a student's puzzle. These tests are correctness-critical. */
+describe('parseSkeletonFillResponse — flat-pool NOTES format', () => {
+  // The flat-pool format has no slot labels: every word is an unlabeled
+  // "WORD | clue" line and lands in result.pool. We still pass real slots so
+  // the parser runs its normal path; the pool is what we assert on.
+  function poolWords(text: string): string[] {
+    const { slots, intersections } = paneFixture();
+    const result = parseSkeletonFillResponse(text, { slots, intersections });
+    return result.pool.map(p => p.word);
+  }
+
+  it('parses a NOTES block (SHORT_LENGTHS + COMMENT) and never pools its tokens', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      '# 3 letters',
+      'CAT | A small pet that purrs.',
+      '# 5 letters',
+      'TIGER | A striped big cat.',
+      '# NOTES',
+      'SHORT_LENGTHS: 3, 8',
+      'COMMENT: text',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+
+    expect(result.shortLengths).toEqual([3, 8]);
+    expect(result.comment).toBe('text');
+    const words = result.pool.map(p => p.word.toUpperCase());
+    // The real words are present...
+    expect(words).toContain('CAT');
+    expect(words).toContain('TIGER');
+    // ...and NO NOTES token leaked in as a word (the exact bug to eliminate).
+    expect(words).not.toContain('COMMENT');
+    expect(words).not.toContain('SHORT');
+    expect(words).not.toContain('SHORT_LENGTHS');
+    expect(words).not.toContain('TEXT');
+  });
+
+  it('treats SHORT_LENGTHS: none as an empty list', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      '# NOTES',
+      'SHORT_LENGTHS: none',
+      'COMMENT: Plenty of words exist.',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    expect(result.shortLengths).toEqual([]);
+    expect(result.comment).toBe('Plenty of words exist.');
+  });
+
+  it('treats COMMENT: none as an empty string', () => {
+    const { slots, intersections } = paneFixture();
+    const response = ['```', '# NOTES', 'SHORT_LENGTHS: 4', 'COMMENT: none', '```'].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    expect(result.shortLengths).toEqual([4]);
+    expect(result.comment).toBe('');
+  });
+
+  it('ignores non-numeric SHORT_LENGTHS tokens robustly', () => {
+    const { slots, intersections } = paneFixture();
+    const response = ['```', '# NOTES', 'SHORT_LENGTHS: 3, foo, 8 and 11', '```'].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    expect(result.shortLengths).toEqual([3, 8, 11]);
+  });
+
+  it('defaults shortLengths to [] and comment to "" when no NOTES block exists', () => {
+    const { slots, intersections } = paneFixture();
+    const response = ['```', 'CAT | A small pet that purrs.', '```'].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    expect(result.shortLengths).toEqual([]);
+    expect(result.comment).toBe('');
+  });
+
+  it('drops omission-cruft word lines silently (no pool entry, no issue)', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      '# 5 letters',
+      'TIGER | A striped big cat.',
+      'TRICKEL | None — misspelled, omitted.',
+      'EVAP | ',
+      'RAINDROP | Not 7 letters — omitted.',
+      'RUNON | Not a real word — omitted.',
+      'DRIZZLE| None — 7 letters, moved below.',
+      'CUMULONIMBUS| None — too long, omitted.',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    const words = result.pool.map(p => p.word.toUpperCase());
+
+    // Every cruft WORD must be absent from the pool.
+    expect(words).not.toContain('TRICKEL');
+    expect(words).not.toContain('EVAP');
+    expect(words).not.toContain('RAINDROP');
+    expect(words).not.toContain('RUNON');
+    expect(words).not.toContain('DRIZZLE');
+    expect(words).not.toContain('CUMULONIMBUS');
+    // The one real word survives.
+    expect(words).toContain('TIGER');
+    // Cruft is an intentional omission, not a parse error.
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('keeps real descriptive clues that only resemble a trigger (no false drop)', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      'CAMEL | A desert mammal with humps.',
+      'MAMMAL | An animal that feeds its young milk.',
+      'LIZARD | A reptile that can drop its tail.',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    const words = result.pool.map(p => p.word.toUpperCase());
+
+    // None of these real clues match a cruft pattern — all survive.
+    expect(words).toContain('CAMEL');
+    expect(words).toContain('MAMMAL');
+    expect(words).toContain('LIZARD');
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it('skips "# N letters" header lines entirely (no word contributed)', () => {
+    const words = poolWords(['```', '# 5 letters', 'TIGER | A striped big cat.', '```'].join('\n'));
+    expect(words.map(w => w.toUpperCase())).toEqual(['TIGER']);
+  });
+
+  it('de-duplicates pool words case-insensitively, keeping the first', () => {
+    const { slots, intersections } = paneFixture();
+    const response = [
+      '```',
+      'FROZEN | Turned to ice.',
+      'frozen | A duplicate, lower case.',
+      'FROZEN | Another duplicate.',
+      '```',
+    ].join('\n');
+
+    const result = parseSkeletonFillResponse(response, { slots, intersections });
+    const frozenCount = result.pool.filter(p => p.word.toLowerCase() === 'frozen').length;
+    expect(frozenCount).toBe(1);
+    expect(result.pool[0].clue).toBe('Turned to ice.');
+  });
+
+  it('matches the NOTES header in several spellings (# NOTES, #NOTES, # notes)', () => {
+    const { slots, intersections } = paneFixture();
+    for (const header of ['# NOTES', '#NOTES', '# notes']) {
+      const response = [
+        '```',
+        'CAT | A small pet that purrs.',
+        header,
+        'COMMENT: A note here.',
+        '```',
+      ].join('\n');
+      const result = parseSkeletonFillResponse(response, { slots, intersections });
+      // After the NOTES header, nothing becomes a word: COMMENT must not pool.
+      expect(result.pool.map(p => p.word.toUpperCase())).not.toContain('COMMENT');
+      expect(result.comment).toBe('A note here.');
+    }
+  });
+
+  it('threads shortLengths + comment through fillSkeletonFromResponse', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const response = [
+      '```',
+      '# NOTES',
+      'SHORT_LENGTHS: 3, 9',
+      'COMMENT: Sparse topic.',
+      '```',
+    ].join('\n');
+
+    const result = fillSkeletonFromResponse({ response, slots, intersections, width, height, seed: 1 });
+    expect(result.shortLengths).toEqual([3, 9]);
+    expect(result.comment).toBe('Sparse topic.');
+  });
+});
+
 describe('fillSkeletonFromResponse (shared paste -> placed pipeline)', () => {
   it('locks the AI picks and fills a fresh (BYOG) grid with no pre-placed words', () => {
     const { slots, intersections, width, height } = plusFixture();

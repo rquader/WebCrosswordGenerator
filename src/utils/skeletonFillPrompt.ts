@@ -330,6 +330,57 @@ export interface SkeletonFillParse {
   /** Unlabeled "WORD | clue" lines — spare suggestions, not tied to a slot. */
   pool: WordCluePair[];
   issues: ParseIssue[];
+  /**
+   * Lengths the model flagged as scarce in the flat-pool format's `# NOTES`
+   * block (`SHORT_LENGTHS: 3, 8`). Empty when there is no NOTES block or the
+   * value is `none`. Surfaced so a future view can warn about under-supplied
+   * slot lengths. Does not affect parsing of the words themselves.
+   */
+  shortLengths: number[];
+  /**
+   * The free-text `COMMENT:` from the flat-pool `# NOTES` block, trimmed. Empty
+   * string when absent or when the value is exactly `none`.
+   */
+  comment: string;
+}
+
+/**
+ * Does this clue mark its word as an INTENTIONAL omission by the model, rather
+ * than a real answer? Real models (Claude Sonnet especially) emit "omission
+ * cruft" — `WORD | None — misspelled, omitted.`, `WORD | ` (empty), `WORD |
+ * Not 7 letters — omitted.`, etc. — for words they decided to discard. Such a
+ * line must be DROPPED silently (no pool entry, no parse issue): it is the
+ * model telling us "skip this", not a usable word.
+ *
+ * Patterns are deliberately TIGHT so a normal descriptive clue never matches —
+ * real clues are ordinary sentences ("A desert mammal with humps."). Pure
+ * helper, exported so it can be unit-tested in isolation if needed.
+ */
+export function isDiscardedClue(clue: string): boolean {
+  const c = clue.trim().toLowerCase();
+  if (c.length === 0) return true; // empty / whitespace-only clue
+  if (c === 'none') return true; // exactly "none"
+  if (c.startsWith('none')) return true; // "none — ...", "none-...", "none ..."
+  if (c.startsWith('not a real word')) return true;
+  if (/^not \d+ letters/.test(c)) return true; // "not 7 letters ..."
+  if (c.startsWith('too long') || c.startsWith('too short')) return true;
+  // Discard markers anywhere in the clue.
+  if (c.includes('omitted') || c.includes('removed') || c.includes('moved below')) return true;
+  return false;
+}
+
+/**
+ * Parse a `SHORT_LENGTHS:` value (the text after the colon) into integers.
+ * Tokens are split on commas/whitespace; non-numeric tokens are ignored. The
+ * literal `none` (any case, even with surrounding text) yields an empty list.
+ */
+function parseShortLengths(value: string): number[] {
+  if (/\bnone\b/i.test(value)) return [];
+  const out: number[] = [];
+  for (const token of value.split(/[\s,]+/)) {
+    if (/^\d+$/.test(token)) out.push(parseInt(token, 10));
+  }
+  return out;
 }
 
 /**
@@ -356,6 +407,15 @@ const SLOT_LABEL = new RegExp(
     ')\\**\\s*:\\s*',
   'i',
 );
+
+/**
+ * The flat-pool format's machine-readable footer header. Once a line matching
+ * this is seen, the parser is in NOTES MODE: no further line may become a word,
+ * and `SHORT_LENGTHS:` / `COMMENT:` are extracted instead. Matches `# NOTES`,
+ * `#NOTES`, `# notes` (any case). A line starting with `#` that is NOT this is
+ * an ordinary section header (e.g. `# 5 letters`) and is simply skipped.
+ */
+const NOTES_HEADER = /^#\s*notes\b/i;
 
 /** Pull the slot id + direction out of a SLOT_LABEL match (either ordering). */
 function readSlotLabel(match: RegExpMatchArray): { id: number; direction: 'across' | 'down' } {
@@ -434,6 +494,8 @@ export function parseSkeletonFillResponse(
     slotCandidates: new Map(),
     pool: [],
     issues: [],
+    shortLengths: [],
+    comment: '',
   };
   if (!text.trim()) return result;
 
@@ -462,12 +524,40 @@ export function parseSkeletonFillResponse(
   // checked against an earlier accepted one. Keyed "x,y".
   const committed = new Map<string, string>();
 
+  // Flat-pool format: once the `# NOTES` header is seen, NO further line may
+  // become a word — we only mine SHORT_LENGTHS / COMMENT out of the tail.
+  let notesMode = false;
+
   const linesArr = body.split('\n');
   for (let i = 0; i < linesArr.length; i++) {
     const lineNumber = lineOffset + i + 1;
     const rawLine = linesArr[i];
     const line = rawLine.replace(LIST_MARKER, '').trim();
     if (line.length === 0) continue;
+
+    // NOTES mode (flat-pool footer): never a word. Pull SHORT_LENGTHS / COMMENT;
+    // ignore everything else (including a stray `WORD | clue` after the footer).
+    if (notesMode) {
+      const colon = line.indexOf(':');
+      if (colon !== -1) {
+        const key = line.slice(0, colon).trim().toLowerCase();
+        const value = line.slice(colon + 1).trim();
+        if (key === 'short_lengths') {
+          result.shortLengths = parseShortLengths(value);
+        } else if (key === 'comment') {
+          result.comment = /^none$/i.test(value) ? '' : value;
+        }
+      }
+      continue;
+    }
+
+    // A `#`-prefixed line is a section header, not a word. The NOTES header
+    // switches us into NOTES mode; any other header (e.g. `# 5 letters`) is
+    // skipped. (LIST_MARKER never strips `#`, so this `#` is the real lead.)
+    if (line.startsWith('#')) {
+      if (NOTES_HEADER.test(line)) notesMode = true;
+      continue;
+    }
 
     const labelMatch = line.match(SLOT_LABEL);
 
@@ -485,8 +575,13 @@ export function parseSkeletonFillResponse(
         }
         continue;
       }
+      const rawClue = line.slice(pipeIndex + 1);
+      // Omission cruft: the model marked this word as discarded (empty clue,
+      // "None — omitted.", "Not 7 letters", etc.). Drop it silently — it is an
+      // intentional omission, not a usable word and not a parse error.
+      if (isDiscardedClue(rawClue)) continue;
       const word = cleanWord(stripLengthHint(line.slice(0, pipeIndex)), allowTwoWords);
-      const clue = cleanClue(line.slice(pipeIndex + 1));
+      const clue = cleanClue(rawClue);
       if (!charset.test(word) || toGridWord(word).length < 2) {
         if (!lenient) {
           result.issues.push({
@@ -697,6 +792,14 @@ export interface SkeletonFillResult {
   lockedCount: number;
   /** Human-readable parser issues, one per unusable line. */
   issues: string[];
+  /**
+   * Lengths the model flagged as scarce in the flat-pool `# NOTES` block
+   * (`SHORT_LENGTHS:`); empty when absent. Passed straight through from the
+   * parse so a future view can surface it. Does not affect the fill.
+   */
+  shortLengths: number[];
+  /** The flat-pool `# NOTES` `COMMENT:` text; empty string when absent. */
+  comment: string;
 }
 
 /**
@@ -783,5 +886,7 @@ export function fillSkeletonFromResponse(options: {
     unfilledSlotIds,
     lockedCount,
     issues: parse.issues.map(issue => issue.message),
+    shortLengths: parse.shortLengths,
+    comment: parse.comment,
   };
 }
