@@ -10,6 +10,15 @@
  * - Highlighted word (current across/down word)
  * - Visual feedback for checked cells (blue/orange, not red/green for accessibility)
  * - Revealed cells shown in a distinct color
+ *
+ * Mobile input: a real but visually-hidden <input> owns text entry. Tapping a
+ * cell focuses that input, which is what raises the iOS/Android soft keyboard —
+ * a focused non-editable <div> never does. Characters arrive via onInput (works
+ * for both soft and physical keyboards); the field is cleared after every
+ * keystroke so autocorrect can't accumulate or mangle a word. Navigation keys
+ * (arrows, Space-to-toggle, Backspace) stay on the input's onKeyDown so the
+ * desktop physical-keyboard experience is unchanged. Character entry lives ONLY
+ * in onInput, so a keystroke is never handled twice.
  */
 
 import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
@@ -58,6 +67,10 @@ export function PlayableGrid({
   onMove,
 }: PlayableGridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Per-cell DOM refs, keyed by "x,y". Plumbing for a later scrollIntoView
+  // fix (keeping the active cell in view) — populated here, not yet consumed.
+  const cellRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [announcement, setAnnouncement] = useState('');
   const [poppedCell, setPoppedCell] = useState<string | null>(null);
 
@@ -71,33 +84,75 @@ export function PlayableGrid({
     return map;
   }, [puzzle]);
 
-  // Focus the grid container so it receives keyboard events
+  // Focus the hidden input (NOT the grid div) when a cell is selected. A
+  // focused form control is what raises the mobile soft keyboard; a focused
+  // div never does. preventScroll keeps loading a shared link from jump-
+  // scrolling the page to wherever focus lands. This covers programmatic
+  // selection (clue-list taps, shared-link auto-select); a direct cell tap
+  // ALSO focuses synchronously in the gesture (see handleCellTap) — iOS is
+  // stricter about raising the keyboard outside the gesture handler.
   useEffect(() => {
-    if (selectedCell && gridRef.current) {
-      gridRef.current.focus();
+    if (selectedCell && inputRef.current) {
+      inputRef.current.focus({ preventScroll: true });
     }
   }, [selectedCell]);
 
-  // Keyboard handler
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  // A tap on a lettered cell: select it, then focus the input synchronously
+  // within the gesture so iOS reliably raises the keyboard.
+  const handleCellTap = useCallback((x: number, y: number) => {
+    onCellClick(x, y);
+    inputRef.current?.focus({ preventScroll: true });
+  }, [onCellClick]);
+
+  // Route a single typed character into the selected cell, with the same
+  // cell-pop animation and screen-reader announcement the keyboard path used.
+  const commitLetter = useCallback((char: string) => {
     if (!selectedCell) return;
+    onLetterInput(char);
+    setAnnouncement(`Entered ${char.toUpperCase()}`);
+    setPoppedCell(cellKey(selectedCell.x, selectedCell.y));
+    setTimeout(() => setPoppedCell(null), 200);
+  }, [selectedCell, onLetterInput]);
 
-    // Shortcut chords are not letter input: without this guard, Ctrl+Z
-    // both undoes (window handler) AND types a Z into the grid.
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // Text entry — the single source of character input for BOTH soft and
+  // physical keyboards. Soft keyboards (and desktop typing) fire input events
+  // with the inserted text; we take the last character, keep only letters /
+  // digits (matches [A-Z] storage; allows Ñ, accented vowels), and clear the
+  // field every time so autocorrect/autocomplete can never accumulate a word.
+  const handleInput = useCallback((e: React.FormEvent<HTMLInputElement>) => {
+    const native = e.nativeEvent as InputEvent;
+    const target = e.currentTarget;
 
-    // Letter input — any language letter (Ñ, accented vowels) plus digits.
-    if (e.key.length === 1 && e.key.match(/[\p{L}0-9]/u)) {
-      e.preventDefault();
-      onLetterInput(e.key);
-      setAnnouncement(`Entered ${e.key.toUpperCase()}`);
-      // Trigger cell-pop animation
-      setPoppedCell(cellKey(selectedCell.x, selectedCell.y));
-      setTimeout(() => setPoppedCell(null), 200);
+    // Deletions from the soft keyboard (Android often reports the backspace
+    // here rather than as a keydown) map to delete.
+    if (native.inputType && native.inputType.startsWith('delete')) {
+      target.value = '';
+      onDelete();
+      setAnnouncement('Deleted');
       return;
     }
 
-    // Spacebar toggles direction
+    const value = target.value;
+    target.value = ''; // clear immediately — never let the field hold a word
+    if (!value) return;
+
+    const lastChar = Array.from(value).pop() ?? '';
+    if (lastChar.length === 1 && lastChar.match(/[\p{L}0-9]/u)) {
+      commitLetter(lastChar);
+    }
+  }, [commitLetter, onDelete]);
+
+  // Navigation + control keys. Character entry is intentionally NOT handled
+  // here (it lives in handleInput) so a physical keystroke is never entered
+  // twice. These keys don't produce text, except Space, which we swallow.
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!selectedCell) return;
+
+    // Shortcut chords are not navigation: let the window-level Ctrl+Z / Ctrl+Y
+    // (undo/redo) handler own them instead of swallowing them here.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    // Spacebar toggles direction (and must not type a space into the field).
     if (e.key === ' ') {
       e.preventDefault();
       onCellClick(selectedCell.x, selectedCell.y);
@@ -106,6 +161,9 @@ export function PlayableGrid({
 
     switch (e.key) {
       case 'Backspace':
+      case 'Delete':
+        // Field is cleared after every keystroke, so it's empty here and the
+        // browser has nothing of its own to delete — we drive the grid.
         e.preventDefault();
         onDelete();
         setAnnouncement('Deleted');
@@ -134,20 +192,18 @@ export function PlayableGrid({
         e.preventDefault();
         break;
     }
-  }, [selectedCell, onLetterInput, onDelete, onMove, onCellClick]);
+  }, [selectedCell, onDelete, onMove, onCellClick]);
 
   return (
     <div className={GRID_PAN}>
       <div
         ref={gridRef}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
         className={`${GRID_PAGE} outline-none`}
         aria-label="Crossword puzzle grid"
       >
       <div
         role="grid"
-        className={GRID_FRAME}
+        className={`${GRID_FRAME} relative`}
         style={gridSizingStyle(puzzle.width, 34, 50)}
       >
         {puzzle.grid.map((row, y) => (
@@ -206,11 +262,12 @@ export function PlayableGrid({
               return (
                 <div
                   key={key}
+                  ref={(node) => { cellRefs.current.set(key, node); }}
                   role="gridcell"
                   aria-label={ariaLabel}
                   aria-selected={isSelected}
                   onClick={() => {
-                    if (!isEmpty) onCellClick(x, y);
+                    if (!isEmpty) handleCellTap(x, y);
                   }}
                   className={`
                     ${CELL_BASE} ${isEmpty ? 'cursor-default' : 'cursor-text'}
@@ -248,6 +305,48 @@ export function PlayableGrid({
             })}
           </div>
         ))}
+
+        {/* Mobile input proxy — a single, persistent, focusable text input
+            that owns text entry. Tapping a cell focuses it, which is what
+            raises the soft keyboard (a focused <div> never does). It rides
+            over the active cell so iOS scrolls to the right spot and the
+            caret would sit there; it is NEVER unmounted (a per-cell input
+            re-mounting each keystroke would blur and drop the keyboard on
+            auto-advance). Visually hidden (transparent text + caret) but not
+            display:none, which would stop it focusing. The grid keeps its
+            full gridcell ARIA; this input is the single keyboard tab stop
+            (tabIndex 0) so keyboard-only users can Tab back into the grid —
+            the highlighted selected cell is its visible focus indicator (the
+            input itself is transparent). */}
+        {selectedCell && (
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
+            enterKeyHint="next"
+            aria-label="Type a letter for the selected square"
+            tabIndex={0}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            className="absolute pointer-events-none bg-transparent border-0 p-0 m-0
+                       text-transparent caret-transparent outline-none
+                       [appearance:none] [-webkit-tap-highlight-color:transparent]"
+            style={{
+              // Absolute offset is from the frame's padding box (inside the
+              // border), the same origin the cell tracks start from — so the
+              // cell index maps directly with no border fudge.
+              left: `calc(var(--cell) * ${selectedCell.x})`,
+              top: `calc(var(--cell) * ${selectedCell.y})`,
+              width: 'var(--cell)',
+              height: 'var(--cell)',
+              fontSize: LETTER_FONT_SIZE,
+            }}
+          />
+        )}
       </div>
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
