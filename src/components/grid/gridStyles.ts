@@ -46,6 +46,10 @@ export const CELL_LETTER = 'font-semibold uppercase text-grid-ink';
  * maxPx, shrinking with viewport width for wide grids). Cells below minPx
  * never happen — the pan container scrolls instead. This is what keeps a
  * 26-wide grid usable on a phone.
+ *
+ * This is the VIEWING/GENERATION sizing (CrosswordGrid, SkeletonGrid,
+ * GridDesigner, the word-search grids). The Play grid uses the `fit` variant
+ * below instead — see gridFitSizingStyle.
  */
 export function gridSizingStyle(width: number, minPx: number, maxPx: number): CSSProperties {
   const vwPerCell = (94 / (width + 1)).toFixed(2);
@@ -53,6 +57,39 @@ export function gridSizingStyle(width: number, minPx: number, maxPx: number): CS
     gridTemplateColumns: `repeat(${width}, var(--cell))`,
     gridAutoRows: 'var(--cell)',
     ['--cell' as string]: `clamp(${minPx}px, ${vwPerCell}vw, ${maxPx}px)`,
+  };
+}
+
+/**
+ * Fit-to-width cell sizing — PLAY MODE ONLY.
+ *
+ * The whole grid fits the viewport width at every size: cell size is the
+ * smaller of maxPx and an even share of the available width, so the grid
+ * never forces a horizontal pan on a phone. (Decided 2026-06-23 with the
+ * user: fit-to-width is the play contract; native pinch-zoom stays on as the
+ * escape hatch for when a cell gets small.)
+ *
+ * The share is `100vw` minus the page chrome around the grid — `<main>`'s
+ * horizontal padding (px-4 = 16px each side at the 375px target) plus the 2px
+ * GRID_FRAME border on each side ≈ 36px total. Subtracting a little generously
+ * guarantees no overflow at 375px; on wide screens cells just hit the maxPx
+ * cap. A minPx floor keeps cells from vanishing on huge grids — below it the
+ * GRID_PAN container pans rather than clipping. Pure CSS (no ResizeObserver):
+ * `100vw` is container-independent so there's no circular layout dependency
+ * (a `%` share would resolve against the inline-block grid's own width).
+ *
+ * @param chromePx  width to reserve for page padding + frame border (≈ 36)
+ */
+export function gridFitSizingStyle(
+  width: number,
+  minPx: number,
+  maxPx: number,
+  chromePx = 36,
+): CSSProperties {
+  return {
+    gridTemplateColumns: `repeat(${width}, var(--cell))`,
+    gridAutoRows: 'var(--cell)',
+    ['--cell' as string]: `clamp(${minPx}px, (100vw - ${chromePx}px) / ${width}, ${maxPx}px)`,
   };
 }
 

@@ -28,7 +28,7 @@ import type { CellPosition } from '../../hooks/usePuzzleState';
 import {
   GRID_PAN, GRID_PAGE, GRID_FRAME,
   CELL_BASE, CELL_PAPER, CELL_BLOCKED, CELL_NUMBER,
-  gridSizingStyle, NUMBER_FONT_SIZE, LETTER_FONT_SIZE,
+  gridFitSizingStyle, NUMBER_FONT_SIZE, LETTER_FONT_SIZE,
 } from './gridStyles';
 
 const EMPTY_CELL = '-';
@@ -204,7 +204,11 @@ export function PlayableGrid({
       <div
         role="grid"
         className={`${GRID_FRAME} relative`}
-        style={gridSizingStyle(puzzle.width, 34, 50)}
+        // Play grid fits the viewport width (cells shrink to fit, no
+        // horizontal pan on a phone) — see gridFitSizingStyle. 50px cap on
+        // desktop, 18px floor before GRID_PAN takes over on huge grids.
+        // Viewing/generation grids keep gridSizingStyle (the 34/50 clamp).
+        style={gridFitSizingStyle(puzzle.width, 18, 50)}
       >
         {puzzle.grid.map((row, y) => (
           <div key={`row-${y}`} role="row" className="contents">
