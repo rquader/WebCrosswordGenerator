@@ -404,3 +404,48 @@ describe('fillGrid - preferredWords (topic-aware soft bias)', () => {
     expect(empty.assignments.get(slots[0].id)?.word).toBe(base.assignments.get(slots[0].id)?.word);
   });
 });
+
+describe('fillGrid - appropriateness scrub', () => {
+  it('never places a blocklisted word, even when it is the only pool word', () => {
+    const { slots, intersections } = fixture(['...']); // one 3-cell slot
+    const result = fillGrid({ slots, intersections, pool: pool(['ass']) });
+    expect(placedWords(result.assignments)).not.toContain('ass');
+    expect(result.unfilledSlotIds).toEqual(slots.map(s => s.id));
+  });
+
+  it('places a legitimate word that merely contains a blocked run (exact-word, not substring)', () => {
+    const { slots, intersections } = fixture(['.....']); // one 5-cell slot
+    const result = fillGrid({ slots, intersections, pool: pool(['grass']) });
+    expect(result.assignments.get(slots[0].id)?.word).toBe('grass');
+  });
+});
+
+describe('fillGrid - prefers the AI pool over the word bank (pool-first)', () => {
+  it('fills a slot from the pool, not the bank, when a pool word fits and the bank is on', () => {
+    const { slots, intersections } = fixture(['.....']); // one 5-cell slot
+    // Many bank 5-letter words also fit; pool-first picks the pool word, and its
+    // real clue (bank fills carry '') proves it was pool-sourced.
+    const result = fillGrid({
+      slots, intersections, pool: pool(['plant']), includeWordBank: true, seed: 1,
+    });
+    expect(result.assignments.get(slots[0].id)).toEqual({ word: 'plant', clue: 'clue for plant' });
+  });
+
+  it('uses pool words for most slots on a crossing grid rather than bank filler', () => {
+    // Dense 5x5 window, rich crossing-friendly pool, bank ON. The lexicographic
+    // leaf score [pool words, slots filled] maximizes pool usage, so most placed
+    // words carry a real clue (pool-sourced) rather than '' (bank-sourced).
+    const { slots, intersections } = fixture(['#...#', '.....', '..#..', '.....', '#...#']);
+    const words = [
+      'cat', 'car', 'cot', 'cab', 'arc', 'are', 'art', 'oat', 'ore',
+      'tap', 'tar', 'tan', 'rat', 'ran', 'rap', 'one', 'own', 'oak', 'ace',
+      'cart', 'card', 'care', 'rate', 'race', 'rare', 'oats', 'open', 'oral', 'tart',
+      'scare', 'score', 'stare', 'crate', 'react', 'actor', 'acorn', 'arena',
+    ];
+    const result = fillGrid({ slots, intersections, pool: pool(words), includeWordBank: true, seed: 3 });
+    const placed = [...result.assignments.values()];
+    const fromPool = placed.filter(a => a.clue !== '').length;
+    const fromBank = placed.filter(a => a.clue === '').length;
+    expect(fromPool).toBeGreaterThanOrEqual(fromBank);
+  });
+});

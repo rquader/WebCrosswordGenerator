@@ -49,6 +49,7 @@ import {
 } from '../logic/language';
 import {
   charsetLines,
+  CLASSROOM_APPROPRIATE_RULE,
   findBestFencedBlock,
   cleanWord,
   LIST_MARKER,
@@ -133,6 +134,7 @@ export function buildSkeletonFillPrompt(options: {
   if (!allowProperNouns) {
     lines.push('- No proper nouns (specific people, places, brands, teams).');
   }
+  lines.push(`- ${CLASSROOM_APPROPRIATE_RULE}`);
   // COUNT IS NOT A GOAL — fixed quotas on constrained lengths were the proven
   // fabrication trigger (Variant D). Listing few/zero for a length is correct.
   lines.push('- COUNT IS NOT A GOAL. Do not try to fill each length to any number. Some lengths will have many real words for this topic; others will have few or none — both outcomes are correct. List only words you are sure of.');

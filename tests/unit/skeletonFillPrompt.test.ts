@@ -89,6 +89,17 @@ function mixedFixture() {
   return { slots, intersections, width, height };
 }
 
+describe('buildSkeletonFillPrompt - classroom appropriateness', () => {
+  it('instructs the model to avoid profanity, slurs, and offensive terms', () => {
+    const { slots, intersections, width, height } = paneFixture();
+    const prompt = buildSkeletonFillPrompt({
+      slots, intersections, width, height, grid: emptyGrid(width, height), context: 'animals',
+    });
+    expect(prompt).toContain('no profanity, slurs');
+    expect(prompt.toLowerCase()).toContain('classroom');
+  });
+});
+
 /** The distinct lengths of a fixture's empty (no-word) slots, ascending. */
 function emptySlotLengths(slots: { word?: string; length: number }[]): number[] {
   return [...new Set(slots.filter(s => !s.word).map(s => s.length))].sort((a, b) => a - b);

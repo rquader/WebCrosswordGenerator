@@ -20,7 +20,7 @@ export function buildCluePrompt(options: {
   if (themeWords.length > 0) {
     lines.push(`The puzzle's theme: related to ${themeWords.map(w => w.toUpperCase()).join(', ')}.`);
   }
-  lines.push('Keep each clue under 80 characters, suitable for students, and never include the answer word in its clue.');
+  lines.push('Keep each clue under 80 characters and appropriate for a school classroom — no profanity, slurs, or crude, sexual, or violent content — and never include the answer word in its clue.');
   lines.push('Answer in exactly this format, one line per word, nothing else:');
   lines.push('');
   for (const entry of words) {

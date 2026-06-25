@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateWordSearch, sanitizeFillerLetters } from '@logic/wordSearchGenerator';
 import { SeededRandom } from '@logic/seedRandom';
-import { BLOCKLIST, BLOCKLISTS, MIN_BLOCKED_LENGTH, getFullBlocklist } from '../../src/data/blocklist';
+import { BLOCKLIST, BLOCKLISTS, MIN_BLOCKED_LENGTH, getFullBlocklist, isInappropriateWord, getAiFillBlocklist } from '../../src/data/blocklist';
 import type { WordSearchDirectionSettings } from '@logic/types';
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
@@ -213,5 +213,30 @@ describe('per-language blocklists', () => {
       const usable = BLOCKLISTS[lang].filter(w => w.length >= MIN_BLOCKED_LENGTH);
       expect(usable.length).toBeGreaterThan(25);
     }
+  });
+});
+
+describe('isInappropriateWord (AI-fill exact-word scrub)', () => {
+  it('blocks the exact inappropriate word, case-insensitively', () => {
+    expect(isInappropriateWord('ass')).toBe(true);
+    expect(isInappropriateWord('ASS')).toBe(true);
+    expect(isInappropriateWord('Ass')).toBe(true);
+    expect(isInappropriateWord('fuck')).toBe(true); // from the English profanity list
+  });
+
+  it('never blocks a legitimate word that merely CONTAINS a blocked run', () => {
+    for (const ok of ['grass', 'class', 'glass', 'compass', 'assemble', 'passage', 'shell', 'hello']) {
+      expect(isInappropriateWord(ok), ok).toBe(false);
+    }
+  });
+
+  it('returns false for empty or whitespace input', () => {
+    expect(isInappropriateWord('')).toBe(false);
+    expect(isInappropriateWord('   ')).toBe(false);
+  });
+
+  it('adds the selected language list but leaves English everyday words safe', () => {
+    expect(isInappropriateWord('mierda', getAiFillBlocklist('spanish'))).toBe(true);
+    expect(isInappropriateWord('mierda', getAiFillBlocklist('english'))).toBe(false);
   });
 });

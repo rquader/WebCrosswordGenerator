@@ -114,6 +114,15 @@ export function charsetLines(language: PuzzleLanguage): string[] {
 }
 
 /**
+ * Classroom-appropriateness rule, shared by every AI prompt builder (word list,
+ * skeleton/BYOG fill, clue writer) so the wording stays consistent. This is the
+ * generation-side guard; the exact-word blocklist scrub (src/data/blocklist.ts)
+ * is the reliable filter behind it.
+ */
+export const CLASSROOM_APPROPRIATE_RULE =
+  'Every word and clue must be appropriate for a school classroom: no profanity, slurs, or crude, sexual, violent, or otherwise offensive terms. If a word is borderline, leave it out.';
+
+/**
  * Build the full prompt text.
  *
  * Structure (deterministic, in order): parameters block, topic context
@@ -214,6 +223,7 @@ export function buildWordListPrompt(options: WordListPromptOptions): string {
   } else {
     lines.push('- Words only — no clues or definitions. A word search needs just the words.');
   }
+  lines.push(`- ${CLASSROOM_APPROPRIATE_RULE}`);
   lines.push('');
 
   // 2 — Topic context block (verbatim, fenced)

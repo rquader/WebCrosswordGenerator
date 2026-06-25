@@ -18,6 +18,14 @@ const baseOptions = {
   puzzleMode: 'crossword' as const,
 };
 
+describe('buildWordListPrompt - classroom appropriateness', () => {
+  it('instructs the model to avoid profanity, slurs, and offensive terms', () => {
+    const prompt = buildWordListPrompt(baseOptions);
+    expect(prompt).toContain('no profanity, slurs');
+    expect(prompt.toLowerCase()).toContain('classroom');
+  });
+});
+
 describe('buildWordListPrompt', () => {
   it('contains all blocks in order', () => {
     const prompt = buildWordListPrompt(baseOptions);
