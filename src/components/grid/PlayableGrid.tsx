@@ -21,7 +21,7 @@
  * in onInput, so a keystroke is never handled twice.
  */
 
-import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import { useEffect, useRef, useMemo, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import type { CrosswordResult } from '../../logic/types';
 import { assignNumbers } from '../../logic/numbering';
 import type { CellPosition } from '../../hooks/usePuzzleState';
@@ -48,11 +48,19 @@ interface PlayableGridProps {
   onMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
 }
 
+/** Imperative actions the play view drives the grid with (focus, scroll). */
+export interface PlayableGridHandle {
+  /** Re-focus the hidden text input (e.g. after the tools sheet closes), no scroll jump. */
+  focusInput: () => void;
+  /** Scroll the active cell into view within the grid's own scroll container only. */
+  scrollCellIntoView: (x: number, y: number) => void;
+}
+
 function cellKey(x: number, y: number): string {
   return x + ',' + y;
 }
 
-export function PlayableGrid({
+export const PlayableGrid = forwardRef<PlayableGridHandle, PlayableGridProps>(function PlayableGrid({
   puzzle,
   userGrid,
   selectedCell,
@@ -65,11 +73,11 @@ export function PlayableGrid({
   onLetterInput,
   onDelete,
   onMove,
-}: PlayableGridProps) {
+}, ref) {
   const gridRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Per-cell DOM refs, keyed by "x,y". Plumbing for a later scrollIntoView
-  // fix (keeping the active cell in view) — populated here, not yet consumed.
+  // Per-cell DOM refs, keyed by "x,y". Consumed by scrollCellIntoView (P3) to
+  // keep the active cell visible inside the grid's own scroll container.
   const cellRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [announcement, setAnnouncement] = useState('');
   const [poppedCell, setPoppedCell] = useState<string | null>(null);
@@ -96,6 +104,28 @@ export function PlayableGrid({
       inputRef.current.focus({ preventScroll: true });
     }
   }, [selectedCell]);
+
+  // Scroll the given cell into view WITHIN its scroll container only (never
+  // the page): scrollIntoView with block/inline 'nearest' walks up to the
+  // nearest scrollable ancestor (the GRID_PAN wrapper) and the page only moves
+  // if the cell is outside the layout viewport — which preventScroll-focus
+  // already avoids. Smooth, unless the user prefers reduced motion (P3).
+  const scrollCellIntoView = useCallback((x: number, y: number) => {
+    const node = cellRefs.current.get(cellKey(x, y));
+    if (!node) return;
+    const reduce = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: reduce ? 'auto' : 'smooth',
+    });
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    focusInput: () => inputRef.current?.focus({ preventScroll: true }),
+    scrollCellIntoView,
+  }), [scrollCellIntoView]);
 
   // A tap on a lettered cell: select it, then focus the input synchronously
   // within the gesture so iOS reliably raises the keyboard.
@@ -357,4 +387,4 @@ export function PlayableGrid({
       </div>
     </div>
   );
-}
+});

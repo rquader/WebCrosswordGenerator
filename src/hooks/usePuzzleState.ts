@@ -443,6 +443,18 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     setIsAcross(across);
   }, [puzzle]);
 
+  // Step to the previous / next clue in numbering order (Across-before-Down
+  // within a number, wrapping across directions) and land on that clue's first
+  // empty cell — or its first cell if it's already full. Drives the play bar's
+  // ‹ › buttons. No-op until a cell is selected (the bar only shows then).
+  const goToAdjacentClue = useCallback((dir: 'prev' | 'next') => {
+    if (!puzzle || !selectedCell) return;
+    const target = adjacentClueTarget(puzzle, userGrid, isAcross, selectedCell.x, selectedCell.y, dir);
+    if (!target) return;
+    setSelectedCell({ x: target.x, y: target.y });
+    setIsAcross(target.isAcross);
+  }, [puzzle, selectedCell, isAcross, userGrid]);
+
   const checkPuzzle = useCallback(() => {
     if (!puzzle) return;
     const newChecked = new Map<string, 'correct' | 'incorrect'>();
@@ -571,6 +583,7 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     moveSelection,
     selectCell,
     selectCellWithDirection,
+    goToAdjacentClue,
     deselectCell,
     setIsAcross,
     checkPuzzle,
@@ -756,6 +769,38 @@ export function firstEmptyCellOfNextUnfilledClue(
     }
   }
   return null;
+}
+
+/**
+ * The clue one step before/after the current one in solving order (wrapping),
+ * and the cell to land on inside it: the clue's first empty cell, or its first
+ * cell if the whole clue is already filled. Pure core of the play bar's ‹ ›.
+ * Returns null only when there are no clues at all.
+ */
+export function adjacentClueTarget(
+  puzzle: CrosswordResult,
+  grid: string[][],
+  fromAcross: boolean,
+  fromX: number,
+  fromY: number,
+  dir: 'prev' | 'next',
+): { x: number; y: number; isAcross: boolean } | null {
+  const clues = orderedClues(puzzle);
+  if (clues.length === 0) return null;
+
+  const currentIdx = clues.findIndex(
+    (c) => c.isAcross === fromAcross && c.cells.some((cell) => cell.x === fromX && cell.y === fromY),
+  );
+  // If the current cell isn't matched (shouldn't happen in play), treat as 0.
+  const base = currentIdx === -1 ? 0 : currentIdx;
+  const step = dir === 'next' ? 1 : -1;
+  const targetIdx = (base + step + clues.length) % clues.length;
+  const clue = clues[targetIdx];
+
+  // Prefer the first empty cell; fall back to the first cell when full.
+  const firstEmpty = clue.cells.find((c) => (grid[c.y]?.[c.x] ?? '') === '');
+  const cell = firstEmpty ?? clue.cells[0];
+  return { x: cell.x, y: cell.y, isAcross: clue.isAcross };
 }
 
 /**

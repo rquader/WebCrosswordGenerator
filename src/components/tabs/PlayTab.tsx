@@ -6,11 +6,17 @@
  * - Word search mode: finding words by selecting start/end cells
  */
 
-import { useMemo, useEffect, useState, useCallback } from 'react';
+import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { CrosswordResult, PuzzleMode } from '../../logic/types';
 import { PlayableGrid } from '../grid/PlayableGrid';
+import type { PlayableGridHandle } from '../grid/PlayableGrid';
 import { WordSearchGrid } from '../grid/WordSearchGrid';
+import { PlayBar } from '../play/PlayBar';
+import { PlayToolsSheet } from '../play/PlayToolsSheet';
 import { usePuzzleState, HINT_BUDGET, canUseHint } from '../../hooks/usePuzzleState';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
+import { useMediaQuery, PLAY_COMPACT_QUERY } from '../../hooks/useMediaQuery';
 import { CompletionConfetti } from '../CompletionConfetti';
 import { assignNumbers } from '../../logic/numbering';
 import type { NumberedClue } from '../../logic/numbering';
@@ -38,6 +44,20 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   const highlighted = state.highlightedCells();
   const [shakingCells, setShakingCells] = useState<Set<string>>(new Set());
   const [hasCheckErrors, setHasCheckErrors] = useState(false);
+
+  // Mobile/tablet play chrome: the keyboard-aware play bar + tools sheet.
+  // Gated to compact widths so desktop play is untouched.
+  const isCompact = useMediaQuery(PLAY_COMPACT_QUERY);
+  const { keyboardOffset } = useVisualViewport();
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const gridHandle = useRef<PlayableGridHandle>(null);
+
+  // Closing the tools sheet returns focus to the grid's hidden input (so the
+  // soft keyboard comes back) without a scroll jump.
+  const closeTools = useCallback(() => {
+    setToolsOpen(false);
+    gridHandle.current?.focusInput();
+  }, []);
 
   const handleCheck = useCallback(() => {
     state.checkPuzzle();
@@ -128,7 +148,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   }, [activeClueNumber, state.isAcross, acrossClues, downClues]);
 
   return (
-    <div className="animate-fade-in">
+    // Bottom padding on compact widths reserves room so the grid + clue lists
+    // can scroll clear of the fixed PlayBar (which is out of normal flow).
+    <div className="animate-fade-in pb-24 lg:pb-0">
       {/* Completion — a quiet editorial moment, not a popup */}
       {state.isComplete && !state.revealedCells.size && (
         <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
@@ -279,6 +301,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
           {/* Interactive Grid */}
           <div className="flex justify-center lg:justify-start">
             <PlayableGrid
+              ref={gridHandle}
               puzzle={puzzle}
               userGrid={state.userGrid}
               selectedCell={state.selectedCell}
@@ -294,22 +317,15 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             />
           </div>
 
-          {/* Active clue — inline on desktop, pinned above the thumb zone on
-              phones so the clue stays visible while typing into the grid. */}
+          {/* Active clue — inline on desktop. On mobile/tablet the persistent
+              PlayBar (below, rendered at view root) shows the clue instead, so
+              it can ride above the soft keyboard. */}
           {activeClueText && (
-            <>
-              <div className="hidden lg:block mt-3 note">
-                <p className="text-sm text-ink">
-                  {activeClueText}
-                </p>
-              </div>
-              <div className="lg:hidden fixed bottom-3 inset-x-3 z-30 rounded-md border border-line
-                              border-l-2 border-l-rubric bg-card shadow-raise px-3 py-2 animate-slide-up">
-                <p className="text-sm text-ink">
-                  {activeClueText}
-                </p>
-              </div>
-            </>
+            <div className="hidden lg:block mt-3 note">
+              <p className="text-sm text-ink">
+                {activeClueText}
+              </p>
+            </div>
           )}
 
           {/* Screen reader clue announcement */}
@@ -341,6 +357,43 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
         </div>
         </div>
       </div>
+
+      {/* Mobile/tablet play chrome. Mounted only on compact widths so desktop
+          play is untouched. Rendered through a portal to <body> so the fixed
+          bar/sheet escape this view's animation/stacking contexts (otherwise
+          the grid can paint over them) and always sit above the page. The bar
+          lifts above the keyboard via transform. */}
+      {isCompact && createPortal(
+        <>
+          <PlayBar
+            clueText={activeClueText}
+            isAcross={state.isAcross}
+            keyboardOffset={keyboardOffset}
+            onToggleDirection={() => state.setIsAcross(!state.isAcross)}
+            onPrevClue={() => state.goToAdjacentClue('prev')}
+            onNextClue={() => state.goToAdjacentClue('next')}
+            onCheck={handleCheck}
+            onOpenTools={() => setToolsOpen(true)}
+          />
+          <PlayToolsSheet
+            open={toolsOpen}
+            onClose={closeTools}
+            hintsLeft={hintsLeft}
+            hintBudget={HINT_BUDGET}
+            hintsAvailable={hintsAvailable}
+            hasSelection={!!state.selectedCell}
+            hasChecked={state.checkedCells.size > 0}
+            onHintCell={state.hintCell}
+            onHintWord={state.hintWord}
+            onRevealAll={state.revealPuzzle}
+            onClearIncorrect={state.clearIncorrect}
+            onReset={state.resetPuzzle}
+            onUndo={state.undo}
+            onRedo={state.redo}
+          />
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

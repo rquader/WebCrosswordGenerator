@@ -38,6 +38,18 @@ export default defineConfig({
       },
     },
     {
+      // Tablet (~820px portrait) — the play redesign targets phone AND tablet,
+      // and the compact play UI shows below the 1024px desktop breakpoint.
+      name: 'tablet',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 820, height: 1180 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
+    {
       name: 'desktop',
       use: { ...devices['Desktop Chrome'] },
     },
