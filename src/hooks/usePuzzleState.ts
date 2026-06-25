@@ -227,16 +227,18 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     }
 
     const prevLetter = userGrid[y]?.[x] ?? '';
+    const upper = letter.toUpperCase();
 
     // Push to undo stack
-    undoStack.current.push({ x, y, prevLetter, newLetter: letter.toUpperCase() });
+    undoStack.current.push({ x, y, prevLetter, newLetter: upper });
     redoStack.current = []; // clear redo on new action
 
-    setUserGrid(prev => {
-      const newGrid = prev.map(row => [...row]);
-      newGrid[y][x] = letter.toUpperCase();
-      return newGrid;
-    });
+    // Build the post-keystroke grid once so we can both commit it and feed it
+    // to advanceCell — the "is the next cell empty" / "next unfilled clue"
+    // decision must see the letter we just typed, not the stale userGrid.
+    const gridAfter = userGrid.map(row => [...row]);
+    gridAfter[y][x] = upper;
+    setUserGrid(gridAfter);
 
     setCheckedCells(prev => {
       const next = new Map(prev);
@@ -244,7 +246,7 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
       return next;
     });
 
-    advanceCell(x, y);
+    advanceCell(x, y, gridAfter);
   }, [puzzle, selectedCell, isAcross, isTimerRunning, isComplete, userGrid]);
 
   // Delete the letter in the selected cell
@@ -370,66 +372,37 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     }
   }, [puzzle, selectedCell, isAcross, userGrid, isTimerRunning, isComplete, hintsUsed]);
 
-  function advanceCell(fromX: number, fromY: number) {
+  // Advance after typing a letter. The cursor stays INSIDE the current word —
+  // it never steps across a black cell into a neighbouring entry (that was
+  // bug B1). It lands on the next empty cell within the word; if there is no
+  // empty cell after this one, it jumps to the first empty cell of the next
+  // unfilled clue in numbering order (the user's chosen behaviour). The
+  // post-keystroke grid is passed in so the "is it filled" test reflects the
+  // letter we just wrote, not the stale userGrid.
+  function advanceCell(fromX: number, fromY: number, gridAfter: string[][]) {
     if (!puzzle) return;
-    let nextX = fromX;
-    let nextY = fromY;
-
-    if (isAcross) {
-      nextX++;
-      while (nextX < puzzle.width && puzzle.grid[nextY][nextX] === EMPTY_CELL) {
-        nextX++;
-      }
-      if (nextX < puzzle.width) {
-        setSelectedCell({ x: nextX, y: nextY });
-      }
-    } else {
-      nextY++;
-      while (nextY < puzzle.height && puzzle.grid[nextY][nextX] === EMPTY_CELL) {
-        nextY++;
-      }
-      if (nextY < puzzle.height) {
-        setSelectedCell({ x: nextX, y: nextY });
-      }
-    }
+    const target = nextCellAfterTyping(puzzle, gridAfter, isAcross, fromX, fromY);
+    if (!target) return; // everything full — leave the cursor put, no jump
+    setSelectedCell({ x: target.x, y: target.y });
+    if (target.isAcross !== isAcross) setIsAcross(target.isAcross);
   }
 
+  // Backspace on an already-empty cell steps back one cell WITHIN the current
+  // word (never across a black cell, never into a neighbouring entry) and
+  // clears it. At the word's first cell it stays put — no surprise jump (B1).
   function retreatCell(fromX: number, fromY: number) {
     if (!puzzle) return;
-    let prevX = fromX;
-    let prevY = fromY;
-
-    if (isAcross) {
-      prevX--;
-      while (prevX >= 0 && puzzle.grid[prevY][prevX] === EMPTY_CELL) {
-        prevX--;
-      }
-      if (prevX >= 0) {
-        setSelectedCell({ x: prevX, y: prevY });
-        undoStack.current.push({ x: prevX, y: prevY, prevLetter: userGrid[prevY]?.[prevX] ?? '', newLetter: '' });
-        redoStack.current = [];
-        setUserGrid(prev => {
-          const newGrid = prev.map(row => [...row]);
-          newGrid[prevY][prevX] = '';
-          return newGrid;
-        });
-      }
-    } else {
-      prevY--;
-      while (prevY >= 0 && puzzle.grid[prevY][prevX] === EMPTY_CELL) {
-        prevY--;
-      }
-      if (prevY >= 0) {
-        setSelectedCell({ x: prevX, y: prevY });
-        undoStack.current.push({ x: prevX, y: prevY, prevLetter: userGrid[prevY]?.[prevX] ?? '', newLetter: '' });
-        redoStack.current = [];
-        setUserGrid(prev => {
-          const newGrid = prev.map(row => [...row]);
-          newGrid[prevY][prevX] = '';
-          return newGrid;
-        });
-      }
-    }
+    const prev = prevCellForBackspace(puzzle, isAcross, fromX, fromY);
+    if (!prev) return; // at the word start — stay put
+    const { x: prevX, y: prevY } = prev;
+    setSelectedCell({ x: prevX, y: prevY });
+    undoStack.current.push({ x: prevX, y: prevY, prevLetter: userGrid[prevY]?.[prevX] ?? '', newLetter: '' });
+    redoStack.current = [];
+    setUserGrid(prevGrid => {
+      const newGrid = prevGrid.map(row => [...row]);
+      newGrid[prevY][prevX] = '';
+      return newGrid;
+    });
   }
 
   const moveSelection = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
@@ -457,6 +430,18 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
       setSelectedCell({ x, y });
     }
   }, [puzzle, selectedCell]);
+
+  // Select a cell AND force a direction in one deterministic call (B2). Used
+  // by clue-list / play-bar taps: tapping an "Across" clue must land on its
+  // start cell reading Across, even if that same cell was the selected Down
+  // cell a moment ago. The old code called selectCell twice and read a stale
+  // isAcross, so the toggle semantics could misfire (audit P8). Here the
+  // direction is set outright — no toggle, no stale read, no double-dispatch.
+  const selectCellWithDirection = useCallback((x: number, y: number, across: boolean) => {
+    if (!puzzle || puzzle.grid[y][x] === EMPTY_CELL) return;
+    setSelectedCell({ x, y });
+    setIsAcross(across);
+  }, [puzzle]);
 
   const checkPuzzle = useCallback(() => {
     if (!puzzle) return;
@@ -585,6 +570,7 @@ export function usePuzzleState(puzzle: CrosswordResult | null) {
     deleteLetter,
     moveSelection,
     selectCell,
+    selectCellWithDirection,
     deselectCell,
     setIsAcross,
     checkPuzzle,
@@ -705,4 +691,114 @@ function countTotalCells(puzzle: CrosswordResult): number {
     }
   }
   return count;
+}
+
+/** A clue flattened to its cell run + direction, for ordered traversal. */
+interface OrderedClue {
+  number: number;
+  isAcross: boolean;
+  cells: CellPosition[];
+}
+
+/**
+ * All clues in solving order: by number, Across before Down within a number
+ * (the order assignNumbers lists them). Each carries its cell run so callers
+ * can scan for gaps without re-deriving geometry.
+ */
+function orderedClues(puzzle: CrosswordResult): OrderedClue[] {
+  const { acrossClues, downClues } = assignNumbers(
+    puzzle.wordLocations,
+    puzzle.width,
+    puzzle.height,
+  );
+  const toOrdered = (c: { number: number; x: number; y: number; isHorizontal: boolean; word: string }): OrderedClue => ({
+    number: c.number,
+    isAcross: c.isHorizontal,
+    cells: c.isHorizontal
+      ? Array.from({ length: c.word.length }, (_, i) => ({ x: c.x + i, y: c.y }))
+      : Array.from({ length: c.word.length }, (_, i) => ({ x: c.x, y: c.y + i })),
+  });
+  const all = [...acrossClues.map(toOrdered), ...downClues.map(toOrdered)];
+  // Sort by number, then Across (true) before Down (false).
+  all.sort((a, b) => (a.number - b.number) || (a.isAcross === b.isAcross ? 0 : a.isAcross ? -1 : 1));
+  return all;
+}
+
+/**
+ * Starting AFTER the current clue (the one containing (fromX, fromY) in the
+ * current direction) and wrapping around, find the first clue that still has
+ * an empty cell, and return that clue's first empty cell plus its direction.
+ * Returns null when every clue is full. This is the "jump to the next
+ * unfilled clue at word end" target (B1).
+ */
+export function firstEmptyCellOfNextUnfilledClue(
+  puzzle: CrosswordResult,
+  grid: string[][],
+  fromAcross: boolean,
+  fromX: number,
+  fromY: number,
+): { x: number; y: number; isAcross: boolean } | null {
+  const clues = orderedClues(puzzle);
+  if (clues.length === 0) return null;
+
+  // Index of the current clue (matched by direction + containing the cell).
+  const currentIdx = clues.findIndex(
+    (c) => c.isAcross === fromAcross && c.cells.some((cell) => cell.x === fromX && cell.y === fromY),
+  );
+  const start = currentIdx === -1 ? 0 : currentIdx + 1;
+
+  for (let step = 0; step < clues.length; step++) {
+    const clue = clues[(start + step) % clues.length];
+    for (const { x, y } of clue.cells) {
+      if ((grid[y]?.[x] ?? '') === '') {
+        return { x, y, isAcross: clue.isAcross };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Where the cursor goes after typing into (fromX, fromY) — the pure core of
+ * advanceCell (B1). It stays inside the current word: the next empty cell
+ * later in the word, else the first gap of the next unfilled clue, else null
+ * (everything full → cursor stays put). NEVER returns a black cell and never
+ * a cell in a neighbouring entry reached by stepping over a block.
+ *
+ * @param grid  the grid AFTER the keystroke (so the just-typed cell reads filled)
+ */
+export function nextCellAfterTyping(
+  puzzle: CrosswordResult,
+  grid: string[][],
+  isAcross: boolean,
+  fromX: number,
+  fromY: number,
+): { x: number; y: number; isAcross: boolean } | null {
+  const wordCells = getWordCellsAt(puzzle, fromX, fromY, isAcross);
+  const idx = wordCells.findIndex((c) => c.x === fromX && c.y === fromY);
+
+  for (let i = idx + 1; i < wordCells.length; i++) {
+    const { x, y } = wordCells[i];
+    if ((grid[y]?.[x] ?? '') === '') {
+      return { x, y, isAcross };
+    }
+  }
+  return firstEmptyCellOfNextUnfilledClue(puzzle, grid, isAcross, fromX, fromY);
+}
+
+/**
+ * Where backspace-on-empty moves — the pure core of retreatCell (B1). One
+ * cell back WITHIN the current word; null at the word's first cell (stay put,
+ * no jump). Never crosses a black cell into a neighbouring entry.
+ */
+export function prevCellForBackspace(
+  puzzle: CrosswordResult,
+  isAcross: boolean,
+  fromX: number,
+  fromY: number,
+): CellPosition | null {
+  const wordCells = getWordCellsAt(puzzle, fromX, fromY, isAcross);
+  const idx = wordCells.findIndex((c) => c.x === fromX && c.y === fromY);
+  if (idx <= 0) return null;
+  return wordCells[idx - 1];
 }

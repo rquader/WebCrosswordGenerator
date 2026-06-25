@@ -330,23 +330,13 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             title="Across"
             clues={acrossClues}
             activeNumber={state.isAcross ? activeClueNumber : null}
-            onClueClick={(clue) => {
-              state.selectCell(clue.x, clue.y);
-              if (!state.isAcross) {
-                state.selectCell(clue.x, clue.y);
-              }
-            }}
+            onClueClick={(clue) => state.selectCellWithDirection(clue.x, clue.y, true)}
           />
           <PlayClueList
             title="Down"
             clues={downClues}
             activeNumber={!state.isAcross ? activeClueNumber : null}
-            onClueClick={(clue) => {
-              state.selectCell(clue.x, clue.y);
-              if (state.isAcross) {
-                state.selectCell(clue.x, clue.y);
-              }
-            }}
+            onClueClick={(clue) => state.selectCellWithDirection(clue.x, clue.y, false)}
           />
         </div>
         </div>
