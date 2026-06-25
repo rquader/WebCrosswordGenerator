@@ -421,6 +421,87 @@ const PORTUGUESE: string[] = [
   'traveco',
 ];
 
+/**
+ * Exact-word appropriateness blocklist for the AI-fill paths (skeleton-first
+ * "Fill with AI" + Build-Your-Own-Grid). A pasted AI pool can contain a mild
+ * but classroom-inappropriate word (the observed case: "ASS") that the
+ * dictionary-less parser happily accepts and the solver then places into a
+ * student's puzzle. This list scrubs the AI pool (and, defensively, any bank
+ * filler) BEFORE solving — see scrubInappropriateWords.
+ *
+ * CRITICAL — matching is EXACT WHOLE WORD, never substring. The word-search
+ * filter above scans random filler by substring (so "ass" inside "grass" just
+ * re-randomizes a throwaway cell, harmlessly); here we are filtering REAL
+ * placed answers, so a substring rule would wrongly drop legitimate words —
+ * "grass", "class", "glass", "compass", "assemble", "passage", "bassoon",
+ * "hello", "shell", … all contain a blocked substring. Only the exact word is
+ * blocked, so those survive.
+ *
+ * Scope is deliberately TIGHT: the everyday-but-inappropriate terms a model
+ * might list for an innocent topic and that would slip past the substring
+ * scanner because they are short or innocuous-looking. Heavier profanity and
+ * slurs are already covered by the per-language lists above (the AI-fill scrub
+ * also checks those as whole words). Add only classroom-clear cases; when in
+ * doubt, leave it out — over-blocking removes real vocabulary.
+ *
+ * Entries are lowercase, single words, deduped at use.
+ */
+const AI_FILL_EXACT_BLOCK: string[] = [
+  'ass',
+  'asses',
+  'arse',
+  'crap',
+  'damn',
+  'darn',
+  'hell',
+  'turd',
+  'fart',
+  'butt',
+  'booty',
+  'sucks',
+];
+
+/**
+ * The exact-word appropriateness blocklist for AI-fill: the tight exact-word
+ * set above, unioned with the ENGLISH profanity/slur list and (when given) the
+ * puzzle's own language list.
+ *
+ * Why NOT every language unconditionally (unlike the word-search filler scrub):
+ * here we filter REAL placed answers, and several non-English profanity entries
+ * are innocent everyday words in English — "bite" (French), "mear" (Spanish),
+ * "fica"/"figa" (Italian), "pene" (Spanish). Unioning all languages would drop
+ * them from an English pool by exact match. So we always include English, plus
+ * the selected language, which protects a Spanish/French/… puzzle without
+ * harming an English one. Lowercase, deduped. Whole-word equality only — never
+ * substring (see isInappropriateWord).
+ */
+export function getAiFillBlocklist(language?: PuzzleLanguage): Set<string> {
+  const set = new Set<string>(AI_FILL_EXACT_BLOCK);
+  for (const word of ENGLISH) set.add(word.toLowerCase());
+  if (language && language !== 'english') {
+    for (const word of BLOCKLISTS[language] ?? []) set.add(word.toLowerCase());
+  }
+  return set;
+}
+
+/**
+ * Is this word inappropriate for a classroom puzzle? EXACT whole-word match
+ * (case-insensitive) against the AI-fill blocklist — never a substring test, so
+ * legitimate words that merely contain a blocked run ("grass", "class",
+ * "assemble", "shell", …) are NOT blocked. Empty/whitespace returns false.
+ *
+ * Pass a prebuilt `blocklist` (from getAiFillBlocklist) when scrubbing many
+ * words so the set is built once; otherwise it is built per call.
+ */
+export function isInappropriateWord(
+  word: string,
+  blocklist: Set<string> = getAiFillBlocklist(),
+): boolean {
+  const w = word.trim().toLowerCase();
+  if (w.length === 0) return false;
+  return blocklist.has(w);
+}
+
 /** Per-language lists, kept separate for maintainability. */
 export const BLOCKLISTS: Record<PuzzleLanguage, string[]> = {
   english: ENGLISH,

@@ -20,8 +20,19 @@
 
 import type { SkeletonSlot, WordCluePair } from './types';
 import type { SlotIntersection } from './gridSkeleton';
-import { getWordBankByExactLength } from './wordBank';
+import { getWordBankByExactLength, WORD_BANK } from './wordBank';
+import { getAiFillBlocklist, isInappropriateWord } from '../data/blocklist';
+import type { PuzzleLanguage } from './language';
 import { SeededRandom } from './seedRandom';
+
+/**
+ * The curated word bank as a lowercase set, built once. Used as the commonness
+ * signal for pool words: a pasted AI word that ALSO appears in the curated bank
+ * is provably common, everyday English (the bank's whole charter — see
+ * wordBank.ts), so it is preferred over an obscure pool word of the same length
+ * (CAT/BEAR over YAK/GNU). Cheap membership test, no per-call rebuild.
+ */
+const BANK_WORD_SET: Set<string> = new Set(WORD_BANK.map(w => w.toLowerCase()));
 
 /**
  * Backtracking node budget. Each attempt to place one word into one slot counts
@@ -35,10 +46,25 @@ const MAX_NODES = 200000;
 /** A word placed into a slot, with the clue to show for it. */
 type Assignment = { word: string; clue: string };
 
+/**
+ * Selection tier for a candidate — the solver tries lower tiers FIRST and only
+ * falls to a higher tier when no lower-tier word fits a slot. This is what makes
+ * the fill prefer the AI's pool over the generic bank, and common pool words
+ * over obscure ones:
+ *   0 = pool word that is ALSO in the curated bank  (on-topic AND common)
+ *   1 = pool word not in the bank                   (on-topic, possibly obscure)
+ *   2 = curated word-bank word                      (generic, last-resort gap-fill)
+ * Ordering is strict ACROSS tiers (a tier-2 bank word never precedes any fitting
+ * tier-0/1 pool word); the seeded tie-shuffle only ever reorders WITHIN a tier.
+ */
+type CandidateTier = 0 | 1 | 2;
+
 /** A candidate word plus the clue to carry if it is placed ('' for word-bank). */
 interface Candidate {
   word: string;
   clue: string;
+  /** Selection tier (see CandidateTier): lower wins, shuffle stays within tier. */
+  tier: CandidateTier;
 }
 
 export function fillGrid(options: {
@@ -68,6 +94,11 @@ export function fillGrid(options: {
    * an on-topic word fits the crossings. Lowercased to match candidate words.
    */
   preferredWords?: Set<string>;
+  /**
+   * Puzzle language — selects which profanity/slur list (beyond the always-on
+   * English + exact set) the appropriateness scrub uses. Defaults to English.
+   */
+  language?: PuzzleLanguage;
   /** Determinism seed; only breaks ties (perturbs per-slot candidate order). */
   seed?: number;
 }): {
@@ -76,13 +107,24 @@ export function fillGrid(options: {
   /** Slots left blank because the pool/bank could not satisfy their crossings. */
   unfilledSlotIds: number[];
 } {
-  const { slots, pool, locked, includeWordBank = false, preferredWords, seed = 0 } = options;
+  const { slots, pool, locked, includeWordBank = false, preferredWords, language, seed = 0 } = options;
   // intersections is part of the contract; crossings are enforced cell-by-cell
   // through the shared virtual grid below, so we do not need to index it here.
   void options.intersections;
 
+  // Appropriateness scrub set, built once: a word matching it (EXACT whole word,
+  // case-insensitive) is classroom-inappropriate and is dropped from BOTH the AI
+  // pool and any bank filler before it can be placed. "ass" never reaches a
+  // puzzle; "grass"/"class" are untouched (never substring — see blocklist.ts).
+  const blocklist = getAiFillBlocklist(language);
+
+  // Pool-word tier: 0 when the word is also in the curated bank (common), else 1.
+  // (Bank-sourced candidates are always tier 2; assigned where they're added.)
+  const poolTier = (word: string): CandidateTier => (BANK_WORD_SET.has(word) ? 0 : 1);
+
   // Preferred per-slot candidates (AI picks), normalized once: lowercased,
-  // deduped within a slot, clue preserved. Tried first by matchingCandidates.
+  // deduped within a slot, clue preserved, inappropriate words dropped, tiered
+  // by commonness. Tried first by matchingCandidates.
   const prefsBySlot = new Map<number, Candidate[]>();
   if (options.slotCandidates) {
     for (const [slotId, list] of options.slotCandidates) {
@@ -91,8 +133,9 @@ export function fillGrid(options: {
       for (const { word, clue } of list) {
         const w = word.toLowerCase();
         if (seenPref.has(w)) continue;
+        if (isInappropriateWord(w, blocklist)) continue;
         seenPref.add(w);
-        out.push({ word: w, clue });
+        out.push({ word: w, clue, tier: poolTier(w) });
       }
       if (out.length > 0) prefsBySlot.set(slotId, out);
     }
@@ -102,26 +145,35 @@ export function fillGrid(options: {
   if (slots.length === 0) return { assignments, unfilledSlotIds: [] };
 
   // --- Build candidate lists grouped by length -----------------------------
-  // Pool words come first (best-first order preserved), then word-bank words as
-  // clue-less fallback. Case-insensitive dedupe across BOTH sources: the first
-  // occurrence of a word wins (so a pool word with a real clue beats the same
-  // word from the bank). Words are stored lowercase - slots match lowercase.
+  // Pool words are added first (best-first order preserved), then word-bank words
+  // as clue-less fallback. Each candidate is TIERED (see CandidateTier): a pool
+  // word that is also a common bank word = tier 0, a pool word that is not =
+  // tier 1, a bank word = tier 2. The tier — not mere insertion order — is what
+  // matchingCandidates sorts on, so the AI's pool is always preferred over the
+  // generic bank and common pool words over obscure ones. Inappropriate words
+  // (exact-word blocklist) are dropped here so they never become candidates.
+  // Case-insensitive dedupe across BOTH sources: the first occurrence wins (so a
+  // pool word with a real clue beats the same word from the bank, and keeps its
+  // lower tier). Words are stored lowercase - slots match lowercase.
   const candidatesByLength = new Map<number, Candidate[]>();
   const seenWords = new Set<string>();
-  const addCandidate = (rawWord: string, clue: string) => {
+  const addCandidate = (rawWord: string, clue: string, tier: CandidateTier) => {
     const word = rawWord.toLowerCase();
     if (seenWords.has(word)) return;
+    if (isInappropriateWord(word, blocklist)) return;
     seenWords.add(word);
+    const cand: Candidate = { word, clue, tier };
     const list = candidatesByLength.get(word.length);
-    if (list) list.push({ word, clue });
-    else candidatesByLength.set(word.length, [{ word, clue }]);
+    if (list) list.push(cand);
+    else candidatesByLength.set(word.length, [cand]);
   };
-  for (const entry of pool) addCandidate(entry.word, entry.clue);
+  for (const entry of pool) addCandidate(entry.word, entry.clue, poolTier(entry.word.toLowerCase()));
   if (includeWordBank) {
-    // Only the lengths we actually need; bank words carry no clue (filled later).
+    // Only the lengths we actually need; bank words carry no clue (filled later)
+    // and are always tier 2 (last-resort generic gap-fill).
     const neededLengths = new Set(slots.map(s => s.length));
     for (const length of neededLengths) {
-      for (const word of getWordBankByExactLength(length)) addCandidate(word, '');
+      for (const word of getWordBankByExactLength(length)) addCandidate(word, '', 2);
     }
   }
 
@@ -175,14 +227,10 @@ export function fillGrid(options: {
     return true;
   };
 
-  // Candidates of the right length that fit the slot now and are unused. The
-  // base list keeps best-first pool order; a per-slot seeded shuffle then breaks
-  // ties reproducibly so fills do not all cluster on the same early words while
-  // staying deterministic for a given seed.
-  // Float topic-preferred words to the front of a candidate list, preserving
-  // order within the preferred and non-preferred groups. A soft bias only: it
-  // reorders, never drops, so the fill rate is untouched — it just steers the
-  // generic filler toward the topic when an on-topic word also fits.
+  // Float topic-preferred words to the front of a list, preserving order within
+  // the preferred and non-preferred groups. A soft bias only: it reorders, never
+  // drops. Applied WITHIN a single tier (below), so it steers the choice of
+  // filler toward the topic without ever promoting a word past a lower tier.
   const floatPreferred = (list: Candidate[]): Candidate[] => {
     if (!preferredWords || preferredWords.size === 0) return list;
     const pref: Candidate[] = [];
@@ -191,25 +239,45 @@ export function fillGrid(options: {
     return pref.length === 0 ? list : [...pref, ...other];
   };
 
+  // Order a fitting-candidate list by tier, lowest first (0 = common pool word,
+  // 1 = obscure pool word, 2 = bank), so the AI's pool is exhausted before any
+  // bank word is tried and common pool words come before obscure ones. The
+  // seeded tie-shuffle and the topic-preferred float both apply WITHIN a tier
+  // only — they break ties and steer filler reproducibly without ever moving a
+  // word across tiers. Determinism: same (seed, slot id, tier members) => same
+  // order. The base list is already best-first per tier, so a stable bucket pass
+  // preserves the AI's return order when seed is 0.
+  const orderByTier = (slot: SkeletonSlot, fitting: Candidate[]): Candidate[] => {
+    const buckets: [Candidate[], Candidate[], Candidate[]] = [[], [], []];
+    for (const c of fitting) buckets[c.tier].push(c);
+    const out: Candidate[] = [];
+    for (let tier = 0; tier < buckets.length; tier++) {
+      const bucket = buckets[tier];
+      if (seed !== 0 && bucket.length > 1) {
+        // Stable, slot+tier-scoped perturbation: same seed + slot id => same order.
+        const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
+        rng.shuffle(bucket);
+      }
+      out.push(...floatPreferred(bucket));
+    }
+    return out;
+  };
+
   const matchingCandidates = (slot: SkeletonSlot): Candidate[] => {
     const base = candidatesByLength.get(slot.length) ?? [];
     const prefs = prefsBySlot.get(slot.id);
 
     if (!prefs || prefs.length === 0) {
-      // No per-slot preferences: original behavior (seeded shuffle), then float
-      // any topic-preferred words to the front.
+      // No per-slot preferences: tier-ordered fitting candidates (pool before
+      // bank, common before obscure), tie-shuffled and topic-floated per tier.
       const fitting = base.filter(c => !usedWords.has(c.word) && candidateFits(slot, c.word));
-      if (seed !== 0 && fitting.length > 1) {
-        // Stable, slot-scoped perturbation: same seed + slot id => same order.
-        const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
-        rng.shuffle(fitting);
-      }
-      return floatPreferred(fitting);
+      return orderByTier(slot, fitting);
     }
 
-    // Preferences first, IN ORDER (best-first, never shuffled), then the rest of
-    // the fitting pool/bank words with a stable seeded shuffle. A pref word that
-    // also appears in the base list is kept only once (the pref carries its clue).
+    // Per-slot AI picks first, IN ORDER (best-first, never shuffled — the AI
+    // chose these for this exact slot). Then the rest of the fitting pool/bank
+    // words, tier-ordered. A pref word that also appears in the base list is kept
+    // only once (the pref carries its clue).
     const chosen = new Set<string>();
     const front: Candidate[] = [];
     for (const c of prefs) {
@@ -221,13 +289,7 @@ export function fillGrid(options: {
     const rest = base.filter(
       c => !usedWords.has(c.word) && !chosen.has(c.word) && candidateFits(slot, c.word),
     );
-    if (seed !== 0 && rest.length > 1) {
-      const rng = new SeededRandom((seed * 2654435761 + slot.id) | 0);
-      rng.shuffle(rest);
-    }
-    // AI per-slot picks stay first (they're already on-topic); topic-preferred
-    // words float to the front of the remaining pool/bank fill.
-    return [...front, ...floatPreferred(rest)];
+    return [...front, ...orderByTier(slot, rest)];
   };
 
   // How constrained a slot is right now: fewer fitting candidates = fill sooner.
@@ -244,12 +306,28 @@ export function fillGrid(options: {
   // smaller id). At each slot we try its fitting candidates in order, committing
   // letters and recursing, undoing on backtrack. If a slot has no candidate it
   // is left blank (best-effort) and the search proceeds to the rest - an empty
-  // slot never blocks its crossings. We remember the best (most-filled) leaf and
-  // stop early on a full fill or when the node budget is spent.
+  // slot never blocks its crossings.
+  //
+  // LEAF OBJECTIVE — we keep the BEST leaf by a lexicographic score: first the
+  // number of AI-POOL words placed (tier < 2), then the total number of slots
+  // filled. Maximizing pool usage first is the whole point of the fix: tier
+  // ordering alone only changes try-ORDER, but the search would still keep a
+  // bank-heavy leaf because the bank can fill MORE slots, so a fill-only
+  // objective discards pool-rich paths. Tie-breaking by total fill keeps the
+  // "complete the grid" contract: among equally on-topic leaves we still take
+  // the fullest. (When the pool is sufficient — usually true — pool-first costs
+  // little or no fill; when it is scarce a few more cells may stay blank, the
+  // documented on-topic-vs-always-fills tradeoff.)
   const fillable = slots.filter(s => !lockedSlotIds.has(s.id));
   const chosen = new Map<number, Candidate>(); // current path: slotId -> candidate
-  let bestChosen = new Map<number, Candidate>(); // best leaf so far
+  let bestChosen = new Map<number, Candidate>(); // best leaf so far (by score)
+  let bestScore: [number, number] = [-1, -1]; // [poolWords, filled] of bestChosen
   let nodes = 0;
+
+  // Pool words (tier 0/1) in the current path — the primary half of the score.
+  let poolInPath = 0;
+  // Lexicographic score of the current path: [pool words, slots filled].
+  const pathScore = (): [number, number] => [poolInPath, chosen.size];
 
   const writeWord = (slot: SkeletonSlot, word: string) => {
     for (let i = 0; i < slot.length; i++) letters.set(cellKey(slot, i), word[i]);
@@ -288,26 +366,37 @@ export function fillGrid(options: {
   };
 
   const search = (): boolean => {
-    // Record the best (most-filled) leaf seen on any path.
-    if (chosen.size > bestChosen.size) bestChosen = new Map(chosen);
-    if (chosen.size === fillable.length) return true; // everything filled - done
+    // Record the best leaf by lexicographic score [pool words, slots filled].
+    const score = pathScore();
+    if (score[0] > bestScore[0] || (score[0] === bestScore[0] && score[1] > bestScore[1])) {
+      bestScore = score;
+      bestChosen = new Map(chosen);
+    }
+    // The theoretical optimum: every slot filled AND every one from the pool —
+    // no leaf can beat it, so stop. (A full fill that still uses bank words is
+    // NOT a stopping point: a more pool-rich leaf may exist, so keep searching
+    // until the budget bounds it.)
+    if (chosen.size === fillable.length && poolInPath === fillable.length) return true;
     if (nodes >= MAX_NODES) return false; // budget spent - keep best partial
 
     const slot = pickNextSlot();
-    if (!slot) return chosen.size === fillable.length;
+    if (!slot) return false;
 
-    // Branch 1: try each fitting candidate, best-first.
+    // Branch 1: try each fitting candidate, best-first (tier-ordered: pool before
+    // bank, common before obscure).
     for (const cand of matchingCandidates(slot)) {
       nodes++;
       const restore = Array.from({ length: slot.length }, (_, i) => letters.get(cellKey(slot, i)));
       writeWord(slot, cand.word);
       chosen.set(slot.id, cand);
+      if (cand.tier < 2) poolInPath++;
       usedWords.add(cand.word);
       decided.add(slot.id);
       if (search()) return true;
       // backtrack
       decided.delete(slot.id);
       usedWords.delete(cand.word);
+      if (cand.tier < 2) poolInPath--;
       chosen.delete(slot.id);
       eraseWord(slot, restore);
       if (nodes >= MAX_NODES) break;
@@ -315,9 +404,9 @@ export function fillGrid(options: {
 
     // Branch 2: leave this slot blank and continue (best-effort partial fill).
     decided.add(slot.id);
-    const done = search();
+    search();
     decided.delete(slot.id);
-    return done;
+    return false;
   };
 
   search();

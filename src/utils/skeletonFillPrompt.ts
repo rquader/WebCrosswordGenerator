@@ -910,6 +910,9 @@ export function fillSkeletonFromResponse(options: {
     pool: parse.pool,
     slotCandidates: parse.slotCandidates,
     preferredWords,
+    // Scrub the AI pool + bank filler against the appropriateness blocklist in
+    // the puzzle's language (exact-word) so no inappropriate word is placed.
+    language,
     seed,
   });
 

@@ -22,6 +22,7 @@
 
 import type { SkeletonSlot, WordCluePair } from './types';
 import type { SlotIntersection } from './gridSkeleton';
+import type { PuzzleLanguage } from './language';
 import { fillGrid } from './gridFill';
 
 /** Empty-cell sentinel, matching the rest of the grid code. */
@@ -103,13 +104,15 @@ export function solveSkeletonFill(options: {
    * excludes). Lets generic filler lean toward the puzzle's theme.
    */
   preferredWords?: Set<string>;
+  /** Puzzle language — selects the appropriateness scrub's language list. */
+  language?: PuzzleLanguage;
   /** Determinism seed; only breaks ties inside the solver. */
   seed?: number;
 }): {
   assignments: Map<number, { word: string; clue: string }>;
   unfilledSlotIds: number[];
 } {
-  const { slots, intersections, locked, pool, slotCandidates, preferredWords, seed = 0 } = options;
+  const { slots, intersections, locked, pool, slotCandidates, preferredWords, language, seed = 0 } = options;
   return fillGrid({
     slots,
     intersections,
@@ -117,6 +120,7 @@ export function solveSkeletonFill(options: {
     locked,
     slotCandidates,
     preferredWords,
+    language,
     // Always complete the grid with the curated bank so the user lands on a
     // plausible, fully filled puzzle to edit (unfillable slots stay blank).
     includeWordBank: true,
