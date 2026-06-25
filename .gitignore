@@ -43,3 +43,7 @@ coverage/
 
 # Claude Code config
 CLAUDE.md
+.claude/settings.local.json
+
+# Local scratch harnesses (BYOG scoring, debug traces — not for the repo)
+scratchpad/
