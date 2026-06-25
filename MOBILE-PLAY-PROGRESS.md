@@ -26,7 +26,15 @@ Mobile/tablet bottom UI gated by viewport/`pointer:coarse`; desktop play unchang
       - B2: added `selectCellWithDirection(x,y,across)` — sets cell AND direction outright (no toggle,
         no stale `isAcross` read). Clue-list taps in PlayTab now use it (was a fragile double-`selectCell`).
       - Files: `src/hooks/usePuzzleState.ts`, `src/components/tabs/PlayTab.tsx`, `tests/unit/playState.test.ts`.
-- [ ] **2. Keyboard-aware infra** — `useVisualViewport` hook + `interactive-widget=resizes-content` meta.
+- [x] **2. Keyboard-aware infra** — DONE. 670 tests, build 0, tsc clean, e2e green.
+      - `index.html` viewport meta now has `interactive-widget=resizes-content` (kept pinch-zoom;
+        the P2 e2e still passes — no `user-scalable=no`/`maximum-scale`).
+      - `src/hooks/useVisualViewport.ts`: reports `keyboardOffset` (px the keyboard occludes at the
+        layout-viewport bottom = `innerHeight - (vv.height + vv.offsetTop)`), feature-detected,
+        rAF-throttled, loop-guarded (only setState on a changed rounded value), 24px jitter floor.
+        Step 3 applies it as `translateY(-offset)` — compositor transform, never layout reflow.
+      - `src/hooks/useMediaQuery.ts` + `PLAY_COMPACT_QUERY` (max-width 1023 → below desktop `lg`) and
+        `PLAY_TABLET_QUERY` (768–1023) so the bar/sheet/tablet-toolbar agree and never mount on desktop.
 - [ ] **3. Play bar UI** — clue dock (clue + ‹› + Across⇄Down chip + Check + ⋯Tools), transform-positioned.
 - [ ] **4. Active-cell scroll-into-view** (P3) via `cellRefs`, scoped to grid container.
 - [ ] **5. Tools bottom sheet** (Reveal/Clear/Undo-Redo; ADR-6 budget) + Check summary note (P10).

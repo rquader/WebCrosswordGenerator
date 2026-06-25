@@ -4,7 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- interactive-widget=resizes-content: when the soft keyboard opens, the
+         layout viewport shrinks (rather than the keyboard floating over the
+         page). This lets the keyboard-aware play bar ride above the keyboard
+         and scrollIntoView keep the active cell visible. Pinch-zoom stays on
+         (no user-scalable=no / maximum-scale) — the fit-to-width grid relies
+         on it as an escape hatch. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="description" content="Generate, play, and print crossword puzzles — fully private, runs entirely in your browser." />
     <meta name="theme-color" content="#1b1714" />
     <title>Crossword Generator</title>
