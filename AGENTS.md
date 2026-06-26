@@ -1,7 +1,7 @@
 # CrosswordGen — Puzzle Studio
 
 Fully client-side crossword/word-search generator + player. Ported from a Java Swing app.
-TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~19,000 LOC, 652 tests.
+TypeScript + React + Vite + Tailwind. Hosted on GitHub Pages. ~19,000 LOC, 681 tests.
 
 Target audience: teachers creating puzzles from their own word lists.
 Everything runs in the browser — zero server, zero tracking.
@@ -10,7 +10,7 @@ Everything runs in the browser — zero server, zero tracking.
 ```bash
 npm run dev          # Dev server at http://localhost:5173
 npm run build        # Type-check (tsc) + production build to dist/
-npm run test         # Run all Vitest unit tests (652 currently)
+npm run test         # Run all Vitest unit tests (681 currently)
 npm run test:watch   # Tests in watch mode
 npm run deploy       # Build + push to gh-pages branch (GitHub Pages)
 ```
