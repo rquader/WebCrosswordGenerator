@@ -3,17 +3,21 @@
 Source of truth: `WebCrosswordGeneratorNotes/Phase 17 - Mobile Play Redesign Spec (Crossword).md`
 Resume by: **Obsidian `Index.md` (Session 16 Track A section)** → this file → `git log`.
 
-**Last updated:** 2026-06-25 (session continuation — Steps 4–6 committed, verified green).
+**Last updated:** 2026-06-26 (PUSHED — Steps 1–6 live on origin/master; device check gates the v7.1.0 tag).
 
 ## Verified baseline
 
 | Check | Result |
 |-------|--------|
-| `npm test` | 675 passed (39 files) |
+| `npm test` | 681 passed (39 files) |
 | `npm run build` | exit 0 |
 | `npx playwright test` | 32 passed, 13 skipped |
-| HEAD (committed) | `83db7d8` (Step 6) |
-| Ahead of origin | 11 commits, not pushed |
+| `origin/master` HEAD | `c83a5ad` (Steps 1–6 + Track B AI-fill, pushed; CI deploying) |
+| Ahead of origin | 0 — all pushed |
+
+Steps 1–6 (all P1–P10 functional items) are on the live site. **The only blocker before tagging v7.1.0 is
+the human real-device check** — see the device-check list below and [[Phase 17 - Session 16 LIVE HANDOFF]].
+Steps 7 (tablet) + 8 (polish) are deferred refinements, not blockers.
 
 Scope: mobile/tablet **crossword play only**. Word-search + generation/preview grids untouched.
 Gated by `PLAY_COMPACT_QUERY` `(max-width: 1023px)` — spec also mentions `pointer:coarse`; width-only for now.
