@@ -231,7 +231,8 @@ describe('buildSkeletonFillPrompt (Variant J flat-pool)', () => {
     });
     expect(prompt).toContain('SINGLE WORDS ONLY');
     expect(prompt.toLowerCase()).toContain('multi-word');
-    expect(prompt).toContain('Reign of Terror'); // the worked example
+    expect(prompt).toContain('ice hockey'); // the worked example (classroom-neutral)
+    expect(prompt).toContain('ASSEMBLY');
     expect(prompt.toLowerCase()).toContain('never run the words together');
   });
 

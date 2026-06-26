@@ -134,7 +134,7 @@ export function buildSkeletonFillPrompt(options: {
     // terms: the single-word fill drops a multi-word phrase, and a model that
     // tries to keep it tends to RUN THE WORDS TOGETHER (the FREEKKICK failure).
     // Steer it to a real single word instead — reinforces no-concatenation.
-    lines.push('- If a key idea is a multi-word phrase, give its most relevant SINGLE real word instead (for "Reign of Terror" use TERROR; for "National Assembly" use ASSEMBLY) — never run the words together.');
+    lines.push('- If a key idea is a multi-word phrase, give its most relevant SINGLE real word instead (for "ice hockey" use HOCKEY; for "National Assembly" use ASSEMBLY) — never run the words together.');
   }
   if (!allowProperNouns) {
     lines.push('- No proper nouns (specific people, places, brands, teams).');
