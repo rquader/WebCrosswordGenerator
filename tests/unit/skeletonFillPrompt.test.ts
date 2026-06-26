@@ -1527,3 +1527,45 @@ COMMENT: Words drawn from revolution, monarchy, and broader political and social
     expect(onTopicPlaced).toBeGreaterThanOrEqual(ceiling);
   });
 });
+
+/**
+ * Robustness for OUTLYING / abstract topics (e.g. "French Revolution") whose
+ * replies are messier than the easy "animals" case: weak models slip in accents
+ * the prompt asked them to drop, and use an em-dash instead of the "|" separator
+ * in the unlabeled flat pool. Both used to silently lose a real on-topic word.
+ */
+describe('parser robustness — abstract-topic reply shapes', () => {
+  const { mask, width, height } = maskFromRows(['.....']); // 1x5, one 5-slot
+  const { slots } = deriveSlotsFromBlockMask(mask, width, height);
+  const intersections = computeIntersections(slots);
+  const poolWords = (text: string, language?: 'english' | 'spanish') =>
+    parseSkeletonFillResponse(text, { slots, intersections, language }).pool.map(p => p.word);
+
+  it('accepts an em-dash separator on an unlabeled pool line (inside a fence)', () => {
+    // A real reply mixes "|" lines with the occasional em-dash slip. The fence is
+    // detected via the pipe line; the em-dash line must NOT be lost.
+    const text = '```\nKING | A male ruler\nGUILLOTINE — A machine for beheading\n```';
+    expect(poolWords(text)).toEqual(expect.arrayContaining(['KING', 'GUILLOTINE']));
+  });
+
+  it('folds an accented word to the ASCII charset for an accent-free language', () => {
+    // The prompt asks for plain form ("ELEVE"); a weak model sends "ÉMIGRÉ".
+    // English/French/etc. (extraLetters = '') should keep it as EMIGRE, not drop it.
+    const text = '```\nKING | A male ruler\nÉMIGRÉ | A person who fled the country\n```';
+    expect(poolWords(text)).toContain('EMIGRE');
+  });
+
+  it('does NOT flatten accents for a language whose charset keeps them (Spanish)', () => {
+    const text = '```\nREY | Un monarca masculino\nCANCIÓN | Una pieza musical\n```';
+    expect(poolWords(text, 'spanish')).toEqual(expect.arrayContaining(['REY', 'CANCIÓN']));
+  });
+
+  it('does NOT treat an em-dash in loose prose as an entry (lenient, no fence)', () => {
+    // No fence -> lenient whole-text mode -> only "|" splits, so a dash in the
+    // model's chatter ("Sure — here you go") can never become a spurious word.
+    const text = 'Sure — here you go\nKING | A male ruler';
+    const words = poolWords(text);
+    expect(words).toContain('KING');
+    expect(words).not.toContain('SURE');
+  });
+});

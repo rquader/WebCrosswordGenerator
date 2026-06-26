@@ -487,6 +487,53 @@ function stripLengthHint(wordToken: string): string {
   return wordToken.replace(/\s*[([]\d+[)\]]\s*$/, '').trim();
 }
 
+/**
+ * Fold a word to the language's charset when it would otherwise be rejected for
+ * carrying diacritics that language doesn't use. English, French, German,
+ * Italian, and Portuguese all have an ASCII-only charset (extraLetters = ''),
+ * and the prompt asks models to write accents in plain form ("ELEVE", not
+ * "ÉLÈVE") — but weaker models on outlying topics don't always comply, so a real
+ * word like "ÉMIGRÉ" would be dropped. We strip the diacritics (É→E) and use the
+ * folded form ONLY if it then passes the charset. A word that already passes
+ * (e.g. a Spanish "canción", whose charset keeps accents) is returned unchanged,
+ * so accent-using languages are never flattened. Pure; no throw.
+ */
+function foldWordToCharset(word: string, charset: RegExp): string {
+  if (charset.test(word)) return word;
+  const folded = word.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // strip combining diacritics
+  return charset.test(folded) ? folded : word;
+}
+
+/**
+ * Find the word↔clue separator on an UNLABELED flat-pool line. The prompt asks
+ * for "|", but models (especially when an outlying/abstract topic pushes them
+ * into prose-style formatting) use an em-dash, en-dash, or spaced hyphen
+ * instead — and the flat pool is the DEFAULT format, so an entry like
+ * "GUILLOTINE — A machine ..." was silently lost (the old code only looked for
+ * "|"). We accept those separators too, but ONLY inside a real fenced block
+ * (`!lenient`): in lenient whole-text mode a dash in the model's chatter
+ * ("Sure — here you go") must never be mistaken for an entry. A bare colon is
+ * never accepted here (far too common in prose). The pipe is always accepted.
+ * Returns the first separator at/after the leading word token, or null.
+ */
+function findPoolSeparator(line: string, lenient: boolean): { index: number; length: number } | null {
+  const pipe = line.indexOf('|');
+  if (lenient) return pipe === -1 ? null : { index: pipe, length: 1 };
+  // The leading word token ends at the first whitespace or dash/pipe; we look
+  // for dash separators only at/after it, so a hyphen inside the word is safe.
+  const tokenMatch = line.match(/^\s*[^\s|—–]+/);
+  const from = tokenMatch ? tokenMatch[0].length : 0;
+  let index = pipe;
+  let length = 1;
+  for (const sep of ['—', '–']) {
+    const i = line.indexOf(sep, from);
+    if (i !== -1 && (index === -1 || i < index)) { index = i; length = 1; }
+  }
+  const spacedHyphen = line.indexOf(' - ', from);
+  if (spacedHyphen !== -1 && (index === -1 || spacedHyphen < index)) { index = spacedHyphen; length = 3; }
+  return index === -1 ? null : { index, length };
+}
+
 export function parseSkeletonFillResponse(
   text: string,
   options: {
@@ -588,10 +635,11 @@ export function parseSkeletonFillResponse(
     const labelMatch = line.match(SLOT_LABEL);
 
     if (!labelMatch) {
-      // Unlabeled line. If it has a pipe it's a spare-pool entry; otherwise
-      // it's prose — skip silently when lenient, report inside a real fence.
-      const pipeIndex = line.indexOf('|');
-      if (pipeIndex === -1) {
+      // Unlabeled line. A "|" — or, inside a real fence, an em/en-dash or spaced
+      // hyphen (findPoolSeparator) — marks a spare-pool entry; with no separator
+      // it's prose: skip silently when lenient, report inside a real fence.
+      const sep = findPoolSeparator(line, lenient);
+      if (sep === null) {
         if (!lenient) {
           result.issues.push({
             line: lineNumber,
@@ -601,14 +649,16 @@ export function parseSkeletonFillResponse(
         }
         continue;
       }
-      const rawClue = line.slice(pipeIndex + 1);
+      const rawClue = line.slice(sep.index + sep.length);
       // Omission cruft / placeholder: the model marked this word as discarded
       // (empty clue, "None — omitted.", "Not 7 letters", etc.) or gave a
       // placeholder clue ("-", "tbd", "...", a non-alphabetic clue) — meaning it
       // had no real clue, so the word is suspect. Drop silently — an intentional
       // omission, not a usable word and not a parse error.
       if (isDiscardedClue(rawClue) || isPlaceholderClue(rawClue)) continue;
-      const word = cleanWord(stripLengthHint(line.slice(0, pipeIndex)), allowTwoWords);
+      // Fold stray diacritics to the language's charset (É→E) so an accented word
+      // a weak model didn't write in plain form survives instead of being dropped.
+      const word = foldWordToCharset(cleanWord(stripLengthHint(line.slice(0, sep.index)), allowTwoWords), charset);
       const clue = cleanClue(rawClue);
       // Empty / non-letter word token (`| clue`, `123 | clue`, `*** | clue`): no
       // real answer here. Drop silently — never an issue, never a throw.
@@ -655,7 +705,7 @@ export function parseSkeletonFillResponse(
       });
       continue;
     }
-    const word = cleanWord(stripLengthHint(split.word), allowTwoWords);
+    const word = foldWordToCharset(cleanWord(stripLengthHint(split.word), allowTwoWords), charset);
     const clue = cleanClue(split.clue);
     const gridForm = toGridWord(word);
 
