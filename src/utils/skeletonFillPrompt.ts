@@ -130,6 +130,11 @@ export function buildSkeletonFillPrompt(options: {
     lines.push('- A two-word phrase MUST keep the underscore: write CARBON_DIOXIDE, never CARBONDIOXIDE. Two words run together with no underscore read as one word and get mislabeled — never merge two words without it.');
   } else {
     lines.push('- SINGLE WORDS ONLY (a true one-word compound like "sunflower" is fine).');
+    // Phrase-heavy / abstract topics (e.g. history) otherwise lose their key
+    // terms: the single-word fill drops a multi-word phrase, and a model that
+    // tries to keep it tends to RUN THE WORDS TOGETHER (the FREEKKICK failure).
+    // Steer it to a real single word instead — reinforces no-concatenation.
+    lines.push('- If a key idea is a multi-word phrase, give its most relevant SINGLE real word instead (for "Reign of Terror" use TERROR; for "National Assembly" use ASSEMBLY) — never run the words together.');
   }
   if (!allowProperNouns) {
     lines.push('- No proper nouns (specific people, places, brands, teams).');

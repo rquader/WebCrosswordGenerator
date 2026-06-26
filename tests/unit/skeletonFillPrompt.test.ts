@@ -218,6 +218,23 @@ describe('buildSkeletonFillPrompt (Variant J flat-pool)', () => {
     expect(prompt.toLowerCase()).toContain('silently delete');
   });
 
+  it('guides multi-word phrases to a single real word (helps abstract/phrase-heavy topics)', () => {
+    // Topics like "French Revolution" are full of multi-word terms (Reign of
+    // Terror, Third Estate) that the single-word fill drops. The prompt should
+    // tell the model to reduce them to the most relevant single REAL word —
+    // which also reinforces, never weakens, the no-concatenation rule.
+    const { slots, intersections, width, height } = paneFixture();
+    const prompt = buildSkeletonFillPrompt({
+      slots, intersections, width, height,
+      grid: emptyGrid(width, height),
+      context: 'French Revolution',
+    });
+    expect(prompt).toContain('SINGLE WORDS ONLY');
+    expect(prompt.toLowerCase()).toContain('multi-word');
+    expect(prompt).toContain('Reign of Terror'); // the worked example
+    expect(prompt.toLowerCase()).toContain('never run the words together');
+  });
+
   it('includes the charset, topic context fenced verbatim, and a code-block-only closing', () => {
     const { slots, intersections, width, height } = paneFixture();
     const prompt = buildSkeletonFillPrompt({
