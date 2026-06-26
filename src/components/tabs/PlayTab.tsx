@@ -32,6 +32,25 @@ function formatTime(seconds: number): { mins: string; secs: string } {
   return { mins, secs };
 }
 
+/** One-time flag: has the solver seen the touch orientation cue (P5)? */
+const TOUCH_CUE_KEY = 'crossword-touch-cue-seen';
+
+function hasSeenTouchCue(): boolean {
+  try {
+    return localStorage.getItem(TOUCH_CUE_KEY) === '1';
+  } catch {
+    return true; // no storage — don't nag
+  }
+}
+
+function markTouchCueSeen(): void {
+  try {
+    localStorage.setItem(TOUCH_CUE_KEY, '1');
+  } catch {
+    // best effort
+  }
+}
+
 export function PlayTab({ puzzle, puzzleMode }: PlayTabProps) {
   if (puzzleMode === 'wordsearch') {
     return <WordSearchGrid puzzle={puzzle} />;
@@ -54,6 +73,12 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   // "No mistakes so far"). A snapshot, cleared as soon as the solver edits.
   const [checkSummary, setCheckSummary] = useState<{ tone: 'warn' | 'info'; text: string } | null>(null);
   const gridHandle = useRef<PlayableGridHandle>(null);
+  const completionRef = useRef<HTMLDivElement>(null);
+
+  // P5 — one-time touch orientation cue, shown on compact widths before the
+  // solver has typed anything, then retired for good once they engage.
+  const [touchCueSeen, setTouchCueSeen] = useState(hasSeenTouchCue);
+  const showTouchCue = isCompact && !touchCueSeen && state.filledCount === 0;
 
   // Closing the tools sheet returns focus to the grid's hidden input (so the
   // soft keyboard comes back) without a scroll jump.
@@ -76,6 +101,28 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   useEffect(() => {
     setCheckSummary(null);
   }, [state.userGrid]);
+
+  // P5 — retire the touch cue for good once the solver enters a letter.
+  useEffect(() => {
+    if (state.filledCount > 0 && !touchCueSeen) {
+      markTouchCueSeen();
+      setTouchCueSeen(true);
+    }
+  }, [state.filledCount, touchCueSeen]);
+
+  // P9 — when the puzzle is solved, bring the "Solved" card into view (the
+  // grid can be tall on mobile, so the card may be off-screen). Reduced-motion
+  // safe. Only for an earned solve, not a full Reveal (the card hides then).
+  useEffect(() => {
+    if (state.isComplete && state.revealedCells.size === 0) {
+      const reduce = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      completionRef.current?.scrollIntoView({
+        behavior: reduce ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+  }, [state.isComplete, state.revealedCells.size]);
 
   const handleCheck = useCallback(() => {
     state.checkPuzzle();
@@ -187,7 +234,7 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     <div className="animate-fade-in pb-24 lg:pb-0">
       {/* Completion — a quiet editorial moment, not a popup */}
       {state.isComplete && !state.revealedCells.size && (
-        <div className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
+        <div ref={completionRef} className="mb-6 px-6 py-8 warm-card text-center animate-slide-up relative overflow-hidden">
           <CompletionConfetti />
 
           <div className="relative z-10">
@@ -244,7 +291,12 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            {/* Tools cluster — desktop only. On compact widths these live in
+                the play bar (Check) + tools sheet (hints, undo/redo, reveal,
+                clear, reset), so showing them here too would duplicate the UI
+                and drive horizontal overflow (P6). The timer + progress above
+                stay visible on every width. */}
+            <div className="hidden lg:flex items-center gap-1.5">
               <button
                 onClick={state.hintCell}
                 disabled={!state.selectedCell || !hintsAvailable}
@@ -316,9 +368,23 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
             </div>
           </div>
 
-          {/* Direction + keyboard hints */}
+          {/* P5 — one-time touch orientation cue (compact only, before the
+              first letter). Margin note with a gentle pulse, reduced-motion
+              safe; retires once the solver types. */}
+          {showTouchCue && (
+            <div className="mb-3 note" role="status">
+              <p className="text-sm text-ink">
+                <span className="mr-1.5 inline-block w-1.5 h-1.5 rounded-full bg-rubric align-middle
+                                 animate-pulse motion-reduce:animate-none" aria-hidden="true" />
+                Tap a square to type &middot; tap it again to switch direction.
+              </p>
+            </div>
+          )}
+
+          {/* Direction + keyboard hints — desktop only (physical keyboard). On
+              touch these chords don't apply; the cue above orients instead (P5). */}
           {state.selectedCell && (
-            <div className="mb-3 flex items-center gap-3 text-xs text-ink-3">
+            <div className="mb-3 hidden lg:flex items-center gap-3 text-xs text-ink-3">
               <span>
                 Typing: <span className="font-medium text-rubric">{state.isAcross ? 'Across' : 'Down'}</span>
               </span>

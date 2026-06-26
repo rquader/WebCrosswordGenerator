@@ -165,6 +165,53 @@ test.describe('crossword play bar (mobile/tablet)', () => {
     await expect(page.getByText('No mistakes so far.')).toBeVisible();
   });
 
+  test('P5 — a one-time touch cue shows, then retires after the first letter', async ({ page }) => {
+    await openPuzzle(page);
+
+    // Fresh context (empty localStorage) → the cue is shown before any typing.
+    const cue = page.getByText(/Tap a square to type/);
+    await expect(cue).toBeVisible();
+
+    // Entering a letter retires the cue for good.
+    await cell(page, 1, 1).click();
+    await page.keyboard.press('c');
+    await expect(cue).not.toBeVisible();
+  });
+
+  test('P6 — the duplicate desktop tools strip is hidden on compact widths', async ({ page }) => {
+    await openPuzzle(page);
+    // The play bar owns Check and the tools sheet owns hints/undo/reveal on
+    // compact, so the desktop strip's "Reveal all" / "Hint word" must not show.
+    await expect(page.getByRole('button', { name: /Reveal all/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Hint word' })).toHaveCount(0);
+  });
+
+  test('P9 — solving the puzzle reveals the completion card on-screen', async ({ page }) => {
+    await openPuzzle(page);
+
+    // Fill every answer (CAT across, ARE down, EAR across) cell by cell.
+    const fills: Array<[number, number, string]> = [
+      [1, 1, 'c'], [1, 2, 'a'], [1, 3, 't'], // CAT
+      [2, 2, 'r'],                            // ARE (A shared, E shared with EAR)
+      [3, 2, 'e'], [3, 3, 'a'], [3, 4, 'r'],  // EAR
+    ];
+    for (const [row, col, ch] of fills) {
+      await cell(page, row, col).click();
+      await page.keyboard.press(ch);
+    }
+
+    const solved = page.getByText('Solved.');
+    await expect(solved).toBeVisible();
+    // It sits within the viewport (the scroll-into-view brought it on-screen).
+    const box = await solved.boundingBox();
+    const vp = page.viewportSize();
+    expect(box).not.toBeNull();
+    if (vp) {
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeLessThan(vp.height);
+    }
+  });
+
   test('Tools sheet opens, closes, and the tools are present', async ({ page }) => {
     await openPuzzle(page);
     const bar = playBar(page);
