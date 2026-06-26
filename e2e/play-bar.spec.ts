@@ -140,6 +140,31 @@ test.describe('crossword play bar (mobile/tablet)', () => {
     await expect(cell(page, 1, 3)).toHaveAccessibleName(/letter T/i);
   });
 
+  test('P10 — Check summarises wrong squares in a margin note', async ({ page }) => {
+    await openPuzzle(page);
+    const bar = playBar(page);
+
+    // One wrong letter into CAT's first square, then Check via the bar.
+    await cell(page, 1, 1).click();
+    await page.keyboard.press('x');
+    await clickBarButton(page, bar, 'Check');
+
+    await expect(page.getByText('1 square to fix.')).toBeVisible();
+  });
+
+  test('P10 — Check reports no mistakes when filled letters are all right', async ({ page }) => {
+    await openPuzzle(page);
+    const bar = playBar(page);
+
+    // A correct letter, then Check — other squares are still empty, so the
+    // summary is the encouraging "no mistakes" note, not a fix count.
+    await cell(page, 1, 1).click();
+    await page.keyboard.press('c');
+    await clickBarButton(page, bar, 'Check');
+
+    await expect(page.getByText('No mistakes so far.')).toBeVisible();
+  });
+
   test('Tools sheet opens, closes, and the tools are present', async ({ page }) => {
     await openPuzzle(page);
     const bar = playBar(page);

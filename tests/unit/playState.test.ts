@@ -16,6 +16,7 @@ import {
   nextCellAfterTyping,
   prevCellForBackspace,
   firstEmptyCellOfNextUnfilledClue,
+  adjacentClueTarget,
   HINT_BUDGET,
   HINT_TIME_PENALTY,
   HINT_WORD_TIME_PENALTY,
@@ -241,5 +242,49 @@ describe('firstEmptyCellOfNextUnfilledClue — ordered wrapping search', () => {
     // From WIN (3-Across) at (2,2):
     const next = firstEmptyCellOfNextUnfilledClue(b1Puzzle, grid, true, 2, 2);
     expect(next).toEqual({ x: 0, y: 2, isAcross: false });
+  });
+});
+
+/**
+ * adjacentClueTarget — the play bar's ‹ › buttons. Solving order for b1Puzzle
+ * is [1-Across CAT, 1-Down COW, 2-Across WIN] (by number, Across before Down).
+ * Each step lands on the target clue's first empty cell, or its first cell when
+ * the whole clue is already filled, and carries that clue's direction.
+ */
+describe('adjacentClueTarget — play-bar clue stepping', () => {
+  it('next from the first clue moves to the following clue and sets its direction', () => {
+    // From 1-Across CAT (0,0) → 1-Down COW; empty grid → first empty is its top.
+    const target = adjacentClueTarget(b1Puzzle, b1Empty(), true, 0, 0, 'next');
+    expect(target).toEqual({ x: 0, y: 0, isAcross: false });
+  });
+
+  it('prev from the first clue wraps to the last clue', () => {
+    // From 1-Across CAT → wraps back to 2-Across WIN; first empty is (0,2).
+    const target = adjacentClueTarget(b1Puzzle, b1Empty(), true, 0, 0, 'prev');
+    expect(target).toEqual({ x: 0, y: 2, isAcross: true });
+  });
+
+  it('next wraps from the last clue back to the first', () => {
+    // From 2-Across WIN (0,2) → wraps to 1-Across CAT; first empty is (0,0).
+    const target = adjacentClueTarget(b1Puzzle, b1Empty(), true, 0, 2, 'next');
+    expect(target).toEqual({ x: 0, y: 0, isAcross: true });
+  });
+
+  it('lands on the first EMPTY cell of the target clue, skipping filled ones', () => {
+    // COW has C filled (shared with CAT); next from CAT lands on COW's first gap.
+    const grid = b1Empty();
+    grid[0][0] = 'C';
+    const target = adjacentClueTarget(b1Puzzle, grid, true, 0, 0, 'next');
+    expect(target).toEqual({ x: 0, y: 1, isAcross: false });
+  });
+
+  it('falls back to the first cell when the target clue is already full', () => {
+    // COW fully filled; next from CAT still lands on COW (its first cell).
+    const grid = b1Empty();
+    grid[0][0] = 'C';
+    grid[1][0] = 'O';
+    grid[2][0] = 'W';
+    const target = adjacentClueTarget(b1Puzzle, grid, true, 0, 0, 'next');
+    expect(target).toEqual({ x: 0, y: 0, isAcross: false });
   });
 });

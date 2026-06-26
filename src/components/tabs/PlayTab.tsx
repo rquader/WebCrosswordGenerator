@@ -50,6 +50,9 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
   const isCompact = useMediaQuery(PLAY_COMPACT_QUERY);
   const { keyboardOffset } = useVisualViewport();
   const [toolsOpen, setToolsOpen] = useState(false);
+  // P10 — a short margin-note summary of the last Check ("2 squares to fix" /
+  // "No mistakes so far"). A snapshot, cleared as soon as the solver edits.
+  const [checkSummary, setCheckSummary] = useState<{ tone: 'warn' | 'info'; text: string } | null>(null);
   const gridHandle = useRef<PlayableGridHandle>(null);
 
   // Closing the tools sheet returns focus to the grid's hidden input (so the
@@ -59,18 +62,36 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
     gridHandle.current?.focusInput();
   }, []);
 
+  // P3 — keep the active square visible on compact widths. scrollIntoView with
+  // 'nearest' (inside the grid handle) is a no-op when the square is already on
+  // screen, so typing within a visible word never janks; it only moves the view
+  // when a clue tap or the play bar's ‹ › jump lands the cursor off-screen.
+  useEffect(() => {
+    if (!isCompact || !state.selectedCell) return;
+    gridHandle.current?.scrollCellIntoView(state.selectedCell.x, state.selectedCell.y);
+  }, [isCompact, state.selectedCell]);
+
+  // The Check summary is a snapshot of one Check; drop it the moment the grid
+  // changes (a typed letter, Clear wrong, Reset) so it can never go stale.
+  useEffect(() => {
+    setCheckSummary(null);
+  }, [state.userGrid]);
+
   const handleCheck = useCallback(() => {
     state.checkPuzzle();
     // After checkPuzzle runs, checkedCells will update on next render.
     // We read from the puzzle directly to find incorrect cells.
     const incorrect = new Set<string>();
+    let firstWrong: { x: number; y: number } | null = null;
+    let emptyCount = 0;
     for (let y = 0; y < puzzle.height; y++) {
       for (let x = 0; x < puzzle.width; x++) {
         if (puzzle.grid[y][x] === '-') continue;
         const userLetter = state.userGrid[y]?.[x] ?? '';
-        if (userLetter === '') continue;
+        if (userLetter === '') { emptyCount++; continue; }
         if (userLetter.toLowerCase() !== puzzle.grid[y][x].toLowerCase()) {
           incorrect.add(x + ',' + y);
+          if (!firstWrong) firstWrong = { x, y };
         }
       }
     }
@@ -80,6 +101,19 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
       // Echo the error beyond the grid: the progress strip shudders too
       setHasCheckErrors(true);
       setTimeout(() => setHasCheckErrors(false), 600);
+      setCheckSummary({
+        tone: 'warn',
+        text: `${incorrect.size} square${incorrect.size === 1 ? '' : 's'} to fix.`,
+      });
+      // Bring the first wrong square into view so the shake isn't off-screen
+      // (matters on mobile, where Check lives in the bottom play bar).
+      if (firstWrong) gridHandle.current?.scrollCellIntoView(firstWrong.x, firstWrong.y);
+    } else {
+      // Nothing wrong among the filled squares.
+      setCheckSummary({
+        tone: 'info',
+        text: emptyCount > 0 ? 'No mistakes so far.' : 'All correct.',
+      });
     }
   }, [state.checkPuzzle, state.userGrid, puzzle]);
 
@@ -295,6 +329,17 @@ function CrosswordPlayView({ puzzle }: { puzzle: CrosswordResult }) {
               <span>
                 <kbd className="px-1 py-0.5 bg-well rounded text-[10px] font-mono border border-line">Ctrl+Z</kbd> undo
               </span>
+            </div>
+          )}
+
+          {/* P10 — Check result summary. A margin note, not a colored box: the
+              lead-in is colored, the body is ink. Read aloud for screen readers. */}
+          {checkSummary && (
+            <div
+              className={`mb-3 ${checkSummary.tone === 'warn' ? 'note-warn' : 'note'}`}
+              aria-live="polite"
+            >
+              <p className="text-sm text-ink">{checkSummary.text}</p>
             </div>
           )}
 
