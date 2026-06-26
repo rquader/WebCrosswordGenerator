@@ -113,11 +113,44 @@ export function solveSkeletonFill(options: {
   unfilledSlotIds: number[];
 } {
   const { slots, intersections, locked, pool, slotCandidates, preferredWords, language, seed = 0 } = options;
-  return fillGrid({
+
+  // TWO-PHASE fill, so the generic word bank can never crowd out the AI's
+  // on-topic words. A single pool+bank pass regressed badly: the solver commits
+  // bank words early at crossing cells, which lock out pool words in the
+  // neighbouring slots, so it placed far fewer on-topic words than the grid
+  // could actually hold (measured ~2x fewer on dense BYOG grids). Raising the
+  // node budget did NOT help (5x budget -> +1 word): it is the search STRUCTURE,
+  // not compute. See Obsidian "BYOG Fill Solver — Bank Crowds Out Pool (ADR)".
+  //
+  //   Phase 1: pool-ONLY fill (no bank). Places as many of the AI's words as
+  //            interlock; slots with no fitting pool word are left blank (no
+  //            constraint imposed on their crossings, so pool words flourish).
+  //   Phase 2: LOCK every Phase-1 placement, then fill with the bank. The pool
+  //            words can no longer be displaced; the bank only fills the gaps.
+  //
+  // Determinism is preserved (same seed throughout). Phase 2 may still place
+  // additional pool words into the leftover blanks, so on-topic >= Phase 1.
+  const phase1 = fillGrid({
     slots,
     intersections,
     pool,
     locked,
+    slotCandidates,
+    preferredWords,
+    language,
+    includeWordBank: false,
+    seed,
+  });
+
+  // Everything Phase 1 placed (the genuine user-locked words are already in
+  // here — locked always wins inside fillGrid) becomes hard-locked for Phase 2.
+  const lockedAfterPhase1 = new Map(phase1.assignments);
+
+  return fillGrid({
+    slots,
+    intersections,
+    pool,
+    locked: lockedAfterPhase1,
     slotCandidates,
     preferredWords,
     language,

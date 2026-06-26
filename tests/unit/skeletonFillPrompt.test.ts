@@ -33,6 +33,7 @@ import {
   fillSkeletonFromResponse,
   isDiscardedClue,
 } from '../../src/utils/skeletonFillPrompt';
+import { fillGrid } from '../../src/logic/gridFill';
 
 /** '#' = block, anything else = open. One row per string. */
 function maskFromRows(rows: string[]): { mask: BlockMask; width: number; height: number } {
@@ -1462,8 +1463,10 @@ COMMENT: Words drawn from revolution, monarchy, and broader political and social
     const placed = [...result.assignments.values()].map(a => a.word.toUpperCase());
     for (const bad of FORBIDDEN) expect(placed).not.toContain(bad);
     // The bulk of the 20-slot grid fills (pool + bank); a few hard-crossing slots
-    // may stay blank, which is by design. ~70%+ proves the fill pipeline works.
-    expect(result.assignments.size).toBeGreaterThanOrEqual(14);
+    // may stay blank, which is by design. The two-phase pool-first fill trades a
+    // little total fill for far more on-topic words (the deliberate tradeoff —
+    // see the "crowd out" test below), so the floor is ~65%, not ~70%.
+    expect(result.assignments.size).toBeGreaterThanOrEqual(13);
   });
 
   it('places the flawless Opus reply with rich on-topic words and SHORT_LENGTHS none', () => {
@@ -1491,5 +1494,36 @@ COMMENT: Words drawn from revolution, monarchy, and broader political and social
     expect(result.assignments.size).toBeGreaterThanOrEqual(14);
     expect(result.shortLengths).toEqual([]);
     expect(result.issues).toHaveLength(0); // a clean reply produces no parser issues
+  });
+
+  // The bank is a GAP-FILLER, not a competitor: the full pool+bank pipeline must
+  // place at least as many of the AI's on-topic words as a pool-ONLY solve can
+  // interlock on the same grid. (The single-pass solver regressed here — bank
+  // words committed early at crossings locked out pool words downstream, so the
+  // pipeline placed far fewer on-topic words than the grid could actually hold.)
+  it('does not let the word bank crowd out pool words the grid can hold', () => {
+    const { slots, intersections, width, height } = e2eFixture();
+
+    const parse = parseSkeletonFillResponse(OPUS_FRENCH_REVOLUTION, { slots, intersections });
+    const poolSet = new Set(parse.pool.map(p => p.word.toLowerCase()));
+
+    // Reference ceiling: a pool-ONLY solve (blanks allowed) — every filled slot
+    // is on-topic, so its fill count is the most pool words this grid can hold.
+    const poolOnly = fillGrid({
+      slots, intersections, pool: parse.pool, slotCandidates: parse.slotCandidates,
+      includeWordBank: false, seed: 1,
+    });
+    const ceiling = poolOnly.assignments.size;
+    expect(ceiling).toBeGreaterThan(0);
+
+    // The real pipeline (pool + bank). On-topic = a placed word that is in the pool.
+    const result = fillSkeletonFromResponse({
+      response: OPUS_FRENCH_REVOLUTION, slots, intersections, width, height, seed: 1,
+    });
+    const onTopicPlaced = [...result.assignments.values()]
+      .filter(a => poolSet.has(a.word.toLowerCase())).length;
+
+    // Adding the bank must not REDUCE how many pool words land.
+    expect(onTopicPlaced).toBeGreaterThanOrEqual(ceiling);
   });
 });
