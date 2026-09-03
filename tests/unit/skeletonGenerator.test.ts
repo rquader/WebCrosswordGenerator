@@ -31,11 +31,6 @@ function dontEntry(word: string, clue: string): PrioritizedEntry {
   return { word, clue, priority: 'dont' };
 }
 
-/** Count slots that are pre-filled (user words). */
-function countFilledSlots(slots: SkeletonSlot[]): number {
-  return slots.filter(s => s.word !== undefined).length;
-}
-
 /** Count empty (blank) skeleton slots. */
 function countEmptySlots(slots: SkeletonSlot[]): number {
   return slots.filter(s => s.word === undefined).length;
